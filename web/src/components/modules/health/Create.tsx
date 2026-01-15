@@ -17,10 +17,12 @@ import { toast } from '@/components/common/Toast';
 import { Field, FieldLabel, FieldGroup } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useTranslations } from 'next-intl';
 
 export function CreateDialogContent() {
     const { setIsOpen } = useMorphingDialog();
     const createHealth = useHealthCreate();
+    const t = useTranslations('health');
     const { data: channels } = useChannelList();
 
     const [channelId, setChannelId] = useState<string>('');
@@ -32,7 +34,7 @@ export function CreateDialogContent() {
         e.preventDefault();
 
         if (!channelId) {
-            toast.error('Please select a channel');
+            toast.error(t('form.channel') + '?');
             return;
         }
 
@@ -45,21 +47,21 @@ export function CreateDialogContent() {
 
         createHealth.mutate(data, {
             onSuccess: () => {
-                toast.success('Health check created');
+                toast.success(t('toast.created'));
                 setIsOpen(false);
             },
             onError: (error) => {
-                toast.error('Failed to create health check', { description: error.message });
+                toast.error(t('toast.createFailed'), { description: error.message });
             },
         });
-    }, [channelId, modelName, interval, prompt, createHealth, setIsOpen]);
+    }, [channelId, modelName, interval, prompt, createHealth, setIsOpen, t]);
 
     return (
         <div className="w-screen max-w-full md:max-w-lg min-h-0 flex flex-col">
             <MorphingDialogTitle className="shrink-0">
                 <header className="mb-5 flex items-center justify-between">
                     <h2 className="text-2xl font-bold text-card-foreground">
-                        New Health Check
+                        {t('create.title')}
                     </h2>
                     <MorphingDialogClose
                         className="relative right-0 top-0"
@@ -75,10 +77,10 @@ export function CreateDialogContent() {
                 <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                     <FieldGroup>
                         <Field>
-                            <FieldLabel>Channel</FieldLabel>
+                            <FieldLabel>{t('form.channel')}</FieldLabel>
                             <Select value={channelId} onValueChange={setChannelId}>
                                 <SelectTrigger className="w-full">
-                                    <SelectValue placeholder="Select a channel" />
+                                    <SelectValue placeholder={t('form.channel')} />
                                 </SelectTrigger>
                                 <SelectContent>
                                     {channels?.map((channel) => (
@@ -93,7 +95,7 @@ export function CreateDialogContent() {
                             </Select>
                         </Field>
                         <Field>
-                            <FieldLabel>Model Name</FieldLabel>
+                            <FieldLabel>{t('form.modelName')}</FieldLabel>
                             <Input
                                 value={modelName}
                                 onChange={(e) => setModelName(e.target.value)}
@@ -102,19 +104,19 @@ export function CreateDialogContent() {
                             />
                         </Field>
                         <Field>
-                            <FieldLabel>Check Interval</FieldLabel>
+                            <FieldLabel>{t('form.interval')}</FieldLabel>
                             <Select value={interval} onValueChange={(v) => setInterval(v as CheckInterval)}>
                                 <SelectTrigger className="w-full">
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value={CheckInterval.Hourly}>Hourly</SelectItem>
-                                    <SelectItem value={CheckInterval.Daily}>Daily</SelectItem>
+                                    <SelectItem value={CheckInterval.Hourly}>{t('interval.hourly')}</SelectItem>
+                                    <SelectItem value={CheckInterval.Daily}>{t('interval.daily')}</SelectItem>
                                 </SelectContent>
                             </Select>
                         </Field>
                         <Field>
-                            <FieldLabel>Prompt</FieldLabel>
+                            <FieldLabel>{t('form.prompt')}</FieldLabel>
                             <Input
                                 value={prompt}
                                 onChange={(e) => setPrompt(e.target.value)}
@@ -129,14 +131,14 @@ export function CreateDialogContent() {
                             onClick={() => setIsOpen(false)}
                             className="px-4 py-2 rounded-lg bg-muted hover:bg-muted/80 transition-colors"
                         >
-                            Cancel
+                            {t('form.cancel')}
                         </button>
                         <button
                             type="submit"
                             disabled={createHealth.isPending}
                             className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
                         >
-                            {createHealth.isPending ? 'Creating...' : 'Create'}
+                            {createHealth.isPending ? t('form.creating') : t('form.create')}
                         </button>
                     </div>
                 </form>

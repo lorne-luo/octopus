@@ -49,6 +49,7 @@
         "group": "分组",
         "key": "密钥",
         "model": "价格",
+        "health": "状态",
         "log": "日志",
         "setting": "设置"
     },
@@ -474,5 +475,52 @@
             "autoGroupExact": "准确匹配",
             "autoGroupRegex": "正则匹配"
         }
+    },
+    "health": {
+        "toast": {
+            "created": "健康检查已创建",
+            "createFailed": "创建失败",
+            "updated": "更新成功",
+            "updateFailed": "更新失败",
+            "deleted": "删除成功"
+        },
+        "card": {
+            "status": {
+                "healthy": "健康",
+                "unhealthy": "异常",
+                "unknown": "未知",
+                "checking": "检查中"
+            },
+            "prompt": "提示词",
+            "lastCheck": "上次检查",
+            "nextCheck": "下次检查",
+            "actions": {
+                "edit": "编辑",
+                "delete": "删除",
+                "confirmDelete": "确认删除"
+            }
+        },
+        "create": {
+            "title": "新建健康检查"
+        },
+        "edit": {
+            "title": "编辑健康检查"
+        },
+        "form": {
+            "channel": "渠道",
+            "modelName": "模型名称",
+            "interval": "检查间隔",
+            "prompt": "提示词",
+            "cancel": "取消",
+            "save": "保存",
+            "create": "创建",
+            "saving": "保存中...",
+            "creating": "创建中..."
+        },
+        "interval": {
+            "hourly": "每小时",
+            "daily": "每天"
+        },
+        "empty": "暂无健康检查，点击左上角按钮创建"
     }
 }
