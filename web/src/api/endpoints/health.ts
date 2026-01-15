@@ -70,8 +70,9 @@ export const useHealthList = () => {
     return useQuery({
         queryKey: ['health', 'list'],
         queryFn: async () => {
-            const response = await apiClient.get<ApiResponse<HealthCheckWithChannel[]>>('/api/v1/health/list');
-            return response.data || [];
+            // apiClient already unwraps the ApiResponse, so we get the data directly
+            const response = await apiClient.get<HealthCheckWithChannel[]>('/api/v1/health/list');
+            return response || [];
         },
     });
 };
@@ -83,7 +84,8 @@ export const useHealthCreate = () => {
     const queryClient = useQueryClient();
     return useMutation({
         mutationFn: async (data: CreateHealthCheckRequest) => {
-            return await apiClient.post<ApiResponse<HealthCheck>>('/api/v1/health/create', data);
+            // apiClient already unwraps the ApiResponse
+            return await apiClient.post<HealthCheck>('/api/v1/health/create', data);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['health', 'list'] });
@@ -98,7 +100,8 @@ export const useHealthUpdate = () => {
     const queryClient = useQueryClient();
     return useMutation({
         mutationFn: async (data: UpdateHealthCheckRequest) => {
-            return await apiClient.post<ApiResponse<HealthCheck>>('/api/v1/health/update', data);
+            // apiClient already unwraps the ApiResponse
+            return await apiClient.post<HealthCheck>('/api/v1/health/update', data);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['health', 'list'] });
@@ -113,7 +116,8 @@ export const useHealthDelete = () => {
     const queryClient = useQueryClient();
     return useMutation({
         mutationFn: async (id: number) => {
-            return await apiClient.delete<ApiResponse<null>>(`/api/v1/health/delete/${id}`);
+            // apiClient already unwraps the ApiResponse
+            return await apiClient.delete<null>(`/api/v1/health/delete/${id}`);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['health', 'list'] });
@@ -122,7 +126,7 @@ export const useHealthDelete = () => {
 };
 
 /**
- * API response wrapper type
+ * API response wrapper type (kept for reference, but apiClient auto-unwraps)
  */
 export type ApiResponse<T> = {
     success: boolean;
