@@ -59,4 +59,7 @@ func Init() {
 			log.Warnf("relay log save db task failed: %v", err)
 		}
 	})
+
+	// 加载并注册所有健康检查任务
+	LoadAndRegisterHealthTasks()
 }
