@@ -1,0 +1,136 @@
+package op
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/bestruirui/octopus/internal/db"
+	"github.com/bestruirui/octopus/internal/model"
+)
+
+// HealthList returns all health checks with their channel names
+func HealthList(ctx context.Context) ([]model.HealthCheckWithChannel, error) {
+	var healthChecks []model.HealthCheckWithChannel
+	err := db.GetDB().WithContext(ctx).
+		Table("health_checks").
+		Select("health_checks.*, channels.name as channel_name").
+		Joins("LEFT JOIN channels ON health_checks.channel_id = channels.id").
+		Order("health_checks.id DESC").
+		Find(&healthChecks).Error
+	return healthChecks, err
+}
+
+// HealthGet retrieves a single health check by ID
+func HealthGet(ctx context.Context, id int) (*model.HealthCheck, error) {
+	var hc model.HealthCheck
+	err := db.GetDB().WithContext(ctx).First(&hc, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &hc, nil
+}
+
+// HealthCreate creates a new health check and registers it as a task
+func HealthCreate(ctx context.Context, hc *model.HealthCheck) error {
+	// Check if the channel exists
+	var channel model.Channel
+	if err := db.GetDB().WithContext(ctx).First(&channel, hc.ChannelID).Error; err != nil {
+		return fmt.Errorf("channel not found: %w", err)
+	}
+
+	// Check for duplicate channel_id + model_name
+	var count int64
+	err := db.GetDB().WithContext(ctx).Model(&model.HealthCheck{}).
+		Where("channel_id = ? AND model_name = ?", hc.ChannelID, hc.ModelName).
+		Count(&count).Error
+	if err != nil {
+		return err
+	}
+	if count > 0 {
+		return fmt.Errorf("health check already exists for this channel and model")
+	}
+
+	// Set initial status and next check time
+	hc.Status = model.HealthCheckStatusUnknown
+	now := time.Now()
+	nextCheck := now
+	hc.NextCheck = &nextCheck
+
+	// Create in database
+	if err := db.GetDB().WithContext(ctx).Create(hc).Error; err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// HealthUpdate updates an existing health check
+func HealthUpdate(ctx context.Context, hc *model.HealthCheck) error {
+	if hc.ID == 0 {
+		return fmt.Errorf("health check ID is required")
+	}
+
+	// Check if exists
+	var existing model.HealthCheck
+	if err := db.GetDB().WithContext(ctx).First(&existing, hc.ID).Error; err != nil {
+		return fmt.Errorf("health check not found: %w", err)
+	}
+
+	// Check for duplicate if channel_id or model_name changed
+	if hc.ChannelID != existing.ChannelID || hc.ModelName != existing.ModelName {
+		var count int64
+		err := db.GetDB().WithContext(ctx).Model(&model.HealthCheck{}).
+			Where("channel_id = ? AND model_name = ? AND id != ?", hc.ChannelID, hc.ModelName, hc.ID).
+			Count(&count).Error
+		if err != nil {
+			return err
+		}
+		if count > 0 {
+			return fmt.Errorf("health check already exists for this channel and model")
+		}
+	}
+
+	// Update only specific fields
+	updates := map[string]interface{}{
+		"model_name": hc.ModelName,
+		"interval":   hc.Interval,
+		"prompt":     hc.Prompt,
+	}
+
+	err := db.GetDB().WithContext(ctx).Model(&model.HealthCheck{}).
+		Where("id = ?", hc.ID).
+		Updates(updates).Error
+
+	return err
+}
+
+// HealthDelete deletes a health check by ID
+func HealthDelete(ctx context.Context, id int) error {
+	result := db.GetDB().WithContext(ctx).Delete(&model.HealthCheck{}, id)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("health check not found")
+	}
+	return nil
+}
+
+// HealthUpdateStatus updates the status and error message of a health check
+// This is called by the task runner after each check
+func HealthUpdateStatus(ctx context.Context, id int, status model.HealthCheckStatus, lastError *string, nextCheck *time.Time) error {
+	now := time.Now()
+	updates := map[string]interface{}{
+		"status":     status,
+		"last_check": now,
+		"last_error": lastError,
+	}
+	if nextCheck != nil {
+		updates["next_check"] = nextCheck
+	}
+
+	return db.GetDB().WithContext(ctx).Model(&model.HealthCheck{}).
+		Where("id = ?", id).
+		Updates(updates).Error
+}
