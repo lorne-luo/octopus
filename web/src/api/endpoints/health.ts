@@ -126,6 +126,26 @@ export const useHealthDelete = () => {
 };
 
 /**
+ * Test a health check immediately
+ */
+export const useHealthTest = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (id: number) => {
+            // apiClient already unwraps the ApiResponse
+            // Send empty object to satisfy RequireJSON middleware
+            return await apiClient.post<null>(`/api/v1/health/test/${id}`, {});
+        },
+        onSuccess: () => {
+            // Invalidate after a short delay to allow the test to complete
+            setTimeout(() => {
+                queryClient.invalidateQueries({ queryKey: ['health', 'list'] });
+            }, 1000);
+        },
+    });
+};
+
+/**
  * API response wrapper type (kept for reference, but apiClient auto-unwraps)
  */
 export type ApiResponse<T> = {
