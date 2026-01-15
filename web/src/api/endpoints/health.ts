@@ -12,22 +12,13 @@ export enum HealthCheckStatus {
 }
 
 /**
- * Check interval enum
- */
-export enum CheckInterval {
-    Minutely = 'minutely',
-    Hourly = 'hourly',
-    Daily = 'daily',
-}
-
-/**
  * Health check data structure
  */
 export type HealthCheck = {
     id: number;
     channel_id: number;
     model_name: string;
-    interval: CheckInterval;
+    interval_minutes: number;
     prompt: string;
     status: HealthCheckStatus;
     last_check?: string;
@@ -50,7 +41,7 @@ export type HealthCheckWithChannel = HealthCheck & {
 export type CreateHealthCheckRequest = {
     channel_id: number;
     model_name: string;
-    interval: CheckInterval;
+    interval_minutes: number;
     prompt: string;
 };
 
@@ -60,7 +51,7 @@ export type CreateHealthCheckRequest = {
 export type UpdateHealthCheckRequest = {
     id: number;
     model_name?: string;
-    interval?: CheckInterval;
+    interval_minutes?: number;
     prompt?: string;
 };
 

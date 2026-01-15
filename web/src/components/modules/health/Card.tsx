@@ -1,12 +1,11 @@
 'use client';
 
 import { useState, useCallback, useMemo } from 'react';
-import { Trash2, X, Pencil, Clock, AlertCircle, Play } from 'lucide-react';
+import { Trash2, X, Pencil, AlertCircle, Play } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
     type HealthCheckWithChannel,
     HealthCheckStatus,
-    CheckInterval,
     useHealthDelete,
     useHealthUpdate,
     useHealthTest,
@@ -88,7 +87,7 @@ function EditDialogContent({ healthCheck }: { healthCheck: HealthCheckWithChanne
     const t = useTranslations('health');
     const { data: channels } = useChannelList();
     const [modelName, setModelName] = useState(healthCheck.model_name);
-    const [interval, setInterval] = useState(healthCheck.interval);
+    const [intervalMinutes, setIntervalMinutes] = useState(healthCheck.interval_minutes);
     const [prompt, setPrompt] = useState(healthCheck.prompt);
 
     // Get models for the current channel
@@ -114,7 +113,7 @@ function EditDialogContent({ healthCheck }: { healthCheck: HealthCheckWithChanne
         const data: UpdateHealthCheckRequest = {
             id: healthCheck.id,
             model_name: modelName,
-            interval: interval,
+            interval_minutes: intervalMinutes,
             prompt: prompt,
         };
         updateHealth.mutate(data, {
@@ -126,7 +125,7 @@ function EditDialogContent({ healthCheck }: { healthCheck: HealthCheckWithChanne
                 toast.error(t('toast.updateFailed'), { description: error.message });
             },
         });
-    }, [healthCheck.id, modelName, interval, prompt, updateHealth, setIsOpen, t]);
+    }, [healthCheck.id, modelName, intervalMinutes, prompt, updateHealth, setIsOpen, t]);
 
     return (
         <>
@@ -170,17 +169,14 @@ function EditDialogContent({ healthCheck }: { healthCheck: HealthCheckWithChanne
                             )}
                         </Field>
                         <Field>
-                            <FieldLabel>{t('form.interval')}</FieldLabel>
-                            <Select value={interval} onValueChange={(v) => setInterval(v as CheckInterval)}>
-                                <SelectTrigger className="w-full">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value={CheckInterval.Minutely}>{t('interval.minutely')}</SelectItem>
-                                    <SelectItem value={CheckInterval.Hourly}>{t('interval.hourly')}</SelectItem>
-                                    <SelectItem value={CheckInterval.Daily}>{t('interval.daily')}</SelectItem>
-                                </SelectContent>
-                            </Select>
+                            <FieldLabel>{t('form.intervalMinutes')}</FieldLabel>
+                            <Input
+                                type="number"
+                                min={1}
+                                value={intervalMinutes}
+                                onChange={(e) => setIntervalMinutes(parseInt(e.target.value, 10) || 1)}
+                                required
+                            />
                         </Field>
                         <Field>
                             <FieldLabel>{t('form.prompt')}</FieldLabel>
@@ -222,11 +218,7 @@ export function HealthCard({ healthCheck }: HealthCardProps) {
     const t = useTranslations('health');
     const [confirmDelete, setConfirmDelete] = useState(false);
 
-    const intervalLabel = healthCheck.interval === CheckInterval.Minutely
-        ? t('interval.minutely')
-        : healthCheck.interval === CheckInterval.Hourly
-            ? t('interval.hourly')
-            : t('interval.daily');
+    const intervalLabel = `${healthCheck.interval_minutes} ${t('form.minutes')}`;
     const isChecking = healthCheck.status === HealthCheckStatus.Checking || testHealth.isPending;
 
     const handleTest = useCallback(() => {
@@ -340,7 +332,6 @@ export function HealthCard({ healthCheck }: HealthCardProps) {
             {/* Interval Badge */}
             <div className="flex gap-2 mb-3">
                 <span className="px-2 py-1 text-xs rounded-lg bg-muted flex items-center gap-1">
-                    <Clock className="size-3" />
                     {intervalLabel}
                 </span>
             </div>

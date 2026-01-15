@@ -12,28 +12,19 @@ const (
 	HealthCheckStatusChecking  HealthCheckStatus = "checking"  // Currently checking
 )
 
-// CheckInterval represents how often to run the health check
-type CheckInterval string
-
-const (
-	CheckIntervalMinutely CheckInterval = "minutely" // Every minute
-	CheckIntervalHourly   CheckInterval = "hourly"   // Every hour
-	CheckIntervalDaily    CheckInterval = "daily"    // Every day
-)
-
 // HealthCheck represents a health check configuration for a channel
 type HealthCheck struct {
-	ID        int               `json:"id" gorm:"primaryKey"`
-	ChannelID int               `json:"channel_id" gorm:"not null;index:idx_channel_model,unique"`
-	ModelName string            `json:"model_name" gorm:"not null;index:idx_channel_model,unique"`
-	Interval  CheckInterval     `json:"interval" gorm:"not null"`
-	Prompt    string            `json:"prompt" gorm:"not null"`
-	Status    HealthCheckStatus `json:"status" gorm:"default:'unknown'"`
-	LastCheck *time.Time        `json:"last_check"`
-	NextCheck *time.Time        `json:"next_check"`
-	LastError *string           `json:"last_error"`
-	CreatedAt time.Time         `json:"created_at"`
-	UpdatedAt time.Time         `json:"updated_at"`
+	ID              int               `json:"id" gorm:"primaryKey"`
+	ChannelID       int               `json:"channel_id" gorm:"not null;index:idx_channel_model,unique"`
+	ModelName       string            `json:"model_name" gorm:"not null;index:idx_channel_model,unique"`
+	IntervalMinutes int               `json:"interval_minutes" gorm:"not null;default:60"`
+	Prompt          string            `json:"prompt" gorm:"not null"`
+	Status          HealthCheckStatus `json:"status" gorm:"default:'unknown'"`
+	LastCheck       *time.Time        `json:"last_check"`
+	NextCheck       *time.Time        `json:"next_check"`
+	LastError       *string           `json:"last_error"`
+	CreatedAt       time.Time         `json:"created_at"`
+	UpdatedAt       time.Time         `json:"updated_at"`
 }
 
 // HealthCheckWithChannel includes the channel name for frontend display
