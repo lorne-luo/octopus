@@ -486,7 +486,9 @@
             "createFailed": "创建失败",
             "updated": "更新成功",
             "updateFailed": "更新失败",
-            "deleted": "删除成功"
+            "deleted": "删除成功",
+            "testing": "开始测试...",
+            "testFailed": "测试失败"
         },
         "card": {
             "status": {
@@ -501,7 +503,8 @@
             "actions": {
                 "edit": "编辑",
                 "delete": "删除",
-                "confirmDelete": "确认删除"
+                "confirmDelete": "确认删除",
+                "test": "立即测试"
             }
         },
         "create": {
