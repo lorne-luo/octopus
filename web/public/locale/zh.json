@@ -49,7 +49,7 @@
         "group": "分组",
         "key": "密钥",
         "model": "价格",
-        "health": "状态",
+        "health": "渠道监测",
         "log": "日志",
         "setting": "设置"
     },
@@ -516,7 +516,8 @@
         "form": {
             "channel": "渠道",
             "modelName": "模型名称",
-            "interval": "检查间隔",
+            "intervalMinutes": "间隔（分钟）",
+            "minutes": "分钟",
             "prompt": "提示词",
             "cancel": "取消",
             "save": "保存",
@@ -524,11 +525,7 @@
             "saving": "保存中...",
             "creating": "创建中..."
         },
-        "interval": {
-            "minutely": "每分钟",
-            "hourly": "每小时",
-            "daily": "每天"
-        },
+
         "empty": "暂无渠道监测，点击左上角按钮创建"
     }
 }

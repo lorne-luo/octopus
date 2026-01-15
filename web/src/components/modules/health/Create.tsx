@@ -9,7 +9,6 @@ import {
 } from '@/components/ui/morphing-dialog';
 import {
     useHealthCreate,
-    CheckInterval,
     type CreateHealthCheckRequest,
 } from '@/api/endpoints/health';
 import { useChannelList } from '@/api/endpoints/channel';
@@ -27,7 +26,7 @@ export function CreateDialogContent() {
 
     const [channelId, setChannelId] = useState<string>('');
     const [modelName, setModelName] = useState('');
-    const [interval, setInterval] = useState<CheckInterval>(CheckInterval.Hourly);
+    const [intervalMinutes, setIntervalMinutes] = useState<number>(60);
     const [prompt, setPrompt] = useState('hi');
 
     // Get models for the selected channel
@@ -65,7 +64,7 @@ export function CreateDialogContent() {
         const data: CreateHealthCheckRequest = {
             channel_id: parseInt(channelId, 10),
             model_name: modelName,
-            interval: interval,
+            interval_minutes: intervalMinutes,
             prompt: prompt,
         };
 
@@ -78,7 +77,7 @@ export function CreateDialogContent() {
                 toast.error(t('toast.createFailed'), { description: error.message });
             },
         });
-    }, [channelId, modelName, interval, prompt, createHealth, setIsOpen, t]);
+    }, [channelId, modelName, intervalMinutes, prompt, createHealth, setIsOpen, t]);
 
     return (
         <div className="w-screen max-w-full md:max-w-lg min-h-0 flex flex-col">
@@ -143,17 +142,14 @@ export function CreateDialogContent() {
                             )}
                         </Field>
                         <Field>
-                            <FieldLabel>{t('form.interval')}</FieldLabel>
-                            <Select value={interval} onValueChange={(v) => setInterval(v as CheckInterval)}>
-                                <SelectTrigger className="w-full">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value={CheckInterval.Minutely}>{t('interval.minutely')}</SelectItem>
-                                    <SelectItem value={CheckInterval.Hourly}>{t('interval.hourly')}</SelectItem>
-                                    <SelectItem value={CheckInterval.Daily}>{t('interval.daily')}</SelectItem>
-                                </SelectContent>
-                            </Select>
+                            <FieldLabel>{t('form.intervalMinutes')}</FieldLabel>
+                            <Input
+                                type="number"
+                                min={1}
+                                value={intervalMinutes}
+                                onChange={(e) => setIntervalMinutes(parseInt(e.target.value, 10) || 1)}
+                                required
+                            />
                         </Field>
                         <Field>
                             <FieldLabel>{t('form.prompt')}</FieldLabel>
