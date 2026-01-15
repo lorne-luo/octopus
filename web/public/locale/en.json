@@ -49,6 +49,7 @@
         "group": "Group",
         "key": "Key",
         "model": "Price",
+        "health": "Health",
         "log": "Log",
         "setting": "Setting"
     },
@@ -478,5 +479,52 @@
             "matchRegexPlaceholder": "Optional: regex pattern to match request model names",
             "remark": "Remark"
         }
+    },
+    "health": {
+        "toast": {
+            "created": "Health check created",
+            "createFailed": "Failed to create",
+            "updated": "Updated successfully",
+            "updateFailed": "Update failed",
+            "deleted": "Deleted successfully"
+        },
+        "card": {
+            "status": {
+                "healthy": "Healthy",
+                "unhealthy": "Unhealthy",
+                "unknown": "Unknown",
+                "checking": "Checking"
+            },
+            "prompt": "Prompt",
+            "lastCheck": "Last Check",
+            "nextCheck": "Next Check",
+            "actions": {
+                "edit": "Edit",
+                "delete": "Delete",
+                "confirmDelete": "Confirm Delete"
+            }
+        },
+        "create": {
+            "title": "New Health Check"
+        },
+        "edit": {
+            "title": "Edit Health Check"
+        },
+        "form": {
+            "channel": "Channel",
+            "modelName": "Model Name",
+            "interval": "Interval",
+            "prompt": "Prompt",
+            "cancel": "Cancel",
+            "save": "Save",
+            "create": "Create",
+            "saving": "Saving...",
+            "creating": "Creating..."
+        },
+        "interval": {
+            "hourly": "Hourly",
+            "daily": "Daily"
+        },
+        "empty": "No health checks yet, click the button above to create one"
     }
 }
