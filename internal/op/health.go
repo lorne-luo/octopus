@@ -91,11 +91,20 @@ func HealthUpdate(ctx context.Context, hc *model.HealthCheck) error {
 		}
 	}
 
+	// Calculate new next_check based on last_check (or now if never checked)
+	var nextCheck time.Time
+	if existing.LastCheck != nil {
+		nextCheck = existing.LastCheck.Add(time.Duration(hc.IntervalMinutes) * time.Minute)
+	} else {
+		nextCheck = time.Now().Add(time.Duration(hc.IntervalMinutes) * time.Minute)
+	}
+
 	// Update only specific fields
 	updates := map[string]interface{}{
-		"model_name": hc.ModelName,
-		"interval":   hc.Interval,
-		"prompt":     hc.Prompt,
+		"model_name":       hc.ModelName,
+		"interval_minutes": hc.IntervalMinutes,
+		"prompt":           hc.Prompt,
+		"next_check":       nextCheck,
 	}
 
 	err := db.GetDB().WithContext(ctx).Model(&model.HealthCheck{}).

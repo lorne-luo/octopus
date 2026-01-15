@@ -512,7 +512,8 @@
         "form": {
             "channel": "Channel",
             "modelName": "Model Name",
-            "interval": "Interval",
+            "intervalMinutes": "Interval (minutes)",
+            "minutes": "min",
             "prompt": "Prompt",
             "cancel": "Cancel",
             "save": "Save",
@@ -520,11 +521,7 @@
             "saving": "Saving...",
             "creating": "Creating..."
         },
-        "interval": {
-            "minutely": "Every Minute",
-            "hourly": "Hourly",
-            "daily": "Daily"
-        },
+
         "empty": "No health checks yet, click the button above to create one"
     }
 }
