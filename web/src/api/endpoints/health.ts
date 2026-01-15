@@ -15,6 +15,7 @@ export enum HealthCheckStatus {
  * Check interval enum
  */
 export enum CheckInterval {
+    Minutely = 'minutely',
     Hourly = 'hourly',
     Daily = 'daily',
 }
