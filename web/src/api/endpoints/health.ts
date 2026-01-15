@@ -138,10 +138,14 @@ export const useHealthTest = () => {
             return await apiClient.post<null>(`/api/v1/health/test/${id}`, {});
         },
         onSuccess: () => {
-            // Invalidate after a short delay to allow the test to complete
-            setTimeout(() => {
-                queryClient.invalidateQueries({ queryKey: ['health', 'list'] });
-            }, 1000);
+            // Poll multiple times to catch the status update
+            // Health check runs async and may take up to 30 seconds
+            const pollIntervals = [500, 2000, 5000, 10000, 20000];
+            pollIntervals.forEach((delay) => {
+                setTimeout(() => {
+                    queryClient.invalidateQueries({ queryKey: ['health', 'list'] });
+                }, delay);
+            });
         },
     });
 };
