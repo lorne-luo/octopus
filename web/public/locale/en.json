@@ -486,7 +486,9 @@
             "createFailed": "Failed to create",
             "updated": "Updated successfully",
             "updateFailed": "Update failed",
-            "deleted": "Deleted successfully"
+            "deleted": "Deleted successfully",
+            "testing": "Testing...",
+            "testFailed": "Test failed"
         },
         "card": {
             "status": {
@@ -501,7 +503,8 @@
             "actions": {
                 "edit": "Edit",
                 "delete": "Delete",
-                "confirmDelete": "Confirm Delete"
+                "confirmDelete": "Confirm Delete",
+                "test": "Test Now"
             }
         },
         "create": {

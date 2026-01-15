@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useMemo } from 'react';
-import { Trash2, X, Pencil, Clock, AlertCircle } from 'lucide-react';
+import { Trash2, X, Pencil, Clock, AlertCircle, Play } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
     type HealthCheckWithChannel,
@@ -9,6 +9,7 @@ import {
     CheckInterval,
     useHealthDelete,
     useHealthUpdate,
+    useHealthTest,
     type UpdateHealthCheckRequest,
 } from '@/api/endpoints/health';
 import { useChannelList } from '@/api/endpoints/channel';
@@ -216,10 +217,23 @@ function EditDialogContent({ healthCheck }: { healthCheck: HealthCheckWithChanne
 
 export function HealthCard({ healthCheck }: HealthCardProps) {
     const deleteHealth = useHealthDelete();
+    const testHealth = useHealthTest();
     const t = useTranslations('health');
     const [confirmDelete, setConfirmDelete] = useState(false);
 
     const intervalLabel = healthCheck.interval === CheckInterval.Hourly ? t('interval.hourly') : t('interval.daily');
+    const isChecking = healthCheck.status === HealthCheckStatus.Checking || testHealth.isPending;
+
+    const handleTest = useCallback(() => {
+        testHealth.mutate(healthCheck.id, {
+            onSuccess: () => {
+                toast.success(t('toast.testing'));
+            },
+            onError: (error) => {
+                toast.error(t('toast.testFailed'), { description: error.message });
+            },
+        });
+    }, [healthCheck.id, testHealth, t]);
 
     return (
         <article className="flex flex-col rounded-3xl border border-border bg-card text-card-foreground p-4 custom-shadow">
@@ -238,6 +252,20 @@ export function HealthCard({ healthCheck }: HealthCardProps) {
                 </div>
 
                 <div className="flex items-center gap-1 shrink-0">
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <button
+                                type="button"
+                                onClick={handleTest}
+                                disabled={isChecking}
+                                className="p-1.5 rounded-lg transition-colors hover:bg-primary/10 text-muted-foreground hover:text-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                <Play className={cn("size-4", isChecking && "animate-pulse")} />
+                            </button>
+                        </TooltipTrigger>
+                        <TooltipContent>{t('card.actions.test')}</TooltipContent>
+                    </Tooltip>
+
                     <MorphingDialog>
                         <MorphingDialogTrigger className="p-1.5 rounded-lg transition-colors hover:bg-muted text-muted-foreground hover:text-foreground">
                             <Tooltip>
