@@ -1,5 +1,9 @@
 #!/bin/bash
 
+cd web && pnpm install && pnpm run build && cd ..
+rm -rf static/out
+mv web/out static/
+
 cd web && pnpm install 
 NEXT_PUBLIC_API_BASE_URL="http://127.0.0.1:8080" pnpm run dev&
 FRONTEND_PID=$!

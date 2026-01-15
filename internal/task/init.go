@@ -60,6 +60,6 @@ func Init() {
 		}
 	})
 
-	// 加载并注册所有健康检查任务
+	// 加载并注册所有渠道监测任务
 	LoadAndRegisterHealthTasks()
 }
