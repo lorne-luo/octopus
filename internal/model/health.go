@@ -16,8 +16,9 @@ const (
 type CheckInterval string
 
 const (
-	CheckIntervalHourly CheckInterval = "hourly" // Every hour
-	CheckIntervalDaily  CheckInterval = "daily"  // Every day
+	CheckIntervalMinutely CheckInterval = "minutely" // Every minute
+	CheckIntervalHourly   CheckInterval = "hourly"   // Every hour
+	CheckIntervalDaily    CheckInterval = "daily"    // Every day
 )
 
 // HealthCheck represents a health check configuration for a channel

@@ -18,10 +18,7 @@ import (
 
 // RegisterHealthTask registers a health check task
 func RegisterHealthTask(hc *model.HealthCheck) {
-	interval := 1 * time.Hour // hourly
-	if hc.Interval == model.CheckIntervalDaily {
-		interval = 24 * time.Hour
-	}
+	interval := getIntervalDuration(hc.Interval)
 	taskName := fmt.Sprintf("health_check_%d", hc.ID)
 	Register(taskName, interval, true, func() {
 		RunHealthCheck(hc.ID)
@@ -30,12 +27,21 @@ func RegisterHealthTask(hc *model.HealthCheck) {
 
 // UpdateHealthTask updates a health check task's interval
 func UpdateHealthTask(hc *model.HealthCheck) {
-	interval := 1 * time.Hour // hourly
-	if hc.Interval == model.CheckIntervalDaily {
-		interval = 24 * time.Hour
-	}
+	interval := getIntervalDuration(hc.Interval)
 	taskName := fmt.Sprintf("health_check_%d", hc.ID)
 	Update(taskName, interval)
+}
+
+// getIntervalDuration converts CheckInterval to time.Duration
+func getIntervalDuration(interval model.CheckInterval) time.Duration {
+	switch interval {
+	case model.CheckIntervalMinutely:
+		return 1 * time.Minute
+	case model.CheckIntervalDaily:
+		return 24 * time.Hour
+	default: // hourly
+		return 1 * time.Hour
+	}
 }
 
 // UnregisterHealthTask removes a health check task
@@ -91,12 +97,7 @@ func RunHealthCheck(id int) {
 }
 
 func calculateNextCheck(interval model.CheckInterval) *time.Time {
-	var duration time.Duration
-	if interval == model.CheckIntervalDaily {
-		duration = 24 * time.Hour
-	} else {
-		duration = 1 * time.Hour
-	}
+	duration := getIntervalDuration(interval)
 	next := time.Now().Add(duration)
 	return &next
 }
@@ -152,7 +153,13 @@ func checkOpenAIChat(ctx context.Context, baseURL, apiKey, model, prompt string,
 		return fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	url := baseURL + "/v1/chat/completions"
+	// Handle baseURL that may or may not include /v1
+	var url string
+	if strings.HasSuffix(baseURL, "/v1") || strings.Contains(baseURL, "/v1/") {
+		url = strings.TrimSuffix(baseURL, "/") + "/chat/completions"
+	} else {
+		url = baseURL + "/v1/chat/completions"
+	}
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
@@ -195,7 +202,13 @@ func checkAnthropicMessages(ctx context.Context, baseURL, apiKey, model, prompt 
 		return fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	url := baseURL + "/v1/messages"
+	// Handle baseURL that may or may not include /v1
+	var url string
+	if strings.HasSuffix(baseURL, "/v1") || strings.Contains(baseURL, "/v1/") {
+		url = strings.TrimSuffix(baseURL, "/") + "/messages"
+	} else {
+		url = baseURL + "/v1/messages"
+	}
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)

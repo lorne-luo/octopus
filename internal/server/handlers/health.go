@@ -32,6 +32,10 @@ func init() {
 		AddRoute(
 			router.NewRoute("/delete/:id", http.MethodDelete).
 				Handle(deleteHealth),
+		).
+		AddRoute(
+			router.NewRoute("/test/:id", http.MethodPost).
+				Handle(testHealth),
 		)
 }
 
@@ -95,6 +99,20 @@ func deleteHealth(c *gin.Context) {
 
 	// Unregister the health check task
 	task.UnregisterHealthTask(id)
+
+	resp.Success(c, nil)
+}
+
+func testHealth(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		resp.Error(c, http.StatusBadRequest, "invalid id")
+		return
+	}
+
+	// Run the health check immediately in a goroutine
+	go task.RunHealthCheck(id)
 
 	resp.Success(c, nil)
 }

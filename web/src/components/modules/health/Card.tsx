@@ -176,6 +176,7 @@ function EditDialogContent({ healthCheck }: { healthCheck: HealthCheckWithChanne
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
+                                    <SelectItem value={CheckInterval.Minutely}>{t('interval.minutely')}</SelectItem>
                                     <SelectItem value={CheckInterval.Hourly}>{t('interval.hourly')}</SelectItem>
                                     <SelectItem value={CheckInterval.Daily}>{t('interval.daily')}</SelectItem>
                                 </SelectContent>
@@ -221,7 +222,11 @@ export function HealthCard({ healthCheck }: HealthCardProps) {
     const t = useTranslations('health');
     const [confirmDelete, setConfirmDelete] = useState(false);
 
-    const intervalLabel = healthCheck.interval === CheckInterval.Hourly ? t('interval.hourly') : t('interval.daily');
+    const intervalLabel = healthCheck.interval === CheckInterval.Minutely
+        ? t('interval.minutely')
+        : healthCheck.interval === CheckInterval.Hourly
+            ? t('interval.hourly')
+            : t('interval.daily');
     const isChecking = healthCheck.status === HealthCheckStatus.Checking || testHealth.isPending;
 
     const handleTest = useCallback(() => {

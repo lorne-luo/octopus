@@ -149,6 +149,7 @@ export function CreateDialogContent() {
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
+                                    <SelectItem value={CheckInterval.Minutely}>{t('interval.minutely')}</SelectItem>
                                     <SelectItem value={CheckInterval.Hourly}>{t('interval.hourly')}</SelectItem>
                                     <SelectItem value={CheckInterval.Daily}>{t('interval.daily')}</SelectItem>
                                 </SelectContent>

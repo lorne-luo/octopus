@@ -521,6 +521,7 @@
             "creating": "Creating..."
         },
         "interval": {
+            "minutely": "Every Minute",
             "hourly": "Hourly",
             "daily": "Daily"
         },

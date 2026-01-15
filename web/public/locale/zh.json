@@ -521,6 +521,7 @@
             "creating": "创建中..."
         },
         "interval": {
+            "minutely": "每分钟",
             "hourly": "每小时",
             "daily": "每天"
         },
