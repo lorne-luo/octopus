@@ -478,7 +478,7 @@
     },
     "health": {
         "toast": {
-            "created": "健康检查已创建",
+            "created": "渠道监测已创建",
             "createFailed": "创建失败",
             "updated": "更新成功",
             "updateFailed": "更新失败",
@@ -501,10 +501,10 @@
             }
         },
         "create": {
-            "title": "新建健康检查"
+            "title": "新建渠道监测"
         },
         "edit": {
-            "title": "编辑健康检查"
+            "title": "编辑渠道监测"
         },
         "form": {
             "channel": "渠道",
@@ -521,6 +521,6 @@
             "hourly": "每小时",
             "daily": "每天"
         },
-        "empty": "暂无健康检查，点击左上角按钮创建"
+        "empty": "暂无渠道监测，点击左上角按钮创建"
     }
 }
