@@ -128,7 +128,7 @@ func performHealthCheck(ctx context.Context, channel *model.Channel, hc *model.H
 	switch channel.Type {
 	case outbound.OutboundTypeOpenAIChat:
 		return checkOpenAIChat(ctx, baseURL, activeKey.ChannelKey, hc.ModelName, hc.Prompt, channel)
-	case outbound.OutboundTypeAnthropicMessages:
+	case outbound.OutboundTypeAnthropic:
 		return checkAnthropicMessages(ctx, baseURL, activeKey.ChannelKey, hc.ModelName, hc.Prompt, channel)
 	case outbound.OutboundTypeGemini:
 		return checkGemini(ctx, baseURL, activeKey.ChannelKey, hc.ModelName, hc.Prompt, channel)
@@ -139,7 +139,7 @@ func performHealthCheck(ctx context.Context, channel *model.Channel, hc *model.H
 }
 
 func checkOpenAIChat(ctx context.Context, baseURL, apiKey, model, prompt string, channel *model.Channel) error {
-	reqBody := map[string]interface{}{
+	reqBody := map[string]any{
 		"model": model,
 		"messages": []map[string]string{
 			{"role": "user", "content": prompt},
@@ -182,7 +182,7 @@ func checkOpenAIChat(ctx context.Context, baseURL, apiKey, model, prompt string,
 }
 
 func checkAnthropicMessages(ctx context.Context, baseURL, apiKey, model, prompt string, channel *model.Channel) error {
-	reqBody := map[string]interface{}{
+	reqBody := map[string]any{
 		"model": model,
 		"messages": []map[string]string{
 			{"role": "user", "content": prompt},
@@ -226,8 +226,8 @@ func checkAnthropicMessages(ctx context.Context, baseURL, apiKey, model, prompt 
 }
 
 func checkGemini(ctx context.Context, baseURL, apiKey, model, prompt string, channel *model.Channel) error {
-	reqBody := map[string]interface{}{
-		"contents": []map[string]interface{}{
+	reqBody := map[string]any{
+		"contents": []map[string]any{
 			{
 				"parts": []map[string]string{
 					{"text": prompt},
