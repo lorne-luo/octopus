@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { HealthCard } from './Card';
 import { useHealthList } from '@/api/endpoints/health';
 import { usePaginationStore, useSearchStore } from '@/components/modules/toolbar';
+import { useTranslations } from 'next-intl';
 import { EASING } from '@/lib/animations/fluid-transitions';
 import { useGridPageSize } from '@/hooks/use-grid-page-size';
 
@@ -13,6 +14,7 @@ const HEALTH_CARD_HEIGHT = 200;
 
 export function Health() {
     const { data: healthChecks } = useHealthList();
+    const t = useTranslations('health');
     const pageKey = 'health' as const;
     const pageSize = useGridPageSize({
         itemHeight: HEALTH_CARD_HEIGHT,
@@ -70,26 +72,36 @@ export function Health() {
             >
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <AnimatePresence mode="popLayout">
-                        {pagedHealthChecks.map((healthCheck, index) => (
+                        {pagedHealthChecks.length > 0 ? (
+                            pagedHealthChecks.map((healthCheck, index) => (
+                                <motion.div
+                                    key={healthCheck.id}
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{
+                                        opacity: 0,
+                                        scale: 0.95,
+                                        transition: { duration: 0.2 }
+                                    }}
+                                    transition={{
+                                        duration: 0.45,
+                                        ease: EASING.easeOutExpo,
+                                        delay: index === 0 ? 0 : Math.min(0.08 * Math.log2(index + 1), 0.4),
+                                    }}
+                                    layout={!searchTerm.trim()}
+                                >
+                                    <HealthCard healthCheck={healthCheck} />
+                                </motion.div>
+                            ))
+                        ) : (
                             <motion.div
-                                key={healthCheck.id}
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{
-                                    opacity: 0,
-                                    scale: 0.95,
-                                    transition: { duration: 0.2 }
-                                }}
-                                transition={{
-                                    duration: 0.45,
-                                    ease: EASING.easeOutExpo,
-                                    delay: index === 0 ? 0 : Math.min(0.08 * Math.log2(index + 1), 0.4),
-                                }}
-                                layout={!searchTerm.trim()}
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                className="col-span-full py-20 text-center text-muted-foreground"
                             >
-                                <HealthCard healthCheck={healthCheck} />
+                                {t('empty')}
                             </motion.div>
-                        ))}
+                        )}
                     </AnimatePresence>
                 </div>
             </motion.div>

@@ -27,32 +27,34 @@ import {
 import { Field, FieldLabel, FieldGroup } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useTranslations } from 'next-intl';
 
 interface HealthCardProps {
     healthCheck: HealthCheckWithChannel;
 }
 
 function StatusIndicator({ status }: { status: HealthCheckStatus }) {
+    const t = useTranslations('health.card.status');
     const statusConfig = {
         [HealthCheckStatus.Healthy]: {
             color: 'bg-green-500',
             ring: 'ring-green-500/30',
-            label: 'Healthy',
+            label: t('healthy'),
         },
         [HealthCheckStatus.Unhealthy]: {
             color: 'bg-red-500',
             ring: 'ring-red-500/30',
-            label: 'Unhealthy',
+            label: t('unhealthy'),
         },
         [HealthCheckStatus.Unknown]: {
             color: 'bg-gray-400',
             ring: 'ring-gray-400/30',
-            label: 'Unknown',
+            label: t('unknown'),
         },
         [HealthCheckStatus.Checking]: {
             color: 'bg-blue-500 animate-pulse',
             ring: 'ring-blue-500/30',
-            label: 'Checking',
+            label: t('checking'),
         },
     };
 
@@ -81,6 +83,7 @@ function formatDateTime(dateStr?: string): string {
 function EditDialogContent({ healthCheck }: { healthCheck: HealthCheckWithChannel }) {
     const { setIsOpen } = useMorphingDialog();
     const updateHealth = useHealthUpdate();
+    const t = useTranslations('health');
     const [modelName, setModelName] = useState(healthCheck.model_name);
     const [interval, setInterval] = useState(healthCheck.interval);
     const [prompt, setPrompt] = useState(healthCheck.prompt);
@@ -95,21 +98,21 @@ function EditDialogContent({ healthCheck }: { healthCheck: HealthCheckWithChanne
         };
         updateHealth.mutate(data, {
             onSuccess: () => {
-                toast.success('Health check updated');
+                toast.success(t('toast.updated'));
                 setIsOpen(false);
             },
             onError: (error) => {
-                toast.error('Update failed', { description: error.message });
+                toast.error(t('toast.updateFailed'), { description: error.message });
             },
         });
-    }, [healthCheck.id, modelName, interval, prompt, updateHealth, setIsOpen]);
+    }, [healthCheck.id, modelName, interval, prompt, updateHealth, setIsOpen, t]);
 
     return (
         <>
             <MorphingDialogTitle className="shrink-0">
                 <header className="mb-3 flex items-center justify-between">
                     <h2 className="text-2xl font-bold text-card-foreground">
-                        Edit Health Check
+                        {t('edit.title')}
                     </h2>
                     <MorphingDialogClose className="relative right-0 top-0" />
                 </header>
@@ -118,11 +121,11 @@ function EditDialogContent({ healthCheck }: { healthCheck: HealthCheckWithChanne
                 <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                     <FieldGroup>
                         <Field>
-                            <FieldLabel>Channel</FieldLabel>
+                            <FieldLabel>{t('form.channel')}</FieldLabel>
                             <Input value={healthCheck.channel_name} disabled className="bg-muted" />
                         </Field>
                         <Field>
-                            <FieldLabel>Model Name</FieldLabel>
+                            <FieldLabel>{t('form.modelName')}</FieldLabel>
                             <Input
                                 value={modelName}
                                 onChange={(e) => setModelName(e.target.value)}
@@ -131,19 +134,19 @@ function EditDialogContent({ healthCheck }: { healthCheck: HealthCheckWithChanne
                             />
                         </Field>
                         <Field>
-                            <FieldLabel>Check Interval</FieldLabel>
+                            <FieldLabel>{t('form.interval')}</FieldLabel>
                             <Select value={interval} onValueChange={(v) => setInterval(v as CheckInterval)}>
                                 <SelectTrigger className="w-full">
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value={CheckInterval.Hourly}>Hourly</SelectItem>
-                                    <SelectItem value={CheckInterval.Daily}>Daily</SelectItem>
+                                    <SelectItem value={CheckInterval.Hourly}>{t('interval.hourly')}</SelectItem>
+                                    <SelectItem value={CheckInterval.Daily}>{t('interval.daily')}</SelectItem>
                                 </SelectContent>
                             </Select>
                         </Field>
                         <Field>
-                            <FieldLabel>Prompt</FieldLabel>
+                            <FieldLabel>{t('form.prompt')}</FieldLabel>
                             <Input
                                 value={prompt}
                                 onChange={(e) => setPrompt(e.target.value)}
@@ -158,14 +161,14 @@ function EditDialogContent({ healthCheck }: { healthCheck: HealthCheckWithChanne
                             onClick={() => setIsOpen(false)}
                             className="px-4 py-2 rounded-lg bg-muted hover:bg-muted/80 transition-colors"
                         >
-                            Cancel
+                            {t('form.cancel')}
                         </button>
                         <button
                             type="submit"
                             disabled={updateHealth.isPending}
                             className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
                         >
-                            {updateHealth.isPending ? 'Saving...' : 'Save'}
+                            {updateHealth.isPending ? t('form.saving') : t('form.save')}
                         </button>
                     </div>
                 </form>
@@ -176,9 +179,10 @@ function EditDialogContent({ healthCheck }: { healthCheck: HealthCheckWithChanne
 
 export function HealthCard({ healthCheck }: HealthCardProps) {
     const deleteHealth = useHealthDelete();
+    const t = useTranslations('health');
     const [confirmDelete, setConfirmDelete] = useState(false);
 
-    const intervalLabel = healthCheck.interval === CheckInterval.Hourly ? 'Hourly' : 'Daily';
+    const intervalLabel = healthCheck.interval === CheckInterval.Hourly ? t('interval.hourly') : t('interval.daily');
 
     return (
         <article className="flex flex-col rounded-3xl border border-border bg-card text-card-foreground p-4 custom-shadow">
@@ -203,7 +207,7 @@ export function HealthCard({ healthCheck }: HealthCardProps) {
                                 <TooltipTrigger asChild>
                                     <Pencil className="size-4" />
                                 </TooltipTrigger>
-                                <TooltipContent>Edit</TooltipContent>
+                                <TooltipContent>{t('card.actions.edit')}</TooltipContent>
                             </Tooltip>
                         </MorphingDialogTrigger>
 
@@ -226,7 +230,7 @@ export function HealthCard({ healthCheck }: HealthCardProps) {
                                     <Trash2 className="size-4" />
                                 </motion.button>
                             </TooltipTrigger>
-                            <TooltipContent>Delete</TooltipContent>
+                            <TooltipContent>{t('card.actions.delete')}</TooltipContent>
                         </Tooltip>
                     )}
                 </div>
@@ -249,14 +253,14 @@ export function HealthCard({ healthCheck }: HealthCardProps) {
                                 type="button"
                                 onClick={() =>
                                     deleteHealth.mutate(healthCheck.id, {
-                                        onSuccess: () => toast.success('Health check deleted'),
+                                        onSuccess: () => toast.success(t('toast.deleted')),
                                     })
                                 }
                                 disabled={deleteHealth.isPending}
                                 className="flex-1 h-7 flex items-center justify-center gap-2 rounded-lg bg-destructive-foreground text-destructive text-sm font-semibold transition-all hover:bg-destructive-foreground/90 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 <Trash2 className="size-3.5" />
-                                Confirm Delete
+                                {t('card.actions.confirmDelete')}
                             </button>
                         </motion.div>
                     )}
@@ -274,17 +278,18 @@ export function HealthCard({ healthCheck }: HealthCardProps) {
             {/* Info Section */}
             <section className="rounded-xl border border-border/50 bg-muted/30 p-3 space-y-2 text-sm">
                 <div className="flex justify-between">
-                    <span className="text-muted-foreground">Prompt</span>
+                    <span className="text-muted-foreground">{t('card.prompt')}</span>
                     <span className="font-mono truncate max-w-[60%]">{healthCheck.prompt}</span>
                 </div>
                 <div className="flex justify-between">
-                    <span className="text-muted-foreground">Last Check</span>
+                    <span className="text-muted-foreground">{t('card.lastCheck')}</span>
                     <span>{formatDateTime(healthCheck.last_check)}</span>
                 </div>
                 <div className="flex justify-between">
-                    <span className="text-muted-foreground">Next Check</span>
+                    <span className="text-muted-foreground">{t('card.nextCheck')}</span>
                     <span>{formatDateTime(healthCheck.next_check)}</span>
                 </div>
+
                 {healthCheck.last_error && (
                     <div className="flex items-start gap-2 text-destructive bg-destructive/10 rounded-lg p-2 mt-2">
                         <AlertCircle className="size-4 shrink-0 mt-0.5" />
