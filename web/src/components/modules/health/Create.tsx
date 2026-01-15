@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import {
     MorphingDialogClose,
     MorphingDialogTitle,
@@ -15,8 +15,8 @@ import {
 import { useChannelList } from '@/api/endpoints/channel';
 import { toast } from '@/components/common/Toast';
 import { Field, FieldLabel, FieldGroup } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 import { useTranslations } from 'next-intl';
 
 export function CreateDialogContent() {
@@ -29,6 +29,30 @@ export function CreateDialogContent() {
     const [modelName, setModelName] = useState('');
     const [interval, setInterval] = useState<CheckInterval>(CheckInterval.Hourly);
     const [prompt, setPrompt] = useState('hi');
+
+    // Get models for the selected channel
+    const availableModels = useMemo(() => {
+        if (!channelId || !channels) return [];
+        const selectedChannel = channels.find(c => c.raw.id.toString() === channelId);
+        if (!selectedChannel) return [];
+
+        const models: string[] = [];
+        // Parse models from the model field (comma-separated)
+        if (selectedChannel.raw.model) {
+            models.push(...selectedChannel.raw.model.split(',').map(m => m.trim()).filter(Boolean));
+        }
+        // Parse models from the custom_model field (comma-separated)
+        if (selectedChannel.raw.custom_model) {
+            models.push(...selectedChannel.raw.custom_model.split(',').map(m => m.trim()).filter(Boolean));
+        }
+        return [...new Set(models)]; // Remove duplicates
+    }, [channelId, channels]);
+
+    // Handle channel change - reset model selection
+    const handleChannelChange = useCallback((value: string) => {
+        setChannelId(value);
+        setModelName(''); // Reset model when channel changes
+    }, []);
 
     const handleSubmit = useCallback((e: React.FormEvent) => {
         e.preventDefault();
@@ -78,7 +102,7 @@ export function CreateDialogContent() {
                     <FieldGroup>
                         <Field>
                             <FieldLabel>{t('form.channel')}</FieldLabel>
-                            <Select value={channelId} onValueChange={setChannelId}>
+                            <Select value={channelId} onValueChange={handleChannelChange}>
                                 <SelectTrigger className="w-full">
                                     <SelectValue placeholder={t('form.channel')} />
                                 </SelectTrigger>
@@ -96,12 +120,27 @@ export function CreateDialogContent() {
                         </Field>
                         <Field>
                             <FieldLabel>{t('form.modelName')}</FieldLabel>
-                            <Input
-                                value={modelName}
-                                onChange={(e) => setModelName(e.target.value)}
-                                placeholder="e.g., gpt-4, claude-3-opus"
-                                required
-                            />
+                            {availableModels.length > 0 ? (
+                                <Select value={modelName} onValueChange={setModelName}>
+                                    <SelectTrigger className="w-full">
+                                        <SelectValue placeholder={t('form.modelName')} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {availableModels.map((model) => (
+                                            <SelectItem key={model} value={model}>
+                                                {model}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            ) : (
+                                <Input
+                                    value={modelName}
+                                    onChange={(e) => setModelName(e.target.value)}
+                                    placeholder="e.g., gpt-4, claude-3-opus"
+                                    required
+                                />
+                            )}
                         </Field>
                         <Field>
                             <FieldLabel>{t('form.interval')}</FieldLabel>
@@ -117,11 +156,13 @@ export function CreateDialogContent() {
                         </Field>
                         <Field>
                             <FieldLabel>{t('form.prompt')}</FieldLabel>
-                            <Input
+                            <textarea
                                 value={prompt}
                                 onChange={(e) => setPrompt(e.target.value)}
                                 placeholder="e.g., hi"
                                 required
+                                rows={3}
+                                className="placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input w-full min-w-0 rounded-md border bg-transparent px-3 py-2 text-base shadow-xs transition-[color,box-shadow] outline-none disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] resize-none"
                             />
                         </Field>
                     </FieldGroup>

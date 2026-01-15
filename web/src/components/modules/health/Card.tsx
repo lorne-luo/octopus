@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Trash2, X, Pencil, Clock, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -11,6 +11,7 @@ import {
     useHealthUpdate,
     type UpdateHealthCheckRequest,
 } from '@/api/endpoints/health';
+import { useChannelList } from '@/api/endpoints/channel';
 import { cn } from '@/lib/utils';
 import { toast } from '@/components/common/Toast';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/animate-ui/components/animate/tooltip';
@@ -84,9 +85,28 @@ function EditDialogContent({ healthCheck }: { healthCheck: HealthCheckWithChanne
     const { setIsOpen } = useMorphingDialog();
     const updateHealth = useHealthUpdate();
     const t = useTranslations('health');
+    const { data: channels } = useChannelList();
     const [modelName, setModelName] = useState(healthCheck.model_name);
     const [interval, setInterval] = useState(healthCheck.interval);
     const [prompt, setPrompt] = useState(healthCheck.prompt);
+
+    // Get models for the current channel
+    const availableModels = useMemo(() => {
+        if (!channels) return [];
+        const channel = channels.find(c => c.raw.id === healthCheck.channel_id);
+        if (!channel) return [];
+
+        const models: string[] = [];
+        // Parse models from the model field (comma-separated)
+        if (channel.raw.model) {
+            models.push(...channel.raw.model.split(',').map(m => m.trim()).filter(Boolean));
+        }
+        // Parse models from the custom_model field (comma-separated)
+        if (channel.raw.custom_model) {
+            models.push(...channel.raw.custom_model.split(',').map(m => m.trim()).filter(Boolean));
+        }
+        return [...new Set(models)]; // Remove duplicates
+    }, [channels, healthCheck.channel_id]);
 
     const handleSubmit = useCallback((e: React.FormEvent) => {
         e.preventDefault();
@@ -126,12 +146,27 @@ function EditDialogContent({ healthCheck }: { healthCheck: HealthCheckWithChanne
                         </Field>
                         <Field>
                             <FieldLabel>{t('form.modelName')}</FieldLabel>
-                            <Input
-                                value={modelName}
-                                onChange={(e) => setModelName(e.target.value)}
-                                placeholder="e.g., gpt-4"
-                                required
-                            />
+                            {availableModels.length > 0 ? (
+                                <Select value={modelName} onValueChange={setModelName}>
+                                    <SelectTrigger className="w-full">
+                                        <SelectValue placeholder={t('form.modelName')} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {availableModels.map((model) => (
+                                            <SelectItem key={model} value={model}>
+                                                {model}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            ) : (
+                                <Input
+                                    value={modelName}
+                                    onChange={(e) => setModelName(e.target.value)}
+                                    placeholder="e.g., gpt-4"
+                                    required
+                                />
+                            )}
                         </Field>
                         <Field>
                             <FieldLabel>{t('form.interval')}</FieldLabel>
@@ -147,11 +182,13 @@ function EditDialogContent({ healthCheck }: { healthCheck: HealthCheckWithChanne
                         </Field>
                         <Field>
                             <FieldLabel>{t('form.prompt')}</FieldLabel>
-                            <Input
+                            <textarea
                                 value={prompt}
                                 onChange={(e) => setPrompt(e.target.value)}
                                 placeholder="e.g., hi"
                                 required
+                                rows={3}
+                                className="placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input w-full min-w-0 rounded-md border bg-transparent px-3 py-2 text-base shadow-xs transition-[color,box-shadow] outline-none disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] resize-none"
                             />
                         </Field>
                     </FieldGroup>
@@ -279,7 +316,20 @@ export function HealthCard({ healthCheck }: HealthCardProps) {
             <section className="rounded-xl border border-border/50 bg-muted/30 p-3 space-y-2 text-sm">
                 <div className="flex justify-between">
                     <span className="text-muted-foreground">{t('card.prompt')}</span>
-                    <span className="font-mono truncate max-w-[60%]">{healthCheck.prompt}</span>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <span className="font-mono truncate max-w-[60%]">
+                                {healthCheck.prompt.length > 40
+                                    ? healthCheck.prompt.slice(0, 40) + '...'
+                                    : healthCheck.prompt}
+                            </span>
+                        </TooltipTrigger>
+                        {healthCheck.prompt.length > 40 && (
+                            <TooltipContent className="max-w-xs break-all">
+                                {healthCheck.prompt}
+                            </TooltipContent>
+                        )}
+                    </Tooltip>
                 </div>
                 <div className="flex justify-between">
                     <span className="text-muted-foreground">{t('card.lastCheck')}</span>
