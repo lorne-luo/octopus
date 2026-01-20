@@ -150,6 +150,24 @@ export function CreateDialogContent() {
                                 onChange={(e) => setIntervalMinutes(parseInt(e.target.value, 10) || 1)}
                                 required
                             />
+                            <div className="mt-2 flex flex-wrap gap-2">
+                                {[
+                                    { label: '1小时', value: 60 },
+                                    { label: '4小时', value: 240 },
+                                    { label: '8小时', value: 480 },
+                                    { label: '24小时', value: 1440 },
+                                    { label: '一周', value: 10080 },
+                                ].map((suggestion) => (
+                                    <button
+                                        key={suggestion.label}
+                                        type="button"
+                                        onClick={() => setIntervalMinutes(suggestion.value)}
+                                        className="rounded-md bg-muted px-2.5 py-1 text-xs transition-colors hover:bg-muted/80"
+                                    >
+                                        {suggestion.label}
+                                    </button>
+                                ))}
+                            </div>
                         </Field>
                         <Field>
                             <FieldLabel>{t('form.prompt')}</FieldLabel>
