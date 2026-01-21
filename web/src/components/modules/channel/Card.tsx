@@ -4,18 +4,23 @@ import {
     MorphingDialogContainer,
     MorphingDialogContent,
 } from '@/components/ui/morphing-dialog';
-import { DollarSign, MessageSquare } from 'lucide-react';
+import { DollarSign, MessageSquare, Activity } from 'lucide-react';
 import { type StatsMetricsFormatted } from '@/api/endpoints/stats';
 import { type Channel, useEnableChannel } from '@/api/endpoints/channel';
+import { useHealthByChannelId, HealthCheckStatus } from '@/api/endpoints/health';
 import { CardContent } from './CardContent';
 import { useTranslations } from 'next-intl';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/animate-ui/components/animate/tooltip';
 import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
 import { toast } from '@/components/common/Toast';
 
 export function Card({ channel, stats }: { channel: Channel; stats: StatsMetricsFormatted }) {
     const t = useTranslations('channel.card');
     const enableChannel = useEnableChannel();
+    const { data: healthChecks } = useHealthByChannelId(channel.id);
+
+    const healthCheck = healthChecks && healthChecks.length > 0 ? healthChecks[0] : null;
 
     const handleEnableChange = (checked: boolean) => {
         enableChannel.mutate(
@@ -29,6 +34,26 @@ export function Card({ channel, stats }: { channel: Channel; stats: StatsMetrics
                 },
             }
         );
+    };
+
+    const getHealthStatusColor = (status: HealthCheckStatus) => {
+        switch (status) {
+            case HealthCheckStatus.Healthy:
+                return 'bg-green-500/10 text-green-500 border-green-500/20';
+            case HealthCheckStatus.Unhealthy:
+                return 'bg-red-500/10 text-red-500 border-red-500/20';
+            case HealthCheckStatus.Checking:
+                return 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20';
+            default:
+                return 'bg-gray-500/10 text-gray-500 border-gray-500/20';
+        }
+    };
+
+    const getHealthStatusLabel = (status: HealthCheckStatus | undefined) => {
+        if (!status || status === HealthCheckStatus.Unknown) {
+            return t('healthStatusNone');
+        }
+        return t(`healthStatus${status.charAt(0).toUpperCase() + status.slice(1)}`);
     };
 
     return (
@@ -75,6 +100,40 @@ export function Card({ channel, stats }: { channel: Channel; stats: StatsMetrics
                                 {stats.total_cost.formatted.value}
                                 <span className="ml-1 text-xs text-muted-foreground">{stats.total_cost.formatted.unit}</span>
                             </dd>
+                        </div>
+
+                        {/* Health monitoring status */}
+                        <div className="flex items-center justify-between rounded-2xl border border-border/70 bg-background/80 p-2">
+                            <div className="flex items-center gap-3">
+                                <span className={`flex h-10 w-10 items-center justify-center rounded-lg ${healthCheck ? getHealthStatusColor(healthCheck.status) : 'bg-muted/10 text-muted-foreground'}`}>
+                                    <Activity className="h-5 w-5" />
+                                </span>
+                                <div className="flex flex-col">
+                                    <dt className="text-sm text-muted-foreground">{t('healthStatus')}</dt>
+                                    <dd className="text-xs text-muted-foreground/70">
+                                        {healthCheck ? (
+                                            <>
+                                                {getHealthStatusLabel(healthCheck.status)}
+                                                {healthCheck.latency_ms !== undefined && healthCheck.latency_ms !== null && (
+                                                    <span className="ml-2">
+                                                        • {healthCheck.latency_ms}ms
+                                                    </span>
+                                                )}
+                                            </>
+                                        ) : (
+                                            t('healthStatusNone')
+                                        )}
+                                    </dd>
+                                </div>
+                            </div>
+                            {healthCheck && (
+                                <Badge variant="outline" className={`rounded-lg border ${getHealthStatusColor(healthCheck.status)}`}>
+                                    {getHealthStatusLabel(healthCheck.status)}
+                                    {healthCheck.latency_ms !== undefined && healthCheck.latency_ms !== null && (
+                                        <span className="ml-1 opacity-70">• {healthCheck.latency_ms}ms</span>
+                                    )}
+                                </Badge>
+                            )}
                         </div>
                     </dl>
                 </article>

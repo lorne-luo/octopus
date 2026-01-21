@@ -27,6 +27,10 @@ export function CreateDialogContent() {
         enabled: true,
         proxy: false,
         match_regex: '',
+        health_monitoring_enabled: false,
+        health_model: '',
+        health_interval_minutes: 30,
+        health_prompt: '',
     });
     const t = useTranslations('channel.create');
 
@@ -61,6 +65,10 @@ export function CreateDialogContent() {
                 channel_proxy: channelProxy ? channelProxy : null,
                 param_override: paramOverride ? paramOverride : null,
                 match_regex: formData.match_regex.trim() ? formData.match_regex.trim() : null,
+                health_monitoring_enabled: formData.health_monitoring_enabled,
+                health_model: formData.health_model || null,
+                health_interval_minutes: formData.health_interval_minutes,
+                health_prompt: formData.health_prompt || null,
             },
             {
                 onSuccess: () => {
@@ -79,6 +87,10 @@ export function CreateDialogContent() {
                         enabled: true,
                         proxy: false,
                         match_regex: '',
+                        health_monitoring_enabled: false,
+                        health_model: '',
+                        health_interval_minutes: 30,
+                        health_prompt: '',
                     });
                     setIsOpen(false);
                 }

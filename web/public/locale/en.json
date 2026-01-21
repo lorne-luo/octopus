@@ -388,6 +388,12 @@
         "card": {
             "requestCount": "Requests",
             "totalCost": "Total Cost",
+            "healthStatus": "Health",
+            "healthStatusHealthy": "Healthy",
+            "healthStatusUnhealthy": "Unhealthy",
+            "healthStatusChecking": "Checking",
+            "healthStatusUnknown": "Unknown",
+            "healthStatusNone": "No monitoring",
             "toast": {
                 "enabled": "Channel enabled",
                 "disabled": "Channel disabled"
@@ -477,7 +483,15 @@
             "autoGroupRegex": "Regex",
             "matchRegex": "Match Regex",
             "matchRegexPlaceholder": "Optional: regex pattern to match request model names",
-            "remark": "Remark"
+            "remark": "Remark",
+            "healthMonitoring": "Health Monitoring",
+            "healthMonitoringEnable": "Enable Health Monitoring",
+            "healthModel": "Model",
+            "healthModelPlaceholder": "Select a model for health checks",
+            "healthModelNoModels": "No models available. Please add models first.",
+            "healthInterval": "Check Interval",
+            "healthPrompt": "Health Check Prompt",
+            "healthPromptPlaceholder": "Prompt used for health checks (e.g., 'Say hello to verify the connection')"
         }
     },
     "health": {

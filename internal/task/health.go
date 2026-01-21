@@ -60,7 +60,7 @@ func RunHealthCheck(id int) {
 	channel, err := op.ChannelGet(hc.ChannelID, ctx)
 	if err != nil {
 		errStr := fmt.Sprintf("failed to get channel: %v", err)
-		op.HealthUpdateStatus(ctx, id, model.HealthCheckStatusUnhealthy, &errStr, calculateNextCheck(hc.IntervalMinutes))
+		op.HealthUpdateStatus(ctx, id, model.HealthCheckStatusUnhealthy, &errStr, calculateNextCheck(hc.IntervalMinutes), nil)
 		log.Errorf("health check %d: %s", id, errStr)
 		return
 	}
@@ -68,26 +68,33 @@ func RunHealthCheck(id int) {
 	// Check if channel is enabled
 	if !channel.Enabled {
 		errStr := "channel is disabled"
-		op.HealthUpdateStatus(ctx, id, model.HealthCheckStatusUnhealthy, &errStr, calculateNextCheck(hc.IntervalMinutes))
+		op.HealthUpdateStatus(ctx, id, model.HealthCheckStatusUnhealthy, &errStr, calculateNextCheck(hc.IntervalMinutes), nil)
 		log.Warnf("health check %d: channel %s is disabled", id, channel.Name)
 		return
 	}
 
 	// Update status to checking
-	op.HealthUpdateStatus(ctx, id, model.HealthCheckStatusChecking, nil, nil)
+	op.HealthUpdateStatus(ctx, id, model.HealthCheckStatusChecking, nil, nil, nil)
+
+	// Record start time for latency measurement
+	startTime := time.Now()
 
 	// Build the request based on channel type
 	err = performHealthCheck(ctx, channel, hc)
+
+	// Calculate latency
+	latencyMs := int(time.Since(startTime).Milliseconds())
+
 	if err != nil {
 		errStr := err.Error()
-		op.HealthUpdateStatus(ctx, id, model.HealthCheckStatusUnhealthy, &errStr, calculateNextCheck(hc.IntervalMinutes))
+		op.HealthUpdateStatus(ctx, id, model.HealthCheckStatusUnhealthy, &errStr, calculateNextCheck(hc.IntervalMinutes), &latencyMs)
 		log.Errorf("health check %d failed: %v", id, err)
 		return
 	}
 
 	// Success
-	op.HealthUpdateStatus(ctx, id, model.HealthCheckStatusHealthy, nil, calculateNextCheck(hc.IntervalMinutes))
-	log.Infof("health check %d succeeded for channel %s model %s", id, channel.Name, hc.ModelName)
+	op.HealthUpdateStatus(ctx, id, model.HealthCheckStatusHealthy, nil, calculateNextCheck(hc.IntervalMinutes), &latencyMs)
+	log.Infof("health check %d succeeded for channel %s model %s (latency: %dms)", id, channel.Name, hc.ModelName, latencyMs)
 }
 
 func calculateNextCheck(intervalMinutes int) *time.Time {

@@ -58,6 +58,10 @@ export function CardContent({ channel, stats }: { channel: Channel; stats: Stats
         auto_sync: channel.auto_sync,
         auto_group: channel.auto_group,
         match_regex: channel.match_regex ?? '',
+        health_monitoring_enabled: channel.health_monitoring_enabled ?? false,
+        health_model: channel.health_model ?? '',
+        health_interval_minutes: channel.health_interval_minutes ?? 30,
+        health_prompt: channel.health_prompt ?? '',
     });
     const t = useTranslations('channel.detail');
 
@@ -87,6 +91,18 @@ export function CardContent({ channel, stats }: { channel: Channel; stats: Stats
         if (formData.proxy !== channel.proxy) req.proxy = formData.proxy;
         if (formData.auto_sync !== channel.auto_sync) req.auto_sync = formData.auto_sync;
         if (formData.auto_group !== channel.auto_group) req.auto_group = formData.auto_group;
+        if (formData.health_monitoring_enabled !== (channel.health_monitoring_enabled ?? false)) {
+            req.health_monitoring_enabled = formData.health_monitoring_enabled;
+        }
+        if (formData.health_model !== (channel.health_model ?? '')) {
+            req.health_model = formData.health_model || null;
+        }
+        if (formData.health_interval_minutes !== (channel.health_interval_minutes ?? 30)) {
+            req.health_interval_minutes = formData.health_interval_minutes;
+        }
+        if (formData.health_prompt !== (channel.health_prompt ?? '')) {
+            req.health_prompt = formData.health_prompt || null;
+        }
 
         if (!headersEqual(formData.custom_header, channel.custom_header)) {
             req.custom_header = (formData.custom_header ?? [])
