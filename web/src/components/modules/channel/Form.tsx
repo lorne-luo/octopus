@@ -40,6 +40,11 @@ export interface ChannelFormData {
     auto_sync: boolean;
     auto_group: AutoGroupType;
     match_regex: string;
+    // Health monitoring settings
+    health_monitoring_enabled: boolean;
+    health_model: string;
+    health_interval_minutes: number;
+    health_prompt: string;
 }
 
 export interface ChannelFormProps {
@@ -572,6 +577,110 @@ export function ChannelForm({
                                 className="min-h-28 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                             />
                         </div>
+                    </AccordionContent>
+                </AccordionItem>
+            </Accordion>
+
+            <Accordion type="single" collapsible className="w-full border rounded-xl bg-card">
+                <AccordionItem value="health" className="border-none">
+                    <AccordionTrigger className="text-sm font-medium text-card-foreground py-3 px-4 hover:no-underline hover:bg-muted/30 rounded-xl transition-colors">
+                        {t('healthMonitoring')}
+                    </AccordionTrigger>
+                    <AccordionContent className="pt-4 px-4 pb-4 space-y-4 border-t">
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                                <label className="text-sm font-medium text-card-foreground">
+                                    {t('healthMonitoringEnable')}
+                                </label>
+                                <Switch
+                                    checked={formData.health_monitoring_enabled}
+                                    onCheckedChange={(checked) => onFormDataChange({ ...formData, health_monitoring_enabled: checked })}
+                                />
+                            </div>
+                        </div>
+
+                        {formData.health_monitoring_enabled && (
+                            <>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label htmlFor={`${idPrefix}-health-model`} className="text-sm font-medium text-card-foreground">
+                                            {t('healthModel')}
+                                        </label>
+                                        <Select
+                                            value={formData.health_model}
+                                            onValueChange={(value) => onFormDataChange({ ...formData, health_model: value })}
+                                        >
+                                            <SelectTrigger id={`${idPrefix}-health-model`} className="rounded-xl w-full border border-border px-4 py-2 text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                                                <SelectValue placeholder={t('healthModelPlaceholder')} />
+                                            </SelectTrigger>
+                                            <SelectContent className='rounded-xl'>
+                                                {(autoModels.length > 0 || customModels.length > 0) ? (
+                                                    <>
+                                                        {autoModels.map((model) => (
+                                                            <SelectItem key={model} className='rounded-xl' value={model}>
+                                                                {model}
+                                                            </SelectItem>
+                                                        ))}
+                                                        {customModels.map((model) => (
+                                                            <SelectItem key={model} className='rounded-xl' value={model}>
+                                                                {model}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </>
+                                                ) : (
+                                                    <div className="p-2 text-sm text-muted-foreground">
+                                                        {t('healthModelNoModels')}
+                                                    </div>
+                                                )}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label htmlFor={`${idPrefix}-health-interval`} className="text-sm font-medium text-card-foreground">
+                                            {t('healthInterval')}
+                                        </label>
+                                        <div className="flex gap-2">
+                                            <Input
+                                                id={`${idPrefix}-health-interval`}
+                                                type="number"
+                                                min={1}
+                                                value={formData.health_interval_minutes}
+                                                onChange={(e) => onFormDataChange({ ...formData, health_interval_minutes: parseInt(e.target.value) || 60 })}
+                                                className="rounded-xl flex-1"
+                                            />
+                                            <div className="flex gap-1">
+                                                {[60, 240, 480, 1440, 10080].map((mins) => (
+                                                    <Button
+                                                        key={mins}
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => onFormDataChange({ ...formData, health_interval_minutes: mins })}
+                                                        className="rounded-xl px-2 text-xs"
+                                                    >
+                                                        {mins < 60 ? `${mins}m` : mins < 1440 ? `${mins / 60}h` : `${mins / 1440}d`}
+                                                    </Button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label htmlFor={`${idPrefix}-health-prompt`} className="text-sm font-medium text-card-foreground">
+                                        {t('healthPrompt')}
+                                    </label>
+                                    <textarea
+                                        id={`${idPrefix}-health-prompt`}
+                                        value={formData.health_prompt}
+                                        onChange={(e) => onFormDataChange({ ...formData, health_prompt: e.target.value })}
+                                        placeholder={t('healthPromptPlaceholder')}
+                                        className="min-h-20 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                    />
+                                </div>
+                            </>
+                        )}
                     </AccordionContent>
                 </AccordionItem>
             </Accordion>

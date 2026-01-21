@@ -24,6 +24,7 @@ export type HealthCheck = {
     last_check?: string;
     next_check?: string;
     last_error?: string;
+    latency_ms?: number;
     created_at: string;
     updated_at: string;
 };
@@ -138,6 +139,22 @@ export const useHealthTest = () => {
                 }, delay);
             });
         },
+    });
+};
+
+/**
+ * Fetch health check by channel ID
+ */
+export const useHealthByChannelId = (channelId: number | undefined) => {
+    return useQuery({
+        queryKey: ['health', 'channel', channelId],
+        queryFn: async () => {
+            const response = await apiClient.get<HealthCheck[]>('/api/v1/health/list');
+            // Filter health checks for the specific channel
+            const healthChecks = response || [];
+            return healthChecks.filter((hc) => hc.channel_id === channelId);
+        },
+        enabled: !!channelId,
     });
 };
 

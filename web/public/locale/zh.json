@@ -388,6 +388,12 @@
         "card": {
             "requestCount": "请求次数",
             "totalCost": "总成本",
+            "healthStatus": "健康状态",
+            "healthStatusHealthy": "健康",
+            "healthStatusUnhealthy": "异常",
+            "healthStatusChecking": "检测中",
+            "healthStatusUnknown": "未知",
+            "healthStatusNone": "未监控",
             "toast": {
                 "enabled": "渠道已启用",
                 "disabled": "渠道已禁用"
@@ -477,7 +483,15 @@
             "autoGroupRegex": "正则匹配",
             "matchRegex": "匹配正则",
             "matchRegexPlaceholder": "可选：用于匹配请求模型名称的正则表达式",
-            "remark": "备注"
+            "remark": "备注",
+            "healthMonitoring": "健康监测",
+            "healthMonitoringEnable": "启用健康监测",
+            "healthModel": "监测模型",
+            "healthModelPlaceholder": "选择用于健康检查的模型",
+            "healthModelNoModels": "暂无可用模型，请先添加模型",
+            "healthInterval": "检查间隔",
+            "healthPrompt": "健康检查提示词",
+            "healthPromptPlaceholder": "用于健康检查的提示词（例如：'说 hello 以验证连接'）"
         }
     },
     "health": {

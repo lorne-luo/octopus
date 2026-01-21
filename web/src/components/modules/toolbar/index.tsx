@@ -14,11 +14,10 @@ import { useNavStore, type NavItem } from '@/components/modules/navbar';
 import { CreateDialogContent as ChannelCreateContent } from '@/components/modules/channel/Create';
 import { CreateDialogContent as GroupCreateContent } from '@/components/modules/group/Create';
 import { CreateDialogContent as ModelCreateContent } from '@/components/modules/model/Create';
-import { CreateDialogContent as HealthCreateContent } from '@/components/modules/health/Create';
 import { useSearchStore } from './search-store';
 import { usePaginationStore } from './pagination-store';
 
-const TOOLBAR_PAGES: NavItem[] = ['channel', 'group', 'model', 'health'];
+const TOOLBAR_PAGES: NavItem[] = ['channel', 'group', 'model'];
 
 function CreateDialogContent({ activeItem }: { activeItem: NavItem }) {
     switch (activeItem) {
@@ -28,8 +27,6 @@ function CreateDialogContent({ activeItem }: { activeItem: NavItem }) {
             return <GroupCreateContent />;
         case 'model':
             return <ModelCreateContent />;
-        case 'health':
-            return <HealthCreateContent />;
         default:
             return null;
     }
