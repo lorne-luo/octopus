@@ -49,7 +49,6 @@
         "group": "Group",
         "key": "Key",
         "model": "Price",
-        "health": "Health",
         "log": "Log",
         "setting": "Setting"
     },
@@ -493,53 +492,5 @@
             "healthPrompt": "Health Check Prompt",
             "healthPromptPlaceholder": "Prompt used for health checks (e.g., 'Say hello to verify the connection')"
         }
-    },
-    "health": {
-        "toast": {
-            "created": "Health check created",
-            "createFailed": "Failed to create",
-            "updated": "Updated successfully",
-            "updateFailed": "Update failed",
-            "deleted": "Deleted successfully",
-            "testing": "Testing...",
-            "testFailed": "Test failed"
-        },
-        "card": {
-            "status": {
-                "healthy": "Healthy",
-                "unhealthy": "Unhealthy",
-                "unknown": "Unknown",
-                "checking": "Checking"
-            },
-            "prompt": "Prompt",
-            "lastCheck": "Last Check",
-            "nextCheck": "Next Check",
-            "actions": {
-                "edit": "Edit",
-                "delete": "Delete",
-                "confirmDelete": "Confirm Delete",
-                "test": "Test Now"
-            }
-        },
-        "create": {
-            "title": "New Health Check"
-        },
-        "edit": {
-            "title": "Edit Health Check"
-        },
-        "form": {
-            "channel": "Channel",
-            "modelName": "Model Name",
-            "intervalMinutes": "Interval (minutes)",
-            "minutes": "min",
-            "prompt": "Prompt",
-            "cancel": "Cancel",
-            "save": "Save",
-            "create": "Create",
-            "saving": "Saving...",
-            "creating": "Creating..."
-        },
-
-        "empty": "No health checks yet, click the button above to create one"
     }
 }

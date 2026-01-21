@@ -49,7 +49,6 @@
         "group": "分组",
         "key": "密钥",
         "model": "价格",
-        "health": "渠道监测",
         "log": "日志",
         "setting": "设置"
     },
@@ -493,53 +492,5 @@
             "healthPrompt": "健康检查提示词",
             "healthPromptPlaceholder": "用于健康检查的提示词（例如：'说 hello 以验证连接'）"
         }
-    },
-    "health": {
-        "toast": {
-            "created": "渠道监测已创建",
-            "createFailed": "创建失败",
-            "updated": "更新成功",
-            "updateFailed": "更新失败",
-            "deleted": "删除成功",
-            "testing": "开始测试...",
-            "testFailed": "测试失败"
-        },
-        "card": {
-            "status": {
-                "healthy": "健康",
-                "unhealthy": "异常",
-                "unknown": "未知",
-                "checking": "检查中"
-            },
-            "prompt": "提示词",
-            "lastCheck": "上次检查",
-            "nextCheck": "下次检查",
-            "actions": {
-                "edit": "编辑",
-                "delete": "删除",
-                "confirmDelete": "确认删除",
-                "test": "立即测试"
-            }
-        },
-        "create": {
-            "title": "新建渠道监测"
-        },
-        "edit": {
-            "title": "编辑渠道监测"
-        },
-        "form": {
-            "channel": "渠道",
-            "modelName": "模型名称",
-            "intervalMinutes": "间隔（分钟）",
-            "minutes": "分钟",
-            "prompt": "提示词",
-            "cancel": "取消",
-            "save": "保存",
-            "create": "创建",
-            "saving": "保存中...",
-            "creating": "创建中..."
-        },
-
-        "empty": "暂无渠道监测，点击左上角按钮创建"
     }
 }
