@@ -65,6 +65,7 @@ cd octopus
 # Build frontend
 cd web && pnpm install && pnpm run build && cd ..
 # Move frontend assets to static directory
+rm -rf static/out
 mv web/out static/
 # Start the backend service
 go run main.go start 
