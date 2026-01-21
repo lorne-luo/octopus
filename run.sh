@@ -1,11 +1,21 @@
 #!/bin/bash
 
+# Trap SIGINT and SIGTERM to kill background processes
+cleanup() {
+    echo "Stopping services..."
+    kill $FRONTEND_PID $BACKEND_PID 2>/dev/null
+    wait $FRONTEND_PID $BACKEND_PID 2>/dev/null
+    exit
+}
+trap cleanup SIGINT SIGTERM
+
 cd web && pnpm install && pnpm run build && cd ..
 rm -rf static/out
 mv web/out static/
 
+
 cd web && pnpm install 
-NEXT_PUBLIC_API_BASE_URL="http://127.0.0.1:8080" pnpm run dev&
+pnpm run dev -p 9100 &
 FRONTEND_PID=$!
 
 cd ..
