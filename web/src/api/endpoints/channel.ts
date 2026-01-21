@@ -65,6 +65,10 @@ export type Channel = {
     param_override?: string | null;
     channel_proxy?: string | null;
     match_regex?: string | null;
+    health_monitoring_enabled?: boolean;
+    health_model?: string | null;
+    health_interval_minutes?: number;
+    health_prompt?: string | null;
     stats: StatsChannel;
 };
 
@@ -93,6 +97,10 @@ export type CreateChannelRequest = {
     channel_proxy?: string | null;
     param_override?: string | null;
     match_regex?: string | null;
+    health_monitoring_enabled?: boolean;
+    health_model?: string | null;
+    health_interval_minutes?: number;
+    health_prompt?: string | null;
 };
 
 /**
@@ -113,6 +121,10 @@ export type UpdateChannelRequest = {
     channel_proxy?: string | null;
     param_override?: string | null;
     match_regex?: string | null;
+    health_monitoring_enabled?: boolean;
+    health_model?: string | null;
+    health_interval_minutes?: number;
+    health_prompt?: string | null;
     // keys diff
     keys_to_add?: Array<Pick<ChannelKey, 'enabled' | 'channel_key' | 'remark'>>;
     keys_to_update?: Array<{ id: number; enabled?: boolean; channel_key?: string; remark?: string }>;
