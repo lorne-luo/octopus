@@ -24,6 +24,7 @@ export type HealthCheck = {
     last_check?: string;
     next_check?: string;
     last_error?: string;
+    latency_ms?: number;
     created_at: string;
     updated_at: string;
 };
@@ -66,7 +67,17 @@ export const useHealthList = () => {
             const response = await apiClient.get<HealthCheckWithChannel[]>('/api/v1/health/list');
             return response || [];
         },
+        refetchInterval: 5000,
+        refetchOnMount: 'always',
     });
+};
+
+/**
+ * Get health check status for a specific channel
+ */
+export const useChannelHealth = (channelId: number) => {
+    const { data: healthList } = useHealthList();
+    return healthList?.find(h => h.channel_id === channelId);
 };
 
 /**

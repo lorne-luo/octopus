@@ -126,9 +126,9 @@ func HealthDelete(ctx context.Context, id int) error {
 	return nil
 }
 
-// HealthUpdateStatus updates the status and error message of a health check
+// HealthUpdateStatus updates the status, error message, and latency of a health check
 // This is called by the task runner after each check
-func HealthUpdateStatus(ctx context.Context, id int, status model.ChannelHealthStatus, lastError *string, nextCheck *time.Time) error {
+func HealthUpdateStatus(ctx context.Context, id int, status model.ChannelHealthStatus, lastError *string, nextCheck *time.Time, latencyMs *int) error {
 	now := time.Now()
 	updates := map[string]interface{}{
 		"status":     status,
@@ -137,6 +137,9 @@ func HealthUpdateStatus(ctx context.Context, id int, status model.ChannelHealthS
 	}
 	if nextCheck != nil {
 		updates["next_check"] = nextCheck
+	}
+	if latencyMs != nil {
+		updates["latency_ms"] = latencyMs
 	}
 
 	return db.GetDB().WithContext(ctx).Model(&model.ChannelHealth{}).

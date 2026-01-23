@@ -23,6 +23,7 @@ type ChannelHealth struct {
 	LastCheck       *time.Time          `json:"last_check"`
 	NextCheck       *time.Time          `json:"next_check"`
 	LastError       *string             `json:"last_error"`
+	LatencyMs       *int                `json:"latency_ms"` // Response time in milliseconds
 	CreatedAt       time.Time           `json:"created_at"`
 	UpdatedAt       time.Time           `json:"updated_at"`
 }

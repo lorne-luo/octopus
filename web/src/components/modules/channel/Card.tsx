@@ -4,16 +4,17 @@ import {
     MorphingDialogContainer,
     MorphingDialogContent,
 } from '@/components/ui/morphing-dialog';
-import { DollarSign, MessageSquare } from 'lucide-react';
+import { MessageSquare, Activity } from 'lucide-react';
 import { type StatsMetricsFormatted } from '@/api/endpoints/stats';
 import { type Channel, useEnableChannel } from '@/api/endpoints/channel';
+import { type HealthCheck, HealthCheckStatus } from '@/api/endpoints/health';
 import { CardContent } from './CardContent';
 import { useTranslations } from 'next-intl';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/animate-ui/components/animate/tooltip';
 import { Switch } from '@/components/ui/switch';
 import { toast } from '@/components/common/Toast';
 
-export function Card({ channel, stats }: { channel: Channel; stats: StatsMetricsFormatted }) {
+export function Card({ channel, stats, health }: { channel: Channel; stats: StatsMetricsFormatted; health?: HealthCheck }) {
     const t = useTranslations('channel.card');
     const enableChannel = useEnableChannel();
 
@@ -29,6 +30,41 @@ export function Card({ channel, stats }: { channel: Channel; stats: StatsMetrics
                 },
             }
         );
+    };
+
+    const getHealthIcon = () => {
+        if (!health) {
+            return <Activity className="h-5 w-5 text-gray-400" />;
+        }
+        switch (health.status) {
+            case HealthCheckStatus.Healthy:
+                return <Activity className="h-5 w-5 text-green-500" />;
+            case HealthCheckStatus.Unhealthy:
+                return <Activity className="h-5 w-5 text-red-500" />;
+            case HealthCheckStatus.Checking:
+                return <Activity className="h-5 w-5 text-yellow-500 animate-pulse" />;
+            default:
+                return <Activity className="h-5 w-5 text-gray-400" />;
+        }
+    };
+
+    const getHealthText = () => {
+        if (!health) return 'No health check';
+        switch (health.status) {
+            case HealthCheckStatus.Healthy:
+                return 'Healthy';
+            case HealthCheckStatus.Unhealthy:
+                return 'Unhealthy';
+            case HealthCheckStatus.Checking:
+                return 'Checking...';
+            default:
+                return 'Unknown';
+        }
+    };
+
+    const formatLatency = () => {
+        if (!health || health.latency_ms === undefined) return '-';
+        return `${health.latency_ms}ms`;
     };
 
     return (
@@ -67,13 +103,12 @@ export function Card({ channel, stats }: { channel: Channel; stats: StatsMetrics
                         <div className="flex items-center justify-between rounded-2xl border border-border/70 bg-background/80 p-2">
                             <div className="flex items-center gap-3">
                                 <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                                    <DollarSign className="h-5 w-5" />
+                                    {getHealthIcon()}
                                 </span>
-                                <dt className="text-sm text-muted-foreground">{t('totalCost')}</dt>
+                                <dt className="text-sm text-muted-foreground">{getHealthText()}</dt>
                             </div>
                             <dd className="text-base">
-                                {stats.total_cost.formatted.value}
-                                <span className="ml-1 text-xs text-muted-foreground">{stats.total_cost.formatted.unit}</span>
+                                {formatLatency()}
                             </dd>
                         </div>
                     </dl>

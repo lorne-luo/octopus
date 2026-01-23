@@ -3,6 +3,7 @@
 import { useEffect, useMemo } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useChannelList } from '@/api/endpoints/channel';
+import { useHealthList } from '@/api/endpoints/health';
 import { Card } from './Card';
 import { usePaginationStore, useSearchStore } from '@/components/modules/toolbar';
 import { EASING } from '@/lib/animations/fluid-transitions';
@@ -13,6 +14,7 @@ const CHANNEL_CARD_HEIGHT = 216;
 
 export function Channel() {
     const { data: channelsData } = useChannelList();
+    const { data: healthList } = useHealthList();
     const pageKey = 'channel' as const;
     const pageSize = useGridPageSize({
         itemHeight: CHANNEL_CARD_HEIGHT,
@@ -84,7 +86,11 @@ export function Channel() {
                                 }}
                                 layout={!searchTerm.trim()}
                             >
-                                <Card channel={channel.raw} stats={channel.formatted} />
+                                <Card
+                                    channel={channel.raw}
+                                    stats={channel.formatted}
+                                    health={healthList?.find(h => h.channel_id === channel.raw.id)}
+                                />
                             </motion.div>
                         ))}
                     </AnimatePresence>
