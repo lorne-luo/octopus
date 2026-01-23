@@ -51,9 +51,9 @@
 │                      Data Layer                                     │
 ├─────────────────────────────────────────────────────────────────────┤
 │  internal/model/health.go                                             │
-│    - HealthCheck struct + GORM definitions                          │
+│    - ChannelHealth struct + GORM definitions                         │
 │         ↓                                                          │
-│  SQLite/MySQL/PostgreSQL Table: health_checks                        │
+│  SQLite/MySQL/PostgreSQL Table: channel_healths                       │
 └─────────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────────┐

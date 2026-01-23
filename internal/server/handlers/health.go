@@ -49,7 +49,7 @@ func listHealth(c *gin.Context) {
 }
 
 func createHealth(c *gin.Context) {
-	var hc model.HealthCheck
+	var hc model.ChannelHealth
 	if err := c.ShouldBindJSON(&hc); err != nil {
 		resp.Error(c, http.StatusBadRequest, resp.ErrInvalidJSON)
 		return
@@ -67,7 +67,7 @@ func createHealth(c *gin.Context) {
 }
 
 func updateHealth(c *gin.Context) {
-	var hc model.HealthCheck
+	var hc model.ChannelHealth
 	if err := c.ShouldBindJSON(&hc); err != nil {
 		resp.Error(c, http.StatusBadRequest, resp.ErrInvalidJSON)
 		return

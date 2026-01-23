@@ -17,7 +17,7 @@ import (
 )
 
 // RegisterHealthTask registers a health check task
-func RegisterHealthTask(hc *model.HealthCheck) {
+func RegisterHealthTask(hc *model.ChannelHealth) {
 	interval := time.Duration(hc.IntervalMinutes) * time.Minute
 	if interval < time.Minute {
 		interval = time.Minute // Minimum 1 minute
@@ -29,7 +29,7 @@ func RegisterHealthTask(hc *model.HealthCheck) {
 }
 
 // UpdateHealthTask updates a health check task's interval
-func UpdateHealthTask(hc *model.HealthCheck) {
+func UpdateHealthTask(hc *model.ChannelHealth) {
 	interval := time.Duration(hc.IntervalMinutes) * time.Minute
 	if interval < time.Minute {
 		interval = time.Minute // Minimum 1 minute
@@ -60,7 +60,7 @@ func RunHealthCheck(id int) {
 	channel, err := op.ChannelGet(hc.ChannelID, ctx)
 	if err != nil {
 		errStr := fmt.Sprintf("failed to get channel: %v", err)
-		op.HealthUpdateStatus(ctx, id, model.HealthCheckStatusUnhealthy, &errStr, calculateNextCheck(hc.IntervalMinutes))
+		op.HealthUpdateStatus(ctx, id, model.ChannelHealthStatusUnhealthy, &errStr, calculateNextCheck(hc.IntervalMinutes))
 		log.Errorf("health check %d: %s", id, errStr)
 		return
 	}
@@ -68,25 +68,25 @@ func RunHealthCheck(id int) {
 	// Check if channel is enabled
 	if !channel.Enabled {
 		errStr := "channel is disabled"
-		op.HealthUpdateStatus(ctx, id, model.HealthCheckStatusUnhealthy, &errStr, calculateNextCheck(hc.IntervalMinutes))
+		op.HealthUpdateStatus(ctx, id, model.ChannelHealthStatusUnhealthy, &errStr, calculateNextCheck(hc.IntervalMinutes))
 		log.Warnf("health check %d: channel %s is disabled", id, channel.Name)
 		return
 	}
 
 	// Update status to checking
-	op.HealthUpdateStatus(ctx, id, model.HealthCheckStatusChecking, nil, nil)
+	op.HealthUpdateStatus(ctx, id, model.ChannelHealthStatusChecking, nil, nil)
 
 	// Build the request based on channel type
 	err = performHealthCheck(ctx, channel, hc)
 	if err != nil {
 		errStr := err.Error()
-		op.HealthUpdateStatus(ctx, id, model.HealthCheckStatusUnhealthy, &errStr, calculateNextCheck(hc.IntervalMinutes))
+		op.HealthUpdateStatus(ctx, id, model.ChannelHealthStatusUnhealthy, &errStr, calculateNextCheck(hc.IntervalMinutes))
 		log.Errorf("health check %d failed: %v", id, err)
 		return
 	}
 
 	// Success
-	op.HealthUpdateStatus(ctx, id, model.HealthCheckStatusHealthy, nil, calculateNextCheck(hc.IntervalMinutes))
+	op.HealthUpdateStatus(ctx, id, model.ChannelHealthStatusHealthy, nil, calculateNextCheck(hc.IntervalMinutes))
 	log.Infof("health check %d succeeded for channel %s model %s", id, channel.Name, hc.ModelName)
 }
 
@@ -99,7 +99,7 @@ func calculateNextCheck(intervalMinutes int) *time.Time {
 	return &next
 }
 
-func performHealthCheck(ctx context.Context, channel *model.Channel, hc *model.HealthCheck) error {
+func performHealthCheck(ctx context.Context, channel *model.Channel, hc *model.ChannelHealth) error {
 	// Get a channel key
 	if len(channel.Keys) == 0 {
 		return fmt.Errorf("no API keys configured for channel")
@@ -294,7 +294,7 @@ func LoadAndRegisterHealthTasks() {
 	}
 
 	for _, hc := range healthChecks {
-		hcCopy := hc.HealthCheck // Create a copy to avoid closure issues
+		hcCopy := hc.ChannelHealth // Create a copy to avoid closure issues
 		RegisterHealthTask(&hcCopy)
 	}
 
