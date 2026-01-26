@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -120,4 +121,14 @@ func Close() error {
 
 func GetDB() *gorm.DB {
 	return db
+}
+
+func Vacuum(ctx context.Context) error {
+	if db == nil {
+		return nil
+	}
+	if db.Dialector.Name() == "sqlite" {
+		return db.WithContext(ctx).Exec("VACUUM").Error
+	}
+	return nil
 }
