@@ -56,6 +56,13 @@ func PrintBanner() {
 	printInfo("Repo", Repo, Cyan)
 
 	fmt.Print(Dim)
+	fmt.Println(strings.Repeat("─", 60))
+	fmt.Print(Reset)
+
+	visitURL := fmt.Sprintf("http://localhost:%d", AppConfig.Server.Port)
+	printInfo("Visit URL", visitURL, Green+Bold)
+
+	fmt.Print(Dim)
 	fmt.Println(strings.Repeat("═", 60))
 	fmt.Print(Reset)
 }
