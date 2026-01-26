@@ -1,0 +1,16 @@
+services:
+  octopus:
+    image: lorne/octopus
+    build:
+      context: .
+      dockerfile: ./scripts/dockerfiles/Dockerfile.debian
+      args:
+        TARGETPLATFORM: linux/arm64
+    ports:
+       - '8030:8080'
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+       - '/opt/docker-compose/octopus/data:/app/data'
+    container_name: octopus
+    restart: unless-stopped
