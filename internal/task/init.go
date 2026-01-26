@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/bestruirui/octopus/internal/conf"
+	"github.com/bestruirui/octopus/internal/db"
 	"github.com/bestruirui/octopus/internal/model"
 	"github.com/bestruirui/octopus/internal/op"
 	"github.com/bestruirui/octopus/internal/price"
@@ -17,6 +19,7 @@ const (
 	TaskSyncLLM      = "sync_llm"
 	TaskCleanLLM     = "clean_llm"
 	TaskBaseUrlDelay = "base_url_delay"
+	TaskSQLiteVacuum = "sqlite_vacuum"
 )
 
 func Init() {
@@ -59,4 +62,13 @@ func Init() {
 			log.Warnf("relay log save db task failed: %v", err)
 		}
 	})
+
+	// 注册SQLite数据库Vacuum任务
+	if conf.AppConfig.Database.Type == "sqlite" {
+		Register(TaskSQLiteVacuum, 24*time.Hour, true, func() {
+			if err := db.Vacuum(context.Background()); err != nil {
+				log.Errorf("failed to vacuum sqlite: %v", err)
+			}
+		})
+	}
 }
