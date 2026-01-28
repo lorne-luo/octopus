@@ -56,4 +56,9 @@ type relayContext struct {
 	// firstTokenTimeOutSec: streaming-only "time to first token" timeout for the selected group/channel.
 	// When >0 and stream doesn't produce any transformed output within this duration, we abort and retry next channel.
 	firstTokenTimeOutSec int
+
+	// Relay-level timeouts from config.Relay
+	nonStreamRequestTimeoutSec int // Hard deadline for non-stream requests
+	streamIdleTimeoutSec       int // Abort if no SSE event received
+	streamNoOutputTimeoutSec   int // Abort if no client-visible output produced
 }

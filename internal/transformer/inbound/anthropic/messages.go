@@ -437,9 +437,16 @@ func (i *MessagesInbound) TransformResponse(ctx context.Context, response *model
 }
 
 func (i *MessagesInbound) TransformStream(ctx context.Context, stream *model.InternalLLMResponse) ([]byte, error) {
-	// Handle [DONE] marker
+	// Handle [DONE] marker - send message_stop to properly end the stream
 	if stream.Object == "[DONE]" {
-		return nil, nil
+		msgStopEvent := StreamEvent{
+			Type: "message_stop",
+		}
+		data, err := json.Marshal(msgStopEvent)
+		if err != nil {
+			return nil, err
+		}
+		return formatSSEEvent("message_stop", data), nil
 	}
 
 	// Store the chunk for aggregation

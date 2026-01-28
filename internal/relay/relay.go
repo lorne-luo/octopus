@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bestruirui/octopus/internal/conf"
 	"github.com/bestruirui/octopus/internal/helper"
 	"github.com/bestruirui/octopus/internal/op"
 	"github.com/bestruirui/octopus/internal/relay/balancer"
@@ -112,14 +113,17 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 			}
 
 			rc := &relayContext{
-				c:                    c,
-				inAdapter:            inAdapter,
-				outAdapter:           outAdapter,
-				internalRequest:      internalRequest,
-				channel:              channel,
-				metrics:              metrics,
-				usedKey:              channel.GetChannelKey(),
-				firstTokenTimeOutSec: group.FirstTokenTimeOut,
+				c:                          c,
+				inAdapter:                  inAdapter,
+				outAdapter:                 outAdapter,
+				internalRequest:            internalRequest,
+				channel:                    channel,
+				metrics:                    metrics,
+				usedKey:                    channel.GetChannelKey(),
+				firstTokenTimeOutSec:       group.FirstTokenTimeOut,
+				nonStreamRequestTimeoutSec: conf.AppConfig.Relay.NonStreamRequestTimeoutSec,
+				streamIdleTimeoutSec:       conf.AppConfig.Relay.StreamIdleTimeoutSec,
+				streamNoOutputTimeoutSec:   conf.AppConfig.Relay.StreamNoOutputTimeoutSec,
 			}
 
 			if statusCode, err := rc.forward(); err == nil {
@@ -225,7 +229,12 @@ func (rc *relayContext) forward() (int, error) {
 		}
 		return response.StatusCode, nil
 	}
-	if err := rc.handleResponse(ctx, response); err != nil {
+
+	// 为非流式响应体读取设置超时，防止 io.ReadAll 挂起
+	readCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+
+	if err := rc.handleResponse(readCtx, response); err != nil {
 		return 0, err
 	}
 	return response.StatusCode, nil
@@ -256,6 +265,13 @@ func (rc *relayContext) sendRequest(req *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 
+	// 为非流式请求添加总超时控制
+	if rc.internalRequest.Stream == nil || !*rc.internalRequest.Stream {
+		ctx, cancel := context.WithTimeout(req.Context(), 5*time.Minute)
+		defer cancel()
+		req = req.WithContext(ctx)
+	}
+
 	response, err := httpClient.Do(req)
 	if err != nil {
 		log.Warnf("failed to send request: %v", err)
@@ -282,8 +298,8 @@ func (rc *relayContext) handleStreamResponse(ctx context.Context, response *http
 
 	firstToken := true
 
-	// Streaming "time to first token" timeout: only applies before we write anything to the client.
-	// We read SSE events in a goroutine so we can race the first meaningful output against a timer.
+	// Streaming timeout: applies before the first token AND between tokens.
+	// We read SSE events in a goroutine so we can race the output against a timer.
 	type sseReadResult struct {
 		data string
 		err  error
@@ -301,59 +317,76 @@ func (rc *relayContext) handleStreamResponse(ctx context.Context, response *http
 		}
 	}()
 
-	var firstTokenTimer *time.Timer
-	var firstTokenC <-chan time.Time
-	if firstToken && rc.firstTokenTimeOutSec > 0 {
+	var firstTokenTimer, streamIdleTimer, streamNoOutputTimer *time.Timer
+	var firstTokenC, streamIdleC, streamNoOutputC <-chan time.Time
+
+	if rc.firstTokenTimeOutSec > 0 {
 		firstTokenTimer = time.NewTimer(time.Duration(rc.firstTokenTimeOutSec) * time.Second)
 		firstTokenC = firstTokenTimer.C
-		defer func() {
-			if firstTokenTimer != nil {
-				firstTokenTimer.Stop()
-			}
-		}()
+	}
+	if rc.streamIdleTimeoutSec > 0 {
+		streamIdleTimer = time.NewTimer(time.Duration(rc.streamIdleTimeoutSec) * time.Second)
+		streamIdleC = streamIdleTimer.C
+	}
+	if rc.streamNoOutputTimeoutSec > 0 {
+		streamNoOutputTimer = time.NewTimer(time.Duration(rc.streamNoOutputTimeoutSec) * time.Second)
+		streamNoOutputC = streamNoOutputTimer.C
 	}
 
+	defer func() {
+		for _, t := range []*time.Timer{firstTokenTimer, streamIdleTimer, streamNoOutputTimer} {
+			if t != nil {
+				t.Stop()
+			}
+		}
+	}()
+
 	for {
-		// 检查客户端是否断开
 		select {
 		case <-ctx.Done():
-			log.Infof("client disconnected, stopping stream")
 			return nil
 		case <-firstTokenC:
-			// Abort upstream stream before any client writes; caller will retry next channel.
-			log.Warnf("first token timeout (%ds), switching channel", rc.firstTokenTimeOutSec)
 			_ = response.Body.Close()
-			return fmt.Errorf("first token timeout (%ds)", rc.firstTokenTimeOutSec)
+			if firstToken {
+				return fmt.Errorf("first token timeout (%ds)", rc.firstTokenTimeOutSec)
+			}
+			return fmt.Errorf("stream stalled")
+		case <-streamIdleC:
+			_ = response.Body.Close()
+			return fmt.Errorf("stream idle timeout (%ds)", rc.streamIdleTimeoutSec)
+		case <-streamNoOutputC:
+			_ = response.Body.Close()
+			return fmt.Errorf("stream no output timeout (%ds)", rc.streamNoOutputTimeoutSec)
 		case r, ok := <-results:
 			if !ok {
-				log.Infof("stream end")
 				return nil
 			}
 			if r.err != nil {
-				log.Warnf("failed to read event: %v", r.err)
 				return fmt.Errorf("failed to read stream event: %w", r.err)
 			}
 
-			// 转换流式数据
+			if streamIdleTimer != nil {
+				streamIdleTimer.Reset(time.Duration(rc.streamIdleTimeoutSec) * time.Second)
+			}
+
 			data, err := rc.transformStreamData(ctx, r.data)
 			if err != nil || len(data) == 0 {
 				continue
 			}
-			// 记录首个 Token 时间
+
 			if firstToken {
-				rc.metrics.SetFirstTokenTime(time.Now())
 				firstToken = false
-				// Disable the first-token timer once we have meaningful output.
+				rc.metrics.SetFirstTokenTime(time.Now())
 				if firstTokenTimer != nil {
-					if !firstTokenTimer.Stop() {
-						select {
-						case <-firstTokenTimer.C:
-						default:
-						}
-					}
-					firstTokenTimer = nil
+					firstTokenTimer.Stop()
 					firstTokenC = nil
 				}
+			} else if firstTokenTimer != nil {
+				firstTokenTimer.Reset(time.Duration(rc.firstTokenTimeOutSec) * time.Second)
+			}
+
+			if streamNoOutputTimer != nil {
+				streamNoOutputTimer.Reset(time.Duration(rc.streamNoOutputTimeoutSec) * time.Second)
 			}
 
 			rc.c.Writer.Write(data)
@@ -386,9 +419,19 @@ func (rc *relayContext) transformStreamData(ctx context.Context, data string) ([
 
 // handleResponse 处理非流式响应
 func (rc *relayContext) handleResponse(ctx context.Context, response *http.Response) error {
+	// Apply non-stream request timeout if configured
+	if rc.nonStreamRequestTimeoutSec > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(rc.nonStreamRequestTimeoutSec)*time.Second)
+		defer cancel()
+	}
+
 	// 上游格式 → 内部格式
 	internalResponse, err := rc.outAdapter.TransformResponse(ctx, response)
 	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			return fmt.Errorf("non-stream request timeout (%ds)", rc.nonStreamRequestTimeoutSec)
+		}
 		log.Warnf("failed to transform response: %v", err)
 		return fmt.Errorf("failed to transform outbound response: %w", err)
 	}
@@ -396,6 +439,9 @@ func (rc *relayContext) handleResponse(ctx context.Context, response *http.Respo
 	// 内部格式 → 入站格式
 	inResponse, err := rc.inAdapter.TransformResponse(ctx, internalResponse)
 	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			return fmt.Errorf("non-stream request timeout (%ds)", rc.nonStreamRequestTimeoutSec)
+		}
 		log.Warnf("failed to transform response: %v", err)
 		return fmt.Errorf("failed to transform inbound response: %w", err)
 	}

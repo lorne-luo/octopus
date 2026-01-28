@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/bestruirui/octopus/internal/conf"
 	_ "github.com/bestruirui/octopus/internal/server/handlers"
@@ -39,6 +40,19 @@ func Start() error {
 
 	httpSrv.Addr = fmt.Sprintf("%s:%d", conf.AppConfig.Server.Host, conf.AppConfig.Server.Port)
 	httpSrv.Handler = r
+
+	// Apply server timeouts from configuration.
+	// Note: WriteTimeout is intentionally left at 0 to support SSE streaming responses.
+	if conf.AppConfig.Server.ReadHeaderTimeoutSec > 0 {
+		httpSrv.ReadHeaderTimeout = time.Duration(conf.AppConfig.Server.ReadHeaderTimeoutSec) * time.Second
+	}
+	if conf.AppConfig.Server.ReadTimeoutSec > 0 {
+		httpSrv.ReadTimeout = time.Duration(conf.AppConfig.Server.ReadTimeoutSec) * time.Second
+	}
+	if conf.AppConfig.Server.IdleTimeoutSec > 0 {
+		httpSrv.IdleTimeout = time.Duration(conf.AppConfig.Server.IdleTimeoutSec) * time.Second
+	}
+
 	go func() {
 		if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Errorf("http server listen and serve error: %v", err)
