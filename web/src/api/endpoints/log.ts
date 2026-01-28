@@ -15,6 +15,7 @@ export interface ChannelAttempt {
     attempt_num: number;    // 第几次尝试
     success: boolean;
     error?: string;
+    api_key_suffix?: string;
     duration: number;       // 耗时(毫秒)
 }
 

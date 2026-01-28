@@ -66,15 +66,16 @@ func (m *RelayMetrics) SetInternalRequest(req *transformerModel.InternalLLMReque
 }
 
 // AddAttempt 记录单次渠道尝试的信息
-func (m *RelayMetrics) AddAttempt(round int, attemptNum int, success bool, err error, duration time.Duration) {
+func (m *RelayMetrics) AddAttempt(round int, attemptNum int, success bool, err error, duration time.Duration, apiKeySuffix string) {
 	attempt := model.ChannelAttempt{
-		ChannelID:   m.ChannelID,
-		ChannelName: m.ChannelName,
-		ModelName:   m.ActualModel,
-		Round:       round,
-		AttemptNum:  attemptNum,
-		Success:     success,
-		Duration:    int(duration.Milliseconds()),
+		ChannelID:    m.ChannelID,
+		ChannelName:  m.ChannelName,
+		ModelName:    m.ActualModel,
+		Round:        round,
+		AttemptNum:   attemptNum,
+		Success:      success,
+		ApiKeySuffix: apiKeySuffix,
+		Duration:     int(duration.Milliseconds()),
 	}
 	if err != nil {
 		attempt.Error = err.Error()

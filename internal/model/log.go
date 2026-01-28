@@ -7,9 +7,10 @@ type ChannelAttempt struct {
 	ModelName   string `json:"model_name"`
 	Round       int    `json:"round"`       // 第几轮 (1-3)
 	AttemptNum  int    `json:"attempt_num"` // 第几次尝试
-	Success     bool   `json:"success"`
-	Error       string `json:"error,omitempty"`
-	Duration    int    `json:"duration"` // 耗时(毫秒)
+	Success      bool   `json:"success"`
+	Error        string `json:"error,omitempty"`
+	ApiKeySuffix string `json:"api_key_suffix,omitempty"`
+	Duration     int    `json:"duration"` // 耗时(毫秒)
 }
 
 type RelayLog struct {
