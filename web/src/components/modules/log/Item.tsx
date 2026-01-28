@@ -29,7 +29,7 @@ import {
   RotateCw,
   ChevronDown,
   ChevronUp,
-  Gauge,
+  Gauge
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { motion, AnimatePresence } from "motion/react";
@@ -428,6 +428,287 @@ export function LogCard({ log }: { log: RelayLog }) {
                                 <div className="p-2.5 rounded-xl bg-destructive/10 border border-destructive/20 overflow-hidden">
                                     <p className="text-xs text-destructive line-clamp-2">{log.error}</p>
                                 </div>
+<>
+            <div
+              className={cn(
+                "hidden md:grid md:grid-cols-[auto_1fr] md:gap-4 md:p-4",
+                hasError ? "md:items-start" : "md:items-center",
+              )}
+            >
+              <ModelAvatar size={40} />
+              <div className="min-w-0 flex flex-col gap-3">
+                <div className="flex items-center gap-2 min-w-0 text-sm">
+                  <span
+                    className="font-semibold text-card-foreground truncate"
+                    title={log.request_model_name}
+                  >
+                    {log.request_model_name}
+                  </span>
+                  <ArrowRight className="size-3.5 shrink-0 text-muted-foreground/50" />
+                  {hasMultipleAttempts ? (
+                    <RetryBadgeWithTooltip
+                      channelName={log.channel_name}
+                      brandColor={brandColor}
+                      attempts={log.attempts!}
+                    />
+                  ) : (
+                    <Badge
+                      variant="secondary"
+                      className="shrink-0 text-xs px-1.5 py-0"
+                      style={{
+                        backgroundColor: `${brandColor}15`,
+                        color: brandColor,
+                      }}
+                    >
+                      {log.channel_name}
+                    </Badge>
+                  )}
+                  <span
+                    className="text-muted-foreground truncate"
+                    title={log.actual_model_name}
+                  >
+                    {log.actual_model_name}
+                  </span>
+                  {hasMultipleAttempts && (
+                    <Badge
+                      variant="outline"
+                      className="shrink-0 text-[10px] border-0 bg-secondary text-secondary-foreground"
+                    >
+                      {(log.total_attempts || log.attempts!.length)} {t("attempts")}
+                    </Badge>
+                  )}
+                </div>
+                <div className="grid grid-cols-6 gap-x-4 text-xs tabular-nums text-muted-foreground">
+                  <div className="flex items-center gap-1.5">
+                    <Clock
+                      className="size-3.5 shrink-0"
+                      style={{ color: brandColor }}
+                    />
+                    <span>{formatTime(log.time)}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Zap className="size-3.5 shrink-0 text-amber-500" />
+                    <span>
+                      {t("firstToken")} {formatDuration(log.ftut)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Cpu className="size-3.5 shrink-0 text-blue-500" />
+                    <span>
+                      {t("totalTime")} {formatDuration(log.use_time)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Gauge className="size-3.5 shrink-0 text-orange-500" />
+                    <span>
+                      {formatSpeed(log.input_tokens, log.output_tokens, log.use_time)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <ArrowDownToLine className="size-3.5 shrink-0 text-green-500" />
+                    <span>
+                      {t("input")} {log.input_tokens.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <ArrowUpFromLine className="size-3.5 shrink-0 text-purple-500" />
+                    <span>
+                      {t("output")} {log.output_tokens.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+                {hasError && (
+                  <div className="p-2.5 rounded-xl bg-destructive/10 border border-destructive/20 overflow-hidden">
+                    <p className="text-xs text-destructive line-clamp-2">
+                      {log.error}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div
+              className={cn(
+                "flex flex-col gap-2 p-4 md:hidden",
+                hasError ? "items-start" : "items-stretch",
+              )}
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <ModelAvatar size={24} />
+                <div className="flex items-center gap-2 min-w-0 text-sm flex-1 overflow-hidden">
+                  <span
+                    className="font-semibold text-card-foreground truncate"
+                    title={log.request_model_name}
+                  >
+                    {log.request_model_name}
+                  </span>
+                  <ArrowRight className="size-3.5 shrink-0 text-muted-foreground/50" />
+                  {hasMultipleAttempts ? (
+                    <RetryBadgeWithTooltip
+                      channelName={log.channel_name}
+                      brandColor={brandColor}
+                      attempts={log.attempts!}
+                    />
+                  ) : (
+                    <Badge
+                      variant="secondary"
+                      className="shrink-0 text-xs px-1.5 py-0"
+                      style={{
+                        backgroundColor: `${brandColor}15`,
+                        color: brandColor,
+                      }}
+                    >
+                      {log.channel_name}
+                    </Badge>
+                  )}
+                  <span
+                    className="text-muted-foreground truncate"
+                    title={log.actual_model_name}
+                  >
+                    {log.actual_model_name}
+                  </span>
+                  {hasMultipleAttempts && (
+                    <Badge
+                      variant="outline"
+                      className="shrink-0 text-[10px] border-0 bg-secondary text-secondary-foreground"
+                    >
+                      {(log.total_attempts || log.attempts!.length)} {t("attempts")}
+                    </Badge>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 text-xs tabular-nums text-muted-foreground">
+                <div className="flex items-center gap-1.5">
+                  <Clock
+                    className="size-3.5 shrink-0"
+                    style={{ color: brandColor }}
+                  />
+                  <span>{formatTime(log.time)}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Zap className="size-3.5 shrink-0 text-amber-500" />
+                  <span>
+                    {t("firstToken")} {formatDuration(log.ftut)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Cpu className="size-3.5 shrink-0 text-blue-500" />
+                  <span>
+                    {t("totalTime")} {formatDuration(log.use_time)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Gauge className="size-3.5 shrink-0 text-orange-500" />
+                  <span>
+                    {formatSpeed(
+                      log.input_tokens,
+                      log.output_tokens,
+                      log.use_time,
+                    )}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <ArrowDownToLine className="size-3.5 shrink-0 text-green-500" />
+                  <span>
+                    {t("input")} {log.input_tokens.toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <ArrowUpFromLine className="size-3.5 shrink-0 text-purple-500" />
+                  <span>
+                    {t("output")} {log.output_tokens.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+
+              {hasError && (
+                <div className="p-2.5 rounded-xl bg-destructive/10 border border-destructive/20 overflow-hidden">
+                  <p className="text-xs text-destructive line-clamp-2">
+                    {log.error}
+                  </p>
+                </div>
+              )}
+            </div>
+          </>
+        </MorphingDialogTrigger>
+
+        <MorphingDialogContainer>
+          <MorphingDialogContent className="relative w-[calc(100vw-2rem)] md:w-[80vw] bg-card text-card-foreground px-6 py-4 rounded-3xl custom-shadow h-[calc(100vh-2rem)] flex flex-col overflow-hidden">
+            <MorphingDialogClose className="top-4 right-5 text-muted-foreground hover:text-foreground transition-colors" />
+            <MorphingDialogTitle className="flex items-center gap-2 mb-3 text-sm">
+              <ModelAvatar size={28} />
+              <span className="font-semibold text-card-foreground">
+                {log.request_model_name}
+              </span>
+              <ArrowRight className="size-3.5 text-muted-foreground/50" />
+              {hasMultipleAttempts ? (
+                <RetryBadgeWithTooltip
+                  channelName={log.channel_name}
+                  brandColor={brandColor}
+                  attempts={log.attempts!}
+                />
+              ) : (
+                <Badge
+                  variant="secondary"
+                  className="text-xs px-1.5 py-0"
+                  style={{
+                    backgroundColor: `${brandColor}15`,
+                    color: brandColor,
+                  }}
+                >
+                  {log.channel_name}
+                </Badge>
+              )}
+              <span className="text-muted-foreground">
+                {log.actual_model_name}
+              </span>
+            </MorphingDialogTitle>
+
+            <MorphingDialogDescription className="flex-1 min-h-0">
+              <div className="flex flex-col min-h-0 h-full gap-4">
+                {(hasError || hasMultipleAttempts) && (
+                  <div
+                    className={cn(
+                      "flex-initial min-h-0 flex flex-col rounded-2xl border overflow-hidden max-h-[40%]",
+                      hasError
+                        ? "bg-destructive/5 border-destructive/20"
+                        : "bg-secondary/30 border-border/50",
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        "flex items-center gap-2 px-3 py-2.5 shrink-0 cursor-pointer select-none hover:bg-muted/50 transition-colors",
+                        hasError && "hover:bg-destructive/10",
+                      )}
+                      onClick={() =>
+                        setIsDiagnosticExpanded(!isDiagnosticExpanded)
+                      }
+                    >
+                      {hasError ? (
+                        <AlertCircle className="size-4 text-destructive" />
+                      ) : (
+                        <RotateCw className="size-4 text-muted-foreground" />
+                      )}
+                      <span
+                        className={cn(
+                          "text-sm font-medium",
+                          hasError
+                            ? "text-destructive"
+                            : "text-secondary-foreground",
+                        )}
+                      >
+                        {hasError ? t("errorInfo") : t("retryDetails")}
+                      </span>
+                      <div className="ml-auto flex items-center gap-2">
+                        {hasMultipleAttempts && (
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "text-xs border-0",
+                              hasError
+                                ? "bg-destructive/10 text-destructive"
+                                : "bg-secondary text-secondary-foreground",
                             )}
                           >
                             {log.total_attempts || log.attempts!.length}{" "}
@@ -634,7 +915,10 @@ export function LogCard({ log }: { log: RelayLog }) {
                                         {attempt.channel_name}
                                       </span>
                                       <span className="text-muted-foreground">
-                                        ({attempt.model_name})
+                                        ({attempt.model_name}
+                                        {attempt.api_key_suffix &&
+                                          ` • sk-...${attempt.api_key_suffix}`}
+                                        )
                                       </span>
                                       <span className="ml-auto text-muted-foreground tabular-nums font-mono">
                                         {formatDuration(attempt.duration)}

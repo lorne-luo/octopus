@@ -79,7 +79,32 @@ func (m *RelayMetrics) SetFirstTokenTime(t time.Time) {
 	m.FirstTokenTime = t
 }
 
-func (m *RelayMetrics) SetInternalResponse(resp *transformerModel.InternalLLMResponse, actualModel string) {
+// SetInternalRequest 设置内部请求
+func (m *RelayMetrics) SetInternalRequest(req *transformerModel.InternalLLMRequest) {
+	m.InternalRequest = req
+}
+
+// AddAttempt 记录单次渠道尝试的信息
+func (m *RelayMetrics) AddAttempt(round int, attemptNum int, success bool, err error, duration time.Duration, apiKeySuffix string) {
+	attempt := model.ChannelAttempt{
+		ChannelID:    m.ChannelID,
+		ChannelName:  m.ChannelName,
+		ModelName:    m.ActualModel,
+		Round:        round,
+		AttemptNum:   attemptNum,
+		Success:      success,
+		ApiKeySuffix: apiKeySuffix,
+		Duration:     int(duration.Milliseconds()),
+	}
+	if err != nil {
+		attempt.Error = err.Error()
+	}
+	m.Attempts = append(m.Attempts, attempt)
+	m.saveStats(success, duration)
+}
+
+// SetInternalResponse 设置内部响应并计算费用
+func (m *RelayMetrics) SetInternalResponse(resp *transformerModel.InternalLLMResponse) {
 	m.InternalResponse = resp
 	m.ActualModel = actualModel
 

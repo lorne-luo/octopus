@@ -211,8 +211,15 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 			if statusCode, err := rc.forward(); err == nil {
 				// 成功
 				attemptDuration := time.Since(attemptStart)
+				key := rc.usedKey.ChannelKey
+				apiKeySuffix := ""
+				if len(key) > 4 {
+					apiKeySuffix = key[len(key)-4:]
+				} else {
+					apiKeySuffix = key
+				}
 				rc.collectResponse()
-				metrics.AddAttempt(round+1, i+1, true, nil, attemptDuration)
+				metrics.AddAttempt(round+1, i+1, true, nil, attemptDuration, apiKeySuffix)
 				rc.usedKey.StatusCode = statusCode
 				rc.usedKey.LastUseTimeStamp = time.Now().Unix()
 				rc.usedKey.TotalCost += metrics.Stats.InputCost + metrics.Stats.OutputCost
@@ -222,7 +229,14 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 			} else {
 				// 失败
 				attemptDuration := time.Since(attemptStart)
-				metrics.AddAttempt(round+1, i+1, false, err, attemptDuration)
+				key := rc.usedKey.ChannelKey
+				apiKeySuffix := ""
+				if len(key) > 4 {
+					apiKeySuffix = key[len(key)-4:]
+				} else {
+					apiKeySuffix = key
+				}
+				metrics.AddAttempt(round+1, i+1, false, err, attemptDuration, apiKeySuffix)
 				rc.usedKey.StatusCode = statusCode
 				rc.usedKey.LastUseTimeStamp = time.Now().Unix()
 				op.ChannelKeyUpdate(rc.usedKey)
