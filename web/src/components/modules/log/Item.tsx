@@ -16,7 +16,7 @@ import {
   RotateCw,
   ChevronDown,
   ChevronUp,
-  Gauge,
+  Gauge
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { motion, AnimatePresence } from "motion/react";
@@ -119,7 +119,10 @@ function RetryBadgeWithTooltip({
                   {attempt.channel_name}
                 </span>
                 <span className="text-[10px] text-muted-foreground">
-                  {attempt.model_name} • {formatDuration(attempt.duration)}
+                  {attempt.model_name}
+                  {attempt.api_key_suffix &&
+                    ` • sk-...${attempt.api_key_suffix}`}{" "}
+                  • {formatDuration(attempt.duration)}
                 </span>
               </div>
             </div>
@@ -251,7 +254,7 @@ export function LogCard({ log }: { log: RelayLog }) {
             hasError ? "border-destructive/40" : "border-border",
           )}
         >
-          <>
+<>
             <div
               className={cn(
                 "hidden md:grid md:grid-cols-[auto_1fr] md:gap-4 md:p-4",
@@ -589,7 +592,10 @@ export function LogCard({ log }: { log: RelayLog }) {
                                         {attempt.channel_name}
                                       </span>
                                       <span className="text-muted-foreground">
-                                        ({attempt.model_name})
+                                        ({attempt.model_name}
+                                        {attempt.api_key_suffix &&
+                                          ` • sk-...${attempt.api_key_suffix}`}
+                                        )
                                       </span>
                                       <span className="ml-auto text-muted-foreground tabular-nums font-mono">
                                         {formatDuration(attempt.duration)}
