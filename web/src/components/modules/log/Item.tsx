@@ -17,6 +17,7 @@ import {
   RotateCw,
   ChevronDown,
   ChevronUp,
+  Gauge,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { motion, AnimatePresence } from "motion/react";
@@ -60,6 +61,14 @@ function formatTime(timestamp: number): string {
 function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
   return `${(ms / 1000).toFixed(2)}s`;
+}
+
+function formatSpeed(inputTokens: number, outputTokens: number, totalTimeMs: number): string {
+  const totalTokens = inputTokens + outputTokens;
+  const totalTimeSeconds = totalTimeMs / 1000;
+  if (totalTimeSeconds <= 0) return '0 tks/s';
+  const speed = totalTokens / totalTimeSeconds;
+  return `${speed.toFixed(1)} tks/s`;
 }
 
 interface RetryBadgeWithTooltipProps {
@@ -281,7 +290,7 @@ export function LogCard({ log }: { log: RelayLog }) {
                   {log.actual_model_name}
                 </span>
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-6 gap-x-4 gap-y-2 text-xs tabular-nums text-muted-foreground">
+              <div className="grid grid-cols-7 gap-x-4 text-xs tabular-nums text-muted-foreground">
                 <div className="flex items-center gap-1.5">
                   <Clock
                     className="size-3.5 shrink-0"
@@ -299,6 +308,12 @@ export function LogCard({ log }: { log: RelayLog }) {
                   <Cpu className="size-3.5 shrink-0 text-blue-500" />
                   <span>
                     {t("totalTime")} {formatDuration(log.use_time)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Gauge className="size-3.5 shrink-0 text-orange-500" />
+                  <span>
+                    {formatSpeed(log.input_tokens, log.output_tokens, log.use_time)}
                   </span>
                 </div>
                 <div className="flex items-center gap-1.5">
