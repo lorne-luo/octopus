@@ -446,6 +446,9 @@ func (rc *relayContext) handleResponse(ctx context.Context, response *http.Respo
 		if ctx.Err() == context.DeadlineExceeded {
 			return fmt.Errorf("non-stream request timeout (%ds)", rc.nonStreamRequestTimeoutSec)
 		}
+		if ctx.Err() == context.Canceled {
+			return fmt.Errorf("request canceled by client")
+		}
 		log.Warnf("failed to transform response: %v", err)
 		return fmt.Errorf("failed to transform outbound response: %w", err)
 	}
@@ -455,6 +458,9 @@ func (rc *relayContext) handleResponse(ctx context.Context, response *http.Respo
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
 			return fmt.Errorf("non-stream request timeout (%ds)", rc.nonStreamRequestTimeoutSec)
+		}
+		if ctx.Err() == context.Canceled {
+			return fmt.Errorf("request canceled by client")
 		}
 		log.Warnf("failed to transform response: %v", err)
 		return fmt.Errorf("failed to transform inbound response: %w", err)
