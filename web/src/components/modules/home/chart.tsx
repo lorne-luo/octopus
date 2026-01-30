@@ -27,7 +27,7 @@ export function StatsChart() {
             return statsHourly.map((stat) => {
                 return {
                     date: `${stat.hour}:00`,
-                    total_cost: stat.total_cost.raw,
+                    total_token: stat.total_token.raw,
                 };
             });
         } else {
@@ -35,7 +35,7 @@ export function StatsChart() {
             return sortedDaily.slice(-days).map((stat) => {
                 return {
                     date: dayjs(stat.date).format('MM/DD'),
-                    total_cost: stat.total_cost.raw,
+                    total_token: stat.total_token.raw,
                 };
             });
         }
@@ -43,9 +43,10 @@ export function StatsChart() {
 
     const totals = useMemo(() => {
         if (period === '1') {
-            if (!statsHourly) return { requests: 0, cost: 0 };
+            if (!statsHourly) return { requests: 0, tokens: 0, cost: 0 };
             return {
                 requests: statsHourly.reduce((acc, stat) => acc + stat.request_count.raw, 0),
+                tokens: statsHourly.reduce((acc, stat) => acc + stat.total_token.raw, 0),
                 cost: statsHourly.reduce((acc, stat) => acc + stat.total_cost.raw, 0),
             };
         } else {
@@ -53,13 +54,14 @@ export function StatsChart() {
             const recentStats = sortedDaily.slice(-days);
             return {
                 requests: recentStats.reduce((acc, stat) => acc + stat.request_success.raw + stat.request_failed.raw, 0),
+                tokens: recentStats.reduce((acc, stat) => acc + stat.total_token.raw, 0),
                 cost: recentStats.reduce((acc, stat) => acc + stat.total_cost.raw, 0),
             };
         }
     }, [sortedDaily, statsHourly, period]);
 
     const chartConfig = {
-        total_cost: { label: t('totalCost') },
+        total_token: { label: t('totalTokens') },
     };
 
     const getPeriodLabel = (p: typeof period) => {
@@ -90,6 +92,14 @@ export function StatsChart() {
                     </div>
                     <div className="w-px bg-border self-stretch"></div>
                     <div>
+                        <div className="text-xs text-muted-foreground">{t('totalTokens')}</div>
+                        <div className="text-xl font-semibold">
+                            <AnimatedNumber value={formatCount(totals.tokens).formatted.value} />
+                            <span className="ml-0.5 text-sm text-muted-foreground">{formatCount(totals.tokens).formatted.unit}</span>
+                        </div>
+                    </div>
+                    <div className="w-px bg-border self-stretch"></div>
+                    <div>
                         <div className="text-xs text-muted-foreground">{t('totalCost')}</div>
                         <div className="text-xl font-semibold">
                             <AnimatedNumber value={formatMoney(totals.cost).formatted.value} />
@@ -110,7 +120,7 @@ export function StatsChart() {
             <ChartContainer config={chartConfig} className="h-40 w-full" >
                 <AreaChart accessibilityLayer data={chartData}>
                     <defs>
-                        <linearGradient id="fillTotalCost" x1="0" y1="0" x2="0" y2="1">
+                        <linearGradient id="fillTotalToken" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="5%" stopColor="var(--chart-1)" stopOpacity={1.0} />
                             <stop offset="95%" stopColor="var(--chart-1)" stopOpacity={0.1} />
                         </linearGradient>
@@ -121,12 +131,13 @@ export function StatsChart() {
                         tickLine={false}
                         axisLine={false}
                         tickFormatter={(value) => {
-                            const formatted = formatMoney(value);
+                            const formatted = formatCount(value);
                             return `${formatted.formatted.value}${formatted.formatted.unit}`;
                         }}
                     />
                     <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="line" />} />
-                    <Area type="monotone" dataKey="total_cost" stroke="var(--chart-1)" fill="url(#fillTotalCost)" />
+                    {/* <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="line" fo  rmatter={(value) => 'Tokens '+formatCount(value as number).formatted.value + formatCount(value as number).formatted.unit} />} /> */}
+                    <Area type="monotone" dataKey="total_token" stroke="var(--chart-1)" fill="url(#fillTotalToken)" />
                 </AreaChart>
             </ChartContainer>
         </div>
