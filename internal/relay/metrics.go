@@ -101,35 +101,76 @@ func (m *RelayMetrics) AddAttempt(round int, attemptNum int, success bool, err e
 
 // SetInternalResponse 设置内部响应并计算费用
 func (m *RelayMetrics) SetInternalResponse(resp *transformerModel.InternalLLMResponse) {
+	if resp != nil && resp.Model == "" && m.ActualModel != "" {
+		resp.Model = m.ActualModel
+	}
 	m.InternalResponse = resp
 
+	// 如果响应为 nil，直接返回
+	if resp == nil {
+		// 尝试估算 token 数，仅当 InputToken 尚未设置时
+		if m.InternalRequest != nil && m.Stats.InputToken == 0 {
+			estimatedTokens := EstimateRequestTokens(m.InternalRequest)
+			if estimatedTokens > 0 {
+				m.Stats.InputToken = int64(estimatedTokens)
+			}
+		}
+		return
+	}
+
 	// 从响应中提取 Usage 并计算费用
-	if resp == nil || resp.Usage == nil {
-		return
-	}
+	if resp.Usage != nil {
+		usage := resp.Usage
+		m.Stats.InputToken = usage.PromptTokens
+		m.Stats.OutputToken = usage.CompletionTokens
 
-	usage := resp.Usage
-	m.Stats.InputToken = usage.PromptTokens
-	m.Stats.OutputToken = usage.CompletionTokens
+		// 如果 output token 为 0 且有内容，尝试估算
+		if m.Stats.OutputToken == 0 {
+			estimatedOutputTokens := EstimateResponseTokens(resp)
+			if estimatedOutputTokens > 0 {
+				m.Stats.OutputToken = int64(estimatedOutputTokens)
+			}
+		}
 
-	// 计算费用
-	modelPrice := price.GetLLMPrice(m.ActualModel)
-	if modelPrice == nil {
-		return
-	}
-	if usage.PromptTokensDetails == nil {
-		usage.PromptTokensDetails = &transformerModel.PromptTokensDetails{
-			CachedTokens: 0,
+		// 如果 input token 为 0 且 request 不为空，尝试估算
+		if m.Stats.InputToken == 0 && m.InternalRequest != nil {
+			estimatedTokens := EstimateRequestTokens(m.InternalRequest)
+			if estimatedTokens > 0 {
+				m.Stats.InputToken = int64(estimatedTokens)
+			}
+		}
+
+		// 计算费用
+		modelPrice := price.GetLLMPrice(m.ActualModel)
+		if modelPrice != nil {
+			if usage.PromptTokensDetails == nil {
+				usage.PromptTokensDetails = &transformerModel.PromptTokensDetails{
+					CachedTokens: 0,
+				}
+			}
+			if usage.AnthropicUsage {
+				m.Stats.InputCost = (float64(usage.PromptTokensDetails.CachedTokens)*modelPrice.CacheRead +
+					float64(usage.PromptTokens)*modelPrice.Input +
+					float64(usage.CacheCreationInputTokens)*modelPrice.CacheWrite) * 1e-6
+			} else {
+				m.Stats.InputCost = (float64(usage.PromptTokensDetails.CachedTokens)*modelPrice.CacheRead + float64(usage.PromptTokens-usage.PromptTokensDetails.CachedTokens)*modelPrice.Input) * 1e-6
+			}
+			m.Stats.OutputCost = float64(usage.CompletionTokens) * modelPrice.Output * 1e-6
+		}
+	} else {
+		// 如果 usage 为 nil，且 InputToken 尚未设置，尝试估算 token 数
+		if m.InternalRequest != nil && m.Stats.InputToken == 0 {
+			estimatedTokens := EstimateRequestTokens(m.InternalRequest)
+			if estimatedTokens > 0 {
+				m.Stats.InputToken = int64(estimatedTokens)
+			}
+		}
+		// 估算输出 token
+		estimatedOutputTokens := EstimateResponseTokens(resp)
+		if estimatedOutputTokens > 0 {
+			m.Stats.OutputToken = int64(estimatedOutputTokens)
 		}
 	}
-	if usage.AnthropicUsage {
-		m.Stats.InputCost = (float64(usage.PromptTokensDetails.CachedTokens)*modelPrice.CacheRead +
-			float64(usage.PromptTokens)*modelPrice.Input +
-			float64(usage.CacheCreationInputTokens)*modelPrice.CacheWrite) * 1e-6
-	} else {
-		m.Stats.InputCost = (float64(usage.PromptTokensDetails.CachedTokens)*modelPrice.CacheRead + float64(usage.PromptTokens-usage.PromptTokensDetails.CachedTokens)*modelPrice.Input) * 1e-6
-	}
-	m.Stats.OutputCost = float64(usage.CompletionTokens) * modelPrice.Output * 1e-6
 }
 
 // Save 保存日志和统计信息
@@ -188,6 +229,11 @@ func (m *RelayMetrics) saveLog(ctx context.Context, err error, duration time.Dur
 	if m.InternalResponse != nil && m.InternalResponse.Usage != nil {
 		relayLog.InputTokens = int(m.InternalResponse.Usage.PromptTokens)
 		relayLog.OutputTokens = int(m.InternalResponse.Usage.CompletionTokens)
+		relayLog.Cost = m.Stats.InputCost + m.Stats.OutputCost
+	} else {
+		// 如果响应中没有 Usage，使用统计中的 token 数量
+		relayLog.InputTokens = int(m.Stats.InputToken)
+		relayLog.OutputTokens = int(m.Stats.OutputToken)
 		relayLog.Cost = m.Stats.InputCost + m.Stats.OutputCost
 	}
 

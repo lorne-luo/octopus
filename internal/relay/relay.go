@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/samber/lo"
+
 	"github.com/bestruirui/octopus/internal/helper"
 	"github.com/bestruirui/octopus/internal/op"
 	"github.com/bestruirui/octopus/internal/relay/balancer"
@@ -230,7 +232,30 @@ func (rc *relayContext) forward() (int, error) {
 		if err != nil {
 			return 0, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return 0, fmt.Errorf("upstream error: %d: %s", response.StatusCode, string(body))
+
+		// 尝试提取 error.message 字段，如果没有则使用整个 body
+		errorContent := extractErrorMessage(body)
+
+		// 创建包含错误信息的 InternalLLMResponse 用于日志记录
+		if errorContent != "" {
+			rc.metrics.SetInternalResponse(&model.InternalLLMResponse{
+				Object: "error",
+				Choices: []model.Choice{
+					{
+						Index:        0,
+						FinishReason: lo.ToPtr("error"),
+						Message: &model.Message{
+							Role: "assistant",
+							Content: model.MessageContent{
+								Content: lo.ToPtr(errorContent),
+							},
+						},
+					},
+				},
+			})
+		}
+
+		return 0, fmt.Errorf("upstream error: %d: %s", response.StatusCode, errorContent)
 	}
 
 	// 处理响应
@@ -244,6 +269,37 @@ func (rc *relayContext) forward() (int, error) {
 		return 0, err
 	}
 	return response.StatusCode, nil
+}
+
+// extractErrorMessage 从错误响应中提取错误信息
+// 如果包含 error.message 字段则提取该字段，否则使用整个 body
+func extractErrorMessage(body []byte) string {
+	if len(body) == 0 {
+		return ""
+	}
+
+	// 尝试解析 JSON 并提取 error.message
+	var errResp struct {
+		Error struct {
+			Message string `json:"message"`
+			Type    string `json:"type"`
+		} `json:"error"`
+	}
+
+	if err := json.Unmarshal(body, &errResp); err == nil && errResp.Error.Message != "" {
+		// 如果有 type，也一起显示
+		if errResp.Error.Type != "" {
+			return fmt.Sprintf("%s: %s", errResp.Error.Type, errResp.Error.Message)
+		}
+		return errResp.Error.Message
+	}
+
+	// 解析失败或没有 error.message，使用整个 body (限制长度以防止超大 HTML 干扰)
+	errMsg := strings.TrimSpace(string(body))
+	if len(errMsg) > 500 {
+		return errMsg[:500] + "..."
+	}
+	return errMsg
 }
 
 // copyHeaders 复制请求头，过滤 hop-by-hop 头
