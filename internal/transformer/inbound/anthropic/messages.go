@@ -192,8 +192,9 @@ func (i *MessagesInbound) TransformRequest(ctx context.Context, body []byte) (*m
 					}
 				case "tool_use":
 					chatMsg.ToolCalls = append(chatMsg.ToolCalls, model.ToolCall{
-						ID:   block.ID,
-						Type: "function",
+						Index: len(chatMsg.ToolCalls),
+						ID:    block.ID,
+						Type:  "function",
 						Function: model.FunctionCall{
 							Name:      lo.FromPtr(block.Name),
 							Arguments: string(block.Input),
@@ -910,12 +911,28 @@ func (i *MessagesInbound) GetInternalResponse(ctx context.Context) (*model.Inter
 					existingChoice.Message.Role = delta.Role
 				}
 
-				// Append content
+				// Append content (handle both string content and multipart content)
 				if delta.Content.Content != nil {
 					if existingChoice.Message.Content.Content == nil {
 						existingChoice.Message.Content.Content = new(string)
 					}
 					*existingChoice.Message.Content.Content += *delta.Content.Content
+				}
+
+				// Append multipart content (for images, audio, etc.)
+				if len(delta.Content.MultipleContent) > 0 {
+					existingChoice.Message.Content.MultipleContent = append(
+						existingChoice.Message.Content.MultipleContent,
+						delta.Content.MultipleContent...,
+					)
+				}
+
+				// Append images (used by Gemini via OpenAI compat endpoint for image generation)
+				if len(delta.Images) > 0 {
+					existingChoice.Message.Content.MultipleContent = append(
+						existingChoice.Message.Content.MultipleContent,
+						delta.Images...,
+					)
 				}
 
 				// Append reasoning content
@@ -953,8 +970,14 @@ func (i *MessagesInbound) GetInternalResponse(ctx context.Context) (*model.Inter
 	}
 
 	// Convert map to slice, sorted by index
+	maxIdx := -1
+	for idx := range choicesMap {
+		if idx > maxIdx {
+			maxIdx = idx
+		}
+	}
 	result.Choices = make([]model.Choice, 0, len(choicesMap))
-	for idx := 0; idx < len(choicesMap); idx++ {
+	for idx := 0; idx <= maxIdx; idx++ {
 		if choice, exists := choicesMap[idx]; exists {
 			result.Choices = append(result.Choices, *choice)
 		}

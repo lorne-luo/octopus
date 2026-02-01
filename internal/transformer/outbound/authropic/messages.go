@@ -166,10 +166,11 @@ func (o *MessageOutbound) TransformStream(ctx context.Context, eventData []byte)
 		}
 
 	case "content_block_start":
-		if streamEvent.ContentBlock != nil {
+		if streamEvent.ContentBlock != nil && streamEvent.Index != nil {
 			switch streamEvent.ContentBlock.Type {
 			case "tool_use":
 				o.toolIndex++
+				contentBlockIdx := int(*streamEvent.Index)
 				toolCall := model.ToolCall{
 					Index: o.toolIndex,
 					ID:    streamEvent.ContentBlock.ID,
@@ -179,7 +180,8 @@ func (o *MessageOutbound) TransformStream(ctx context.Context, eventData []byte)
 						Arguments: "",
 					},
 				}
-				o.toolCalls[o.toolIndex] = &toolCall
+				// Store using Anthropic's content block index as key
+				o.toolCalls[contentBlockIdx] = &toolCall
 
 				resp.Choices = []model.Choice{
 					{
@@ -215,16 +217,19 @@ func (o *MessageOutbound) TransformStream(ctx context.Context, eventData []byte)
 					}
 				}
 			case "input_json_delta":
-				if streamEvent.Delta.PartialJSON != nil && o.toolIndex >= 0 {
-					choice.Delta.ToolCalls = []model.ToolCall{
-						{
-							Index: o.toolIndex,
-							ID:    o.toolCalls[o.toolIndex].ID,
-							Type:  "function",
-							Function: model.FunctionCall{
-								Arguments: *streamEvent.Delta.PartialJSON,
+				if streamEvent.Delta.PartialJSON != nil && streamEvent.Index != nil {
+					idx := int(*streamEvent.Index)
+					if toolCall, ok := o.toolCalls[idx]; ok {
+						choice.Delta.ToolCalls = []model.ToolCall{
+							{
+								Index: idx,
+								ID:    toolCall.ID,
+								Type:  "function",
+								Function: model.FunctionCall{
+									Arguments: *streamEvent.Delta.PartialJSON,
+								},
 							},
-						},
+						}
 					}
 				}
 			case "thinking_delta":
@@ -774,8 +779,9 @@ func convertToLLMResponse(resp *anthropicModel.Message) *model.InternalLLMRespon
 					input = string(block.Input)
 				}
 				toolCalls = append(toolCalls, model.ToolCall{
-					ID:   block.ID,
-					Type: "function",
+					Index: len(toolCalls),
+					ID:    block.ID,
+					Type:  "function",
 					Function: model.FunctionCall{
 						Name:      *block.Name,
 						Arguments: input,
