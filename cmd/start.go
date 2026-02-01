@@ -20,6 +20,7 @@ var startCmd = &cobra.Command{
 		conf.Load(cfgFile)
 		conf.PrintBanner()
 		log.SetLevel(conf.AppConfig.Log.Level)
+		log.SetupLogger(conf.AppConfig.Log.Level, conf.AppConfig.Log.Path)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
 		shutdown.Init(log.Logger)

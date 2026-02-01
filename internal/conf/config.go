@@ -16,6 +16,7 @@ type Server struct {
 
 type Log struct {
 	Level string `mapstructure:"level"`
+	Path  string `mapstructure:"path"`
 }
 
 type Database struct {
@@ -24,9 +25,10 @@ type Database struct {
 }
 
 type Config struct {
-	Server   Server   `mapstructure:"server"`
-	Log      Log      `mapstructure:"log"`
-	Database Database `mapstructure:"database"`
+	Log          Log          `mapstructure:"log"`
+	Database     Database     `mapstructure:"database"`
+	UpstreamHTTP UpstreamHTTP `mapstructure:"upstream_http"`
+	Relay        Relay        `mapstructure:"relay"`
 }
 
 var AppConfig Config
@@ -74,4 +76,17 @@ func setDefaults() {
 	viper.SetDefault("database.type", "sqlite")
 	viper.SetDefault("database.path", "data/data.db")
 	viper.SetDefault("log.level", "info")
+	viper.SetDefault("log.path", "data/logs.log")
+
+	// Upstream HTTP transport-level timeouts.
+	viper.SetDefault("upstream_http.dial_timeout_sec", 10)
+	viper.SetDefault("upstream_http.tls_handshake_timeout_sec", 10)
+	viper.SetDefault("upstream_http.response_header_timeout_sec", 30)
+	viper.SetDefault("upstream_http.expect_continue_timeout_sec", 1)
+	viper.SetDefault("upstream_http.idle_conn_timeout_sec", 90)
+
+	// Relay timeouts.
+	viper.SetDefault("relay.non_stream_request_timeout_sec", 120)
+	viper.SetDefault("relay.stream_idle_timeout_sec", 180)
+	viper.SetDefault("relay.stream_no_output_timeout_sec", 0)
 }

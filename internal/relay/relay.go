@@ -31,6 +31,8 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 	if err != nil {
 		return
 	}
+	log.Infof("Handler ===================================================================")
+
 	supportedModels := c.GetString("supported_models")
 	if supportedModels != "" {
 		supportedModelsArray := strings.Split(supportedModels, ",")
@@ -176,6 +178,7 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 
 func parseRequest(inboundType inbound.InboundType, c *gin.Context) ([]byte, *model.InternalLLMRequest, model.Inbound, error) {
 	body, err := io.ReadAll(c.Request.Body)
+	log.Infof("Request Handler: %s",string(body))
 	if err != nil {
 		resp.Error(c, http.StatusInternalServerError, err.Error())
 		return nil, nil, nil, err
@@ -426,6 +429,9 @@ func (rc *relayContext) handleStreamResponse(ctx context.Context, response *http
 				}
 			}
 
+			// Log the stream chunk
+			log.Infof("Stream response chunk: %s", string(data))
+
 			rc.c.Writer.Write(data)
 			rc.c.Writer.Flush()
 			rc.metrics.AppendRawResponse(data)
@@ -476,6 +482,9 @@ func (rc *relayContext) handleResponse(ctx context.Context, response *http.Respo
 		log.Warnf("failed to transform response: %v", err)
 		return fmt.Errorf("failed to transform inbound response: %w", err)
 	}
+
+	// Log the final response
+	log.Infof("Non-stream response body: %s", string(inResponse))
 
 	rc.c.Data(http.StatusOK, "application/json", inResponse)
 	// 将 JSON 响应添加原始响应记录
