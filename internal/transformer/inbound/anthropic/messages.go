@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/bestruirui/octopus/internal/transformer/model"
+	"github.com/bestruirui/octopus/internal/utils/log"
 	"github.com/bestruirui/octopus/internal/utils/tokenizer"
 	"github.com/bestruirui/octopus/internal/utils/xurl"
 	"github.com/samber/lo"
@@ -37,6 +38,10 @@ func (i *MessagesInbound) TransformRequest(ctx context.Context, body []byte) (*m
 	if err := json.Unmarshal(body, &anthropicReq); err != nil {
 		return nil, err
 	}
+
+	// Log the request
+	logAnthropicRequest(&anthropicReq)
+
 	chatReq := &model.InternalLLMRequest{
 		Model:               anthropicReq.Model,
 		MaxTokens:           &anthropicReq.MaxTokens,
@@ -191,6 +196,7 @@ func (i *MessagesInbound) TransformRequest(ctx context.Context, body []byte) (*m
 						messages = append(messages, toolMsg)
 					}
 				case "tool_use":
+
 					chatMsg.ToolCalls = append(chatMsg.ToolCalls, model.ToolCall{
 						Index: len(chatMsg.ToolCalls),
 						ID:    block.ID,
@@ -201,6 +207,8 @@ func (i *MessagesInbound) TransformRequest(ctx context.Context, body []byte) (*m
 						},
 						CacheControl: convertToLLMCacheControl(block.CacheControl),
 					})
+					// log.Infof("[MessageInbound.tool_use] len(chatMsg.ToolCalls): %d, block.ID: %s", len(chatMsg.ToolCalls), block.ID)
+
 					hasContent = true
 				}
 			}
@@ -437,6 +445,9 @@ func (i *MessagesInbound) TransformResponse(ctx context.Context, response *model
 		resp.Usage = usage
 	}
 
+	// Log the response
+	logAnthropicResponse(resp)
+
 	return json.Marshal(resp)
 }
 
@@ -654,6 +665,7 @@ func (i *MessagesInbound) TransformStream(ctx context.Context, stream *model.Int
 					Type:  "content_block_stop",
 					Index: &i.contentIndex,
 				}
+				logAnthropicStreamEvent("choice.Delta.ToolCalls.content_block_stop", &stopEvent)
 				data, err := json.Marshal(stopEvent)
 				if err != nil {
 					return nil, fmt.Errorf("failed to marshal content_block_stop event: %w", err)
@@ -696,6 +708,7 @@ func (i *MessagesInbound) TransformStream(ctx context.Context, stream *model.Int
 							Type:  "content_block_stop",
 							Index: &i.contentIndex,
 						}
+						logAnthropicStreamEvent(fmt.Sprintf("choice.Delta.ToolCalls.content_block_stop_%d", toolCallIndex), &stopEvent)
 						data, err := json.Marshal(stopEvent)
 						if err != nil {
 							return nil, fmt.Errorf("failed to marshal content_block_stop event: %w", err)
@@ -705,6 +718,7 @@ func (i *MessagesInbound) TransformStream(ctx context.Context, stream *model.Int
 						i.contentIndex++
 					}
 
+					log.Infof("[TransformStream.choice.Delta.ToolCalls ] i.toolCallIndices: %v, current toolCallIndex: %d", i.toolCallIndices, toolCallIndex)
 					i.toolCallIndices[toolCallIndex] = true
 					i.hasToolContentStarted = true
 
@@ -719,6 +733,7 @@ func (i *MessagesInbound) TransformStream(ctx context.Context, stream *model.Int
 							Input: json.RawMessage("{}"),
 						},
 					}
+					logAnthropicStreamEvent(fmt.Sprintf("choice.Delta.ToolCalls.content_block_start_%d", toolCallIndex), &startEvent)
 					data, err := json.Marshal(startEvent)
 					if err != nil {
 						return nil, fmt.Errorf("failed to marshal content_block_start event: %w", err)

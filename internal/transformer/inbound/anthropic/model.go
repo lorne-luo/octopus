@@ -7,6 +7,7 @@ import (
 
 // MessageRequest represents the Anthropic Messages API request format.
 type MessageRequest struct {
+	// anthropic api 原始input json
 	MaxTokens int64          `json:"max_tokens" validate:"required,gte=1"`
 	Messages  []MessageParam `json:"messages"   validate:"required"`
 	Model     string         `json:"model,omitempty"      validate:"required"`
