@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/samber/lo"
 
@@ -139,7 +140,7 @@ func (o *MessageOutbound) TransformStream(ctx context.Context, eventData []byte)
 		ID:      o.streamID,
 		Model:   o.streamModel,
 		Object:  "chat.completion.chunk",
-		Created: 0,
+		Created: time.Now().Unix(),
 	}
 
 	switch streamEvent.Type {
@@ -760,7 +761,7 @@ func convertToLLMResponse(resp *anthropicModel.Message) *model.InternalLLMRespon
 		ID:      resp.ID,
 		Object:  "chat.completion",
 		Model:   resp.Model,
-		Created: 0,
+		Created: time.Now().Unix(),
 	}
 
 	var (
