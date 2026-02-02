@@ -34,7 +34,7 @@ func Register(name string, interval time.Duration, runOnStart bool, fn func()) {
 	defer tasksMu.Unlock()
 
 	if _, exists := tasks[name]; exists {
-		log.Warnf("task %s already registered, skipping", name)
+		log.Debugf("task %s already registered, skipping", name)
 		return
 	}
 
@@ -73,7 +73,7 @@ func Update(name string, interval time.Duration) {
 	case entry.updateCh <- interval:
 		log.Infof("task %s interval updated to %v", name, interval)
 	default:
-		log.Warnf("task %s update channel full, skipping", name)
+		log.Debugf("task %s update channel full, skipping", name)
 	}
 }
 

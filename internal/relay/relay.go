@@ -81,7 +81,6 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 				continue
 			}
 			if channel.Enabled == false {
-				log.Warnf("channel %s is disabled", channel.Name)
 				lastErr = fmt.Errorf("channel %s is disabled", channel.Name)
 				item = b.Next(group.Items, item)
 				continue

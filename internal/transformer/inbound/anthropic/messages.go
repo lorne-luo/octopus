@@ -381,6 +381,7 @@ func (i *MessagesInbound) TransformResponse(ctx context.Context, response *model
 
 			// Handle tool calls
 			if len(message.ToolCalls) > 0 {
+				contentBlockIndex := 0
 				for _, toolCall := range message.ToolCalls {
 					var input json.RawMessage
 					if toolCall.Function.Arguments != "" {
@@ -396,10 +397,12 @@ func (i *MessagesInbound) TransformResponse(ctx context.Context, response *model
 
 					contentBlocks = append(contentBlocks, MessageContentBlock{
 						Type:  "tool_use",
+						Index: &contentBlockIndex,
 						ID:    toolCall.ID,
 						Name:  &toolCall.Function.Name,
 						Input: input,
 					})
+					contentBlockIndex++
 				}
 			}
 
@@ -706,6 +709,7 @@ func (i *MessagesInbound) TransformStream(ctx context.Context, stream *model.Int
 						Index: &i.contentIndex,
 						ContentBlock: &MessageContentBlock{
 							Type:  "tool_use",
+							Index: lo.ToPtr(int(i.contentIndex)),
 							ID:    deltaToolCall.ID,
 							Name:  &deltaToolCall.Function.Name,
 							Input: json.RawMessage("{}"),
