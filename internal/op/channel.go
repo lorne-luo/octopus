@@ -325,7 +325,7 @@ func ChannelDel(id int, ctx context.Context) error {
 	// 刷新受影响的分组缓存
 	for _, groupID := range affectedGroupIDs {
 		if err := groupRefreshCacheByID(groupID, ctx); err != nil {
-			log.Warnf("failed to refresh group cache for group %d: %v", groupID, err)
+			log.Debugf("failed to refresh group cache for group %d: %v", groupID, err)
 		}
 	}
 

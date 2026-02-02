@@ -32,7 +32,7 @@ func Init() {
 	// 注册价格更新任务
 	Register(string(model.SettingKeyModelInfoUpdateInterval), priceUpdateInterval, true, func() {
 		if err := price.UpdateLLMPrice(context.Background()); err != nil {
-			log.Warnf("failed to update price info: %v", err)
+			log.Debugf("failed to update price info: %v", err)
 		}
 	})
 

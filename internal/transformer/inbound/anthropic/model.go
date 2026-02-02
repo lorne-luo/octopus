@@ -273,6 +273,7 @@ type MessageContentBlock struct {
 	ID           string          `json:"id,omitempty"`
 	Name         *string         `json:"name,omitempty"`
 	Input        json.RawMessage `json:"input,omitempty"`
+	Index        *int            `json:"index,omitempty"`
 	CacheControl *CacheControl   `json:"cache_control,omitempty"`
 
 	// Tool result fields

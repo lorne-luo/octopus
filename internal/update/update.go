@@ -38,7 +38,7 @@ func doRequestWithFallback(url string) ([]byte, error) {
 	if err == nil {
 		return data, nil
 	}
-	log.Warnf("direct request failed, trying with proxy: %v", err)
+	log.Debugf("direct request failed, trying with proxy: %v", err)
 	return doRequest(url, true)
 }
 
