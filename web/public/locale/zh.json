@@ -385,6 +385,7 @@
             "tokens": "tokens",
             "retryDetails": "重试详情",
             "attempts": "次尝试",
+            "retries": "次重试",
             "success": "成功",
             "failed": "失败"
         }

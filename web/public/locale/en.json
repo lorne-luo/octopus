@@ -385,6 +385,7 @@
             "tokens": "tokens",
             "retryDetails": "Retry Details",
             "attempts": "attempts",
+            "retries": "retries",
             "success": "Success",
             "failed": "Failed"
         }

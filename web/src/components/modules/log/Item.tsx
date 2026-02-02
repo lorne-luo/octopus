@@ -249,48 +249,163 @@ export function LogCard({ log }: { log: RelayLog }) {
             hasError ? "border-destructive/40" : "border-border",
           )}
         >
-          <div
-            className={cn(
-              "p-4 grid grid-cols-[auto_1fr] gap-4",
-              hasError ? "items-start" : "items-center",
-            )}
-          >
-            <ModelAvatar size={40} />
-            <div className="min-w-0 flex flex-col gap-3">
-              <div className="flex items-center gap-2 min-w-0 text-sm">
-                <span
-                  className="font-semibold text-card-foreground truncate"
-                  title={log.request_model_name}
-                >
-                  {log.request_model_name}
-                </span>
-                <ArrowRight className="size-3.5 shrink-0 text-muted-foreground/50" />
-                {hasMultipleAttempts ? (
-                  <RetryBadgeWithTooltip
-                    channelName={log.channel_name}
-                    brandColor={brandColor}
-                    attempts={log.attempts!}
-                  />
-                ) : (
-                  <Badge
-                    variant="secondary"
-                    className="shrink-0 text-xs px-1.5 py-0"
-                    style={{
-                      backgroundColor: `${brandColor}15`,
-                      color: brandColor,
-                    }}
+          <>
+            <div
+              className={cn(
+                "hidden md:grid md:grid-cols-[auto_1fr] md:gap-4 md:p-4",
+                hasError ? "md:items-start" : "md:items-center",
+              )}
+            >
+              <ModelAvatar size={40} />
+              <div className="min-w-0 flex flex-col gap-3">
+                <div className="flex items-center gap-2 min-w-0 text-sm">
+                  <span
+                    className="font-semibold text-card-foreground truncate"
+                    title={log.request_model_name}
                   >
-                    {log.channel_name}
-                  </Badge>
+                    {log.request_model_name}
+                  </span>
+                  <ArrowRight className="size-3.5 shrink-0 text-muted-foreground/50" />
+                  {hasMultipleAttempts ? (
+                    <RetryBadgeWithTooltip
+                      channelName={log.channel_name}
+                      brandColor={brandColor}
+                      attempts={log.attempts!}
+                    />
+                  ) : (
+                    <Badge
+                      variant="secondary"
+                      className="shrink-0 text-xs px-1.5 py-0"
+                      style={{
+                        backgroundColor: `${brandColor}15`,
+                        color: brandColor,
+                      }}
+                    >
+                      {log.channel_name}
+                    </Badge>
+                  )}
+                  <span
+                    className="text-muted-foreground truncate"
+                    title={log.actual_model_name}
+                  >
+                    {log.actual_model_name}
+                  </span>
+                  {hasMultipleAttempts && (
+                    <Badge
+                      variant="outline"
+                      className="shrink-0 text-[10px] border-0 bg-secondary text-secondary-foreground"
+                    >
+                      {(log.total_attempts || log.attempts!.length) - 1} {t("retries")}
+                    </Badge>
+                  )}
+                </div>
+                <div className="grid grid-cols-7 gap-x-4 text-xs tabular-nums text-muted-foreground">
+                  <div className="flex items-center gap-1.5">
+                    <Clock
+                      className="size-3.5 shrink-0"
+                      style={{ color: brandColor }}
+                    />
+                    <span>{formatTime(log.time)}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Zap className="size-3.5 shrink-0 text-amber-500" />
+                    <span>
+                      {t("firstToken")} {formatDuration(log.ftut)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Cpu className="size-3.5 shrink-0 text-blue-500" />
+                    <span>
+                      {t("totalTime")} {formatDuration(log.use_time)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Gauge className="size-3.5 shrink-0 text-orange-500" />
+                    <span>
+                      {formatSpeed(log.input_tokens, log.output_tokens, log.use_time)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <ArrowDownToLine className="size-3.5 shrink-0 text-green-500" />
+                    <span>
+                      {t("input")} {log.input_tokens.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <ArrowUpFromLine className="size-3.5 shrink-0 text-purple-500" />
+                    <span>
+                      {t("output")} {log.output_tokens.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <DollarSign className="size-3.5 shrink-0 text-emerald-500" />
+                    <span className="font-medium text-emerald-600 dark:text-emerald-400">
+                      {t("cost")} {Number(log.cost).toFixed(6)}
+                    </span>
+                  </div>
+                </div>
+                {hasError && (
+                  <div className="p-2.5 rounded-xl bg-destructive/10 border border-destructive/20 overflow-hidden">
+                    <p className="text-xs text-destructive line-clamp-2">
+                      {log.error}
+                    </p>
+                  </div>
                 )}
-                <span
-                  className="text-muted-foreground truncate"
-                  title={log.actual_model_name}
-                >
-                  {log.actual_model_name}
-                </span>
               </div>
-              <div className="grid grid-cols-7 gap-x-4 text-xs tabular-nums text-muted-foreground">
+            </div>
+
+            <div
+              className={cn(
+                "flex flex-col gap-2 p-4 md:hidden",
+                hasError ? "items-start" : "items-stretch",
+              )}
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <ModelAvatar size={24} />
+                <div className="flex items-center gap-2 min-w-0 text-sm flex-1 overflow-hidden">
+                  <span
+                    className="font-semibold text-card-foreground truncate"
+                    title={log.request_model_name}
+                  >
+                    {log.request_model_name}
+                  </span>
+                  <ArrowRight className="size-3.5 shrink-0 text-muted-foreground/50" />
+                  {hasMultipleAttempts ? (
+                    <RetryBadgeWithTooltip
+                      channelName={log.channel_name}
+                      brandColor={brandColor}
+                      attempts={log.attempts!}
+                    />
+                  ) : (
+                    <Badge
+                      variant="secondary"
+                      className="shrink-0 text-xs px-1.5 py-0"
+                      style={{
+                        backgroundColor: `${brandColor}15`,
+                        color: brandColor,
+                      }}
+                    >
+                      {log.channel_name}
+                    </Badge>
+                  )}
+                  <span
+                    className="text-muted-foreground truncate"
+                    title={log.actual_model_name}
+                  >
+                    {log.actual_model_name}
+                  </span>
+                  {hasMultipleAttempts && (
+                    <Badge
+                      variant="outline"
+                      className="shrink-0 text-[10px] border-0 bg-secondary text-secondary-foreground"
+                    >
+                      {(log.total_attempts || log.attempts!.length) - 1} {t("retries")}
+                    </Badge>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 text-xs tabular-nums text-muted-foreground">
                 <div className="flex items-center gap-1.5">
                   <Clock
                     className="size-3.5 shrink-0"
@@ -328,13 +443,14 @@ export function LogCard({ log }: { log: RelayLog }) {
                     {t("output")} {log.output_tokens.toLocaleString()}
                   </span>
                 </div>
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 col-span-2 sm:col-span-1">
                   <DollarSign className="size-3.5 shrink-0 text-emerald-500" />
                   <span className="font-medium text-emerald-600 dark:text-emerald-400">
                     {t("cost")} {Number(log.cost).toFixed(6)}
                   </span>
                 </div>
               </div>
+
               {hasError && (
                 <div className="p-2.5 rounded-xl bg-destructive/10 border border-destructive/20 overflow-hidden">
                   <p className="text-xs text-destructive line-clamp-2">
@@ -343,7 +459,7 @@ export function LogCard({ log }: { log: RelayLog }) {
                 </div>
               )}
             </div>
-          </div>
+          </>
         </MorphingDialogTrigger>
 
         <MorphingDialogContainer>

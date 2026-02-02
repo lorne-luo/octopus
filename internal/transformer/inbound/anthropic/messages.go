@@ -790,6 +790,7 @@ func (i *MessagesInbound) TransformStream(ctx context.Context, stream *model.Int
 			// Store the stop reason, but don't generate message_delta yet
 			// We'll wait for the usage chunk to combine them
 			i.stopReason = &stopReason
+			// log.Infof("Convert finish reason `%s` to stop reason %s",*choice.FinishReason,*i.stopReason)
 		}
 	}
 
