@@ -1,6 +1,7 @@
 #!/bin/bash
 
 rm -rf build
+npm i baseline-browser-mapping@latest -D
 bash scripts/build.sh build linux arm64
 mkdir -p build/docker/linux/arm64/
 mv build/bin/octopus-linux-arm64 build/docker/linux/arm64/octopus
