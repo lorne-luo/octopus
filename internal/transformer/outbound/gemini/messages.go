@@ -563,6 +563,10 @@ func convertGeminiToLLMResponse(geminiResp *model.GeminiGenerateContentResponse,
 				usage.CompletionTokensDetails = &model.CompletionTokensDetails{}
 			}
 			usage.CompletionTokensDetails.ReasoningTokens = int64(geminiResp.UsageMetadata.ThoughtsTokenCount)
+			// Also add to total completion tokens
+			usage.CompletionTokens += int64(geminiResp.UsageMetadata.ThoughtsTokenCount)
+			// And update total tokens to reflect this addition
+			usage.TotalTokens += int64(geminiResp.UsageMetadata.ThoughtsTokenCount)
 		}
 
 		resp.Usage = usage
