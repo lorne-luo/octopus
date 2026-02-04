@@ -28,7 +28,14 @@ export function Channel() {
 
     const filteredChannels = useMemo(() => {
         if (!channelsData) return [];
-        const sorted = [...channelsData].sort((a, b) => a.raw.id - b.raw.id);
+        const sorted = [...channelsData].sort((a, b) => {
+            const countA = a.raw.stats.request_success + a.raw.stats.request_failed;
+            const countB = b.raw.stats.request_success + b.raw.stats.request_failed;
+            if (countA === countB) {
+                return a.raw.id - b.raw.id;
+            }
+            return countB - countA; // 总请求降序
+        });
         if (!searchTerm.trim()) return sorted;
         const term = searchTerm.toLowerCase();
         return sorted.filter((c) => c.raw.name.toLowerCase().includes(term));
