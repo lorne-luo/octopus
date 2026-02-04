@@ -845,6 +845,10 @@ func convertResponsesUsage(usage *ResponsesUsage) *model.Usage {
 		result.CompletionTokensDetails = &model.CompletionTokensDetails{
 			ReasoningTokens: usage.OutputTokenDetails.ReasoningTokens,
 		}
+		// Also add to total completion tokens
+		result.CompletionTokens += usage.OutputTokenDetails.ReasoningTokens
+		// And update total tokens to reflect this addition
+		result.TotalTokens += usage.OutputTokenDetails.ReasoningTokens
 	}
 
 	return result
