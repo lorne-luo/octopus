@@ -83,6 +83,7 @@
         },
         "chart": {
             "totalRequests": "Total Requests",
+            "totalTokens": "Tokens Used",
             "totalCost": "Total Cost",
             "timePeriod": "Time Period",
             "period": {

@@ -83,6 +83,7 @@
         },
         "chart": {
             "totalRequests": "請求次數",
+            "totalTokens": "消費Tokens",
             "totalCost": "消費金額",
             "timePeriod": "時間範圍",
             "period": {
