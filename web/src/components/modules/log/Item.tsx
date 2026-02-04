@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useMemo, useState, useEffect } from 'react';
 import { Clock, Cpu, Zap, AlertCircle, ArrowDownToLine, ArrowUpFromLine, DollarSign, ArrowRight, ArrowDown, Send, MessageSquare, Loader2, RotateCw, ChevronDown, ChevronUp, Pin } from 'lucide-react';
@@ -13,42 +13,93 @@ import { getModelIcon } from '@/lib/model-icons';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { CopyIconButton } from '@/components/common/CopyButton';
+
 import {
-    MorphingDialog,
-    MorphingDialogTrigger,
-    MorphingDialogContainer,
-    MorphingDialogContent,
-    MorphingDialogClose,
-    MorphingDialogTitle,
-    MorphingDialogDescription,
-    useMorphingDialog,
-} from '@/components/ui/morphing-dialog';
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/animate-ui/components/animate/tooltip';
+  Clock,
+  Cpu,
+  Zap,
+  AlertCircle,
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  DollarSign,
+  ArrowRight,
+  ArrowDown,
+  Send,
+  MessageSquare,
+  Loader2,
+  RotateCw,
+  ChevronDown,
+  ChevronUp,
+  Gauge,
+} from "lucide-react";
+import { useTranslations } from "next-intl";
+import { motion, AnimatePresence } from "motion/react";
+import JsonView from "@uiw/react-json-view";
+import { githubDarkTheme } from "@uiw/react-json-view/githubDark";
+import { githubLightTheme } from "@uiw/react-json-view/githubLight";
+import { useTheme } from "next-themes";
+import { type RelayLog, type ChannelAttempt } from "@/api/endpoints/log";
+import { getModelIcon } from "@/lib/model-icons";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+import { CopyIconButton } from "@/components/common/CopyButton";
+import {
+  MorphingDialog,
+  MorphingDialogTrigger,
+  MorphingDialogContainer,
+  MorphingDialogContent,
+  MorphingDialogClose,
+  MorphingDialogTitle,
+  MorphingDialogDescription,
+  useMorphingDialog,
+} from "@/components/ui/morphing-dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  TooltipProvider,
+} from "@/components/animate-ui/components/animate/tooltip";
 
 function formatTime(timestamp: number): string {
-    const date = new Date(timestamp * 1000);
-    return date.toLocaleString('zh-CN', {
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-    });
+  const date = new Date(timestamp * 1000);
+  return date.toLocaleString("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
 }
 
 function formatDuration(ms: number): string {
-    if (ms < 1000) return `${ms}ms`;
-    return `${(ms / 1000).toFixed(2)}s`;
+  if (ms < 1000) return `${ms}ms`;
+  return `${(ms / 1000).toFixed(2)}s`;
+}
+
+function formatSpeed(
+  inputTokens: number,
+  outputTokens: number,
+  totalTimeMs: number,
+): string {
+  const totalTokens = inputTokens + outputTokens;
+  const totalTimeSeconds = totalTimeMs / 1000;
+  if (totalTimeSeconds <= 0) return "0 tks/s";
+  const speed = totalTokens / totalTimeSeconds;
+  return `${speed.toFixed(1)} tks/s`;
 }
 
 interface RetryBadgeWithTooltipProps {
-    channelName: string;
-    brandColor: string;
-    attempts: ChannelAttempt[];
+  channelName: string;
+  brandColor: string;
+  attempts: ChannelAttempt[];
 }
 
-function RetryBadgeWithTooltip({ channelName, brandColor, attempts }: RetryBadgeWithTooltipProps) {
-    const t = useTranslations('log.card');
+function RetryBadgeWithTooltip({
+  channelName,
+  brandColor,
+  attempts,
+}: RetryBadgeWithTooltipProps) {
+  const t = useTranslations("log.card");
 
     return (
         <Tooltip>
@@ -180,30 +231,140 @@ function DeferredJsonContent({ content, fallbackText }: { content: string | unde
                     {content}
                 </motion.pre>
             )}
-        </AnimatePresence>
+          </div>
+        ))}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+function DeferredJsonContent({
+  content,
+  fallbackText,
+}: {
+  content: string | undefined;
+  fallbackText: string;
+}) {
+  const { resolvedTheme } = useTheme();
+  const { isOpen } = useMorphingDialog();
+  const [shouldRender, setShouldRender] = useState(false);
+
+  const parsed = useMemo(() => {
+    if (!content) return { isJson: false, data: null };
+    try {
+      return { isJson: true, data: JSON.parse(content) };
+    } catch {
+      return { isJson: false, data: content };
+    }
+  }, [content]);
+
+  useEffect(() => {
+    if (isOpen) {
+      const timer = setTimeout(() => setShouldRender(true), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen]);
+
+  if (!isOpen) {
+    if (shouldRender) setShouldRender(false);
+    return null;
+  }
+
+  if (!content) {
+    return (
+      <pre className="p-4 text-xs text-muted-foreground whitespace-pre-wrap wrap-break-word leading-relaxed">
+        {fallbackText}
+      </pre>
     );
+  }
+
+  return (
+    <AnimatePresence mode="wait">
+      {!shouldRender ? (
+        <motion.div
+          key="loading"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+          className="p-4 flex items-center justify-center h-full"
+        >
+          <Loader2 className="h-5 w-5 text-muted-foreground animate-spin" />
+        </motion.div>
+      ) : parsed.isJson ? (
+        <motion.div
+          key="json"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="p-4"
+        >
+          <JsonView
+            value={parsed.data as object}
+            style={{
+              ...(resolvedTheme === "dark"
+                ? githubDarkTheme
+                : githubLightTheme),
+              fontSize: "12px",
+              fontFamily:
+                'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+              backgroundColor: "transparent",
+            }}
+            displayDataTypes={false}
+            displayObjectSize={false}
+            collapsed={false}
+          />
+        </motion.div>
+      ) : (
+        <motion.pre
+          key="text"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="p-4 text-xs text-muted-foreground whitespace-pre-wrap wrap-break-word font-mono leading-relaxed"
+        >
+          {content}
+        </motion.pre>
+      )}
+    </AnimatePresence>
+  );
 }
 
 export function LogCard({ log }: { log: RelayLog }) {
-    const t = useTranslations('log.card');
-    const { Avatar: ModelAvatar, color: brandColor } = useMemo(
-        () => getModelIcon(log.actual_model_name),
-        [log.actual_model_name]
-    );
+  const t = useTranslations("log.card");
+  const { Avatar: ModelAvatar, color: brandColor } = useMemo(
+    () => getModelIcon(log.actual_model_name),
+    [log.actual_model_name],
+  );
 
-    const hasError = !!log.error;
-    const hasMultipleAttempts = log.attempts && log.attempts.length > 1;
-    const [isDiagnosticExpanded, setIsDiagnosticExpanded] = useState(false);
+  const hasError = !!log.error;
+  const hasMultipleAttempts = log.attempts && log.attempts.length > 1;
+  const [isDiagnosticExpanded, setIsDiagnosticExpanded] = useState(false);
 
-    return (
-        <TooltipProvider>
-            <MorphingDialog>
-                <MorphingDialogTrigger
-                    className={cn(
-                        "rounded-3xl border bg-card custom-shadow w-full text-left",
-                        "hover:shadow-md transition-shadow duration-200",
-                        hasError ? "border-destructive/40" : "border-border",
-                    )}
+  return (
+    <TooltipProvider>
+      <MorphingDialog>
+        <MorphingDialogTrigger
+          className={cn(
+            "rounded-3xl border bg-card custom-shadow w-full text-left",
+            "hover:shadow-md transition-shadow duration-200",
+            hasError ? "border-destructive/40" : "border-border",
+          )}
+        >
+          <div
+            className={cn(
+              "p-4 grid grid-cols-[auto_1fr] gap-4",
+              hasError ? "items-start" : "items-center",
+            )}
+          >
+            <ModelAvatar size={40} />
+            <div className="min-w-0 flex flex-col gap-3">
+              <div className="flex items-center gap-2 min-w-0 text-sm">
+                <span
+                  className="font-semibold text-card-foreground truncate"
+                  title={log.request_model_name}
                 >
                     <div className={cn("p-4 grid grid-cols-[auto_1fr] gap-4", hasError ? "items-start" : "items-center")}>
                         <ModelAvatar size={40} />
@@ -268,9 +429,18 @@ export function LogCard({ log }: { log: RelayLog }) {
                                     <p className="text-xs text-destructive line-clamp-2">{log.error}</p>
                                 </div>
                             )}
-                        </div>
+                          >
+                            {log.total_attempts || log.attempts!.length}{" "}
+                            {t("attempts")}
+                          </Badge>
+                        )}
+                        {isDiagnosticExpanded ? (
+                          <ChevronUp className="size-4 text-muted-foreground" />
+                        ) : (
+                          <ChevronDown className="size-4 text-muted-foreground" />
+                        )}
+                      </div>
                     </div>
-                </MorphingDialogTrigger>
 
                 <MorphingDialogContainer>
                     <MorphingDialogContent className="relative w-[calc(100vw-2rem)] md:w-[80vw] bg-card text-card-foreground px-6 py-4 rounded-3xl custom-shadow h-[calc(100vh-2rem)] flex flex-col overflow-hidden">
@@ -441,32 +611,118 @@ export function LogCard({ log }: { log: RelayLog }) {
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                        </MorphingDialogDescription>
+                                <p className="text-sm text-destructive whitespace-pre-wrap wrap-break-word pr-8 leading-relaxed">
+                                  {log.error}
+                                </p>
+                              </div>
+                            )}
 
-                        <div className="flex flex-wrap items-center gap-3 md:gap-4 pt-4 mt-auto text-xs text-muted-foreground shrink-0">
-                            <div className="flex items-center gap-1.5">
-                                <Clock className="size-3.5" style={{ color: brandColor }} />
-                                <span className="tabular-nums">{formatTime(log.time)}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                                <Zap className="size-3.5 text-amber-500" />
-                                <span>{t('firstTokenTime')}: {formatDuration(log.ftut)}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                                <Cpu className="size-3.5 text-blue-500" />
-                                <span>{t('totalTime')}: {formatDuration(log.use_time)}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                                <DollarSign className="size-3.5 text-emerald-500" />
-                                <span className="font-medium text-emerald-600 dark:text-emerald-400">
-                                    {t('cost')}: {Number(log.cost).toFixed(6)}
-                                </span>
-                            </div>
-                        </div>
-                    </MorphingDialogContent>
-                </MorphingDialogContainer>
-            </MorphingDialog>
-        </TooltipProvider>
-    );
+                            {hasMultipleAttempts && (
+                              <div className="flex flex-col gap-2">
+                                {log.attempts!.map((attempt, idx) => (
+                                  <div
+                                    key={idx}
+                                    className={cn(
+                                      "text-xs p-2.5 rounded-xl border transition-colors flex flex-col gap-2",
+                                      attempt.success
+                                        ? "bg-primary/5 border-primary/20 hover:bg-primary/10"
+                                        : "bg-destructive/5 border-destructive/20 hover:bg-destructive/10",
+                                    )}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-semibold text-foreground">
+                                        {attempt.channel_name}
+                                      </span>
+                                      <span className="text-muted-foreground">
+                                        ({attempt.model_name})
+                                      </span>
+                                      <span className="ml-auto text-muted-foreground tabular-nums font-mono">
+                                        {formatDuration(attempt.duration)}
+                                      </span>
+                                    </div>
+                                    {attempt.error && (
+                                      <div className="text-destructive/90 pl-2 border-l-2 border-destructive/30 text-[11px] leading-relaxed">
+                                        {attempt.error}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                )}
+                <div className="flex-1 min-h-0 overflow-hidden">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-full min-h-0">
+                    <div className="flex flex-col rounded-2xl border border-border bg-muted/30 overflow-hidden min-h-0">
+                      <div className="flex items-center gap-2 px-3 md:px-4 py-2.5 md:py-3 border-b border-border bg-muted/50 shrink-0">
+                        <Send className="size-4 text-green-500" />
+                        <span className="text-sm font-medium text-card-foreground">
+                          {t("requestContent")}
+                        </span>
+                        <Badge variant="secondary" className="ml-auto text-xs">
+                          {log.input_tokens.toLocaleString()} {t("tokens")}
+                        </Badge>
+                      </div>
+                      <div className="flex-1 overflow-auto min-h-0">
+                        <DeferredJsonContent
+                          content={log.request_content}
+                          fallbackText={t("noRequestContent")}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex flex-col rounded-2xl border border-border bg-muted/30 overflow-hidden min-h-0">
+                      <div className="flex items-center gap-2 px-3 md:px-4 py-2.5 md:py-3 border-b border-border bg-muted/50 shrink-0">
+                        <MessageSquare className="size-4 text-purple-500" />
+                        <span className="text-sm font-medium text-card-foreground">
+                          {t("responseContent")}
+                        </span>
+                        <Badge variant="secondary" className="ml-auto text-xs">
+                          {log.output_tokens.toLocaleString()} {t("tokens")}
+                        </Badge>
+                      </div>
+                      <div className="flex-1 overflow-auto min-h-0">
+                        <DeferredJsonContent
+                          content={log.response_content}
+                          fallbackText={t("noResponseContent")}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </MorphingDialogDescription>
+
+            <div className="flex flex-wrap items-center gap-3 md:gap-4 pt-4 mt-auto text-xs text-muted-foreground shrink-0">
+              <div className="flex items-center gap-1.5">
+                <Clock className="size-3.5" style={{ color: brandColor }} />
+                <span className="tabular-nums">{formatTime(log.time)}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Zap className="size-3.5 text-amber-500" />
+                <span>
+                  {t("firstTokenTime")}: {formatDuration(log.ftut)}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Cpu className="size-3.5 text-blue-500" />
+                <span>
+                  {t("totalTime")}: {formatDuration(log.use_time)}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <DollarSign className="size-3.5 text-emerald-500" />
+                <span className="font-medium text-emerald-600 dark:text-emerald-400">
+                  {t("cost")}: {Number(log.cost).toFixed(6)}
+                </span>
+              </div>
+            </div>
+          </MorphingDialogContent>
+        </MorphingDialogContainer>
+      </MorphingDialog>
+    </TooltipProvider>
+  );
 }
