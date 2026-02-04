@@ -411,6 +411,7 @@
     "channel": {
         "card": {
             "requestCount": "Requests",
+            "totalToken": "Total Tokens",
             "totalCost": "Total Cost",
             "toast": {
                 "enabled": "Channel enabled",

@@ -411,6 +411,7 @@
     "channel": {
         "card": {
             "requestCount": "請求次數",
+            "totalToken": "總Token",
             "totalCost": "總成本",
             "toast": {
                 "enabled": "供應源已啟用",
