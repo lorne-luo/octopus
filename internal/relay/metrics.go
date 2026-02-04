@@ -30,6 +30,14 @@ type RelayMetrics struct {
 	// 统计指标
 	ActualModel string
 	Stats       model.StatsMetrics
+	Stats model.StatsMetrics
+
+	// 重试信息
+	Attempts []model.ChannelAttempt
+
+	// 原始请求和响应
+	RawRequest  string
+	RawResponse *strings.Builder
 }
 
 func NewRelayMetrics(apiKeyID int, requestModel string, req *transformerModel.InternalLLMRequest) *RelayMetrics {
@@ -38,6 +46,7 @@ func NewRelayMetrics(apiKeyID int, requestModel string, req *transformerModel.In
 		RequestModel:    requestModel,
 		StartTime:       time.Now(),
 		InternalRequest: req,
+		RawResponse:  &strings.Builder{},
 	}
 }
 
@@ -153,12 +162,11 @@ func (m *RelayMetrics) saveLog(ctx context.Context, err error, duration time.Dur
 		relayLog.Cost = m.Stats.InputCost + m.Stats.OutputCost
 	}
 
-	// 请求内容
-	if m.InternalRequest != nil {
-		if reqJSON, jsonErr := json.Marshal(m.InternalRequest); jsonErr == nil {
-			relayLog.RequestContent = string(reqJSON)
-		}
-	}
+
+	// 设置请求内容
+	m.RawRequest = strings.Replace(m.RawRequest, "\n", "", -1)
+	m.RawRequest = strings.Replace(m.RawRequest, "\r", "", -1)
+	relayLog.RequestContent = m.RawRequest
 
 	// 响应内容
 	if m.InternalResponse != nil {
@@ -166,12 +174,14 @@ func (m *RelayMetrics) saveLog(ctx context.Context, err error, duration time.Dur
 		if respJSON, jsonErr := json.Marshal(respForLog); jsonErr == nil {
 			if m.InternalResponse.Usage != nil && m.InternalResponse.Usage.AnthropicUsage {
 				respStr := string(respJSON)
-				old := `"usage":{`
+				ol := `"usage":{`
 				insert := fmt.Sprintf(`"usage":{"cache_creation_input_tokens":%d,`, m.InternalResponse.Usage.CacheCreationInputTokens)
-				respJSON = []byte(strings.Replace(respStr, old, insert, 1))
+				respJSON = []byte(strings.Replace(respStr, ol, insert, 1))
 			}
 			relayLog.ResponseContent = string(respJSON)
 		}
+	} else {
+		relayLog.ResponseContent = m.RawResponse.String()
 	}
 
 	// 错误信息
