@@ -389,6 +389,9 @@ func (rc *relayContext) handleResponse(ctx context.Context, response *http.Respo
 	// 上游格式 → 内部格式
 	internalResponse, err := rc.outAdapter.TransformResponse(ctx, response)
 	if err != nil {
+		if ctx.Err() == context.Canceled {
+			return fmt.Errorf("request canceled by client: %w", context.Canceled)
+		}
 		log.Warnf("failed to transform response: %v", err)
 		return fmt.Errorf("failed to transform outbound response: %w", err)
 	}
@@ -396,6 +399,9 @@ func (rc *relayContext) handleResponse(ctx context.Context, response *http.Respo
 	// 内部格式 → 入站格式
 	inResponse, err := rc.inAdapter.TransformResponse(ctx, internalResponse)
 	if err != nil {
+		if ctx.Err() == context.Canceled {
+			return fmt.Errorf("request canceled by client: %w", context.Canceled)
+		}
 		log.Warnf("failed to transform response: %v", err)
 		return fmt.Errorf("failed to transform inbound response: %w", err)
 	}
