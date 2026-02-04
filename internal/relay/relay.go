@@ -2,6 +2,7 @@ package relay
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -24,7 +25,7 @@ import (
 // Handler 处理入站请求并转发到上游服务
 func Handler(inboundType inbound.InboundType, c *gin.Context) {
 	// 解析请求
-	internalRequest, inAdapter, err := parseRequest(inboundType, c)
+	body, internalRequest, inAdapter, err := parseRequest(inboundType, c)
 	if err != nil {
 		return
 	}
@@ -40,6 +41,7 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 	// 初始化统计和日志
 	apiKeyID := c.GetInt("api_key_id")
 	metrics := NewRelayMetrics(internalRequest.Model)
+	metrics.SetRawRequest(body)
 	metrics.SetInternalRequest(internalRequest)
 	metrics.SetAPIKeyID(apiKeyID)
 	// 获取通道分组
@@ -157,19 +159,18 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 	resp.Error(c, http.StatusBadGateway, "all channels failed")
 }
 
-// parseRequest 解析并验证入站请求
-func parseRequest(inboundType inbound.InboundType, c *gin.Context) (*model.InternalLLMRequest, model.Inbound, error) {
+func parseRequest(inboundType inbound.InboundType, c *gin.Context) ([]byte, *model.InternalLLMRequest, model.Inbound, error) {
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
 		resp.Error(c, http.StatusInternalServerError, err.Error())
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	inAdapter := inbound.Get(inboundType)
 	internalRequest, err := inAdapter.TransformRequest(c.Request.Context(), body)
 	if err != nil {
 		resp.Error(c, http.StatusInternalServerError, err.Error())
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	// Pass through the original query parameters
@@ -177,10 +178,10 @@ func parseRequest(inboundType inbound.InboundType, c *gin.Context) (*model.Inter
 
 	if err := internalRequest.Validate(); err != nil {
 		resp.Error(c, http.StatusBadRequest, err.Error())
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	return internalRequest, inAdapter, nil
+	return body, internalRequest, inAdapter, nil
 }
 
 // forward 转发请求到上游服务
@@ -358,6 +359,7 @@ func (rc *relayContext) handleStreamResponse(ctx context.Context, response *http
 
 			rc.c.Writer.Write(data)
 			rc.c.Writer.Flush()
+			rc.metrics.AppendRawResponse(data)
 		}
 	}
 }
@@ -407,6 +409,10 @@ func (rc *relayContext) handleResponse(ctx context.Context, response *http.Respo
 	}
 
 	rc.c.Data(http.StatusOK, "application/json", inResponse)
+	// 将 JSON 响应添加原始响应记录
+	if jsonBytes, err := json.Marshal(inResponse); err == nil {
+		rc.metrics.AppendRawResponse(jsonBytes)
+	}
 	return nil
 }
 

@@ -34,6 +34,10 @@ type RelayMetrics struct {
 
 	// 重试信息
 	Attempts []model.ChannelAttempt
+
+	// 原始请求和响应
+	RawRequest  string
+	RawResponse *strings.Builder
 }
 
 // NewRelayMetrics 创建新的 RelayMetrics
@@ -41,7 +45,16 @@ func NewRelayMetrics(requestModel string) *RelayMetrics {
 	return &RelayMetrics{
 		RequestModel: requestModel,
 		StartTime:    time.Now(),
+		RawResponse:  &strings.Builder{},
 	}
+}
+
+func (m *RelayMetrics) SetRawRequest(body []byte) {
+	m.RawRequest = string(body)
+}
+
+func (m *RelayMetrics) AppendRawResponse(body []byte) {
+	m.RawResponse.Write(body)
 }
 
 func (m *RelayMetrics) SetAPIKeyID(apiKeyID int) {
@@ -175,11 +188,9 @@ func (m *RelayMetrics) saveLog(ctx context.Context, err error, duration time.Dur
 	}
 
 	// 设置请求内容
-	if m.InternalRequest != nil {
-		if reqJSON, jsonErr := json.Marshal(m.InternalRequest); jsonErr == nil {
-			relayLog.RequestContent = string(reqJSON)
-		}
-	}
+	m.RawRequest = strings.Replace(m.RawRequest, "\n", "", -1)
+	m.RawRequest = strings.Replace(m.RawRequest, "\r", "", -1)
+	relayLog.RequestContent = m.RawRequest
 
 	// 设置响应内容
 	if m.InternalResponse != nil {
@@ -189,12 +200,14 @@ func (m *RelayMetrics) saveLog(ctx context.Context, err error, duration time.Dur
 			// 如果是 Anthropic 响应，补充 cache_creation_input_tokens 字段
 			if m.InternalResponse.Usage != nil && m.InternalResponse.Usage.AnthropicUsage {
 				respStr := string(respJSON)
-				old := `"usage":{`
+				ol := `"usage":{`
 				insert := fmt.Sprintf(`"usage":{"cache_creation_input_tokens":%d,`, m.InternalResponse.Usage.CacheCreationInputTokens)
-				respJSON = []byte(strings.Replace(respStr, old, insert, 1))
+				respJSON = []byte(strings.Replace(respStr, ol, insert, 1))
 			}
 			relayLog.ResponseContent = string(respJSON)
 		}
+	} else {
+		relayLog.ResponseContent = m.RawResponse.String()
 	}
 
 	// 设置错误信息
