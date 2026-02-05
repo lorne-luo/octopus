@@ -16,12 +16,16 @@ import (
 
 // RelayMetrics 负责最终的日志收集与持久化
 type RelayMetrics struct {
-	APIKeyID     int
-	RequestModel string
-	StartTime    time.Time
 
-	// 首 Token 时间
-	FirstTokenTime time.Time
+	// 基础信息
+	ChannelID      int
+	ChannelType    int
+	APIKeyID       int
+	ChannelName    string // 渠道名称
+	RequestModel   string // 请求的模型名称
+	ActualModel    string // 实际使用的模型名称
+	StartTime      time.Time
+	FirstTokenTime time.Time // 首个 Token 时间（流式场景）
 
 	// 请求和响应内容
 	InternalRequest  *transformerModel.InternalLLMRequest
@@ -50,6 +54,27 @@ func NewRelayMetrics(apiKeyID int, requestModel string, req *transformerModel.In
 	}
 }
 
+func (m *RelayMetrics) SetRawRequest(body []byte) {
+	m.RawRequest = string(body)
+}
+
+func (m *RelayMetrics) AppendRawResponse(body []byte) {
+	m.RawResponse.Write(body)
+}
+
+func (m *RelayMetrics) SetAPIKeyID(apiKeyID int) {
+	m.APIKeyID = apiKeyID
+}
+
+// SetChannel 设置通道信息
+func (m *RelayMetrics) SetChannel(channelID int, channelType int, channelName string, actualModel string) {
+	m.ChannelID = channelID
+	m.ChannelType = channelType
+	m.ChannelName = channelName
+	m.ActualModel = actualModel
+}
+
+// SetFirstTokenTime 设置首个 Token 时间
 func (m *RelayMetrics) SetFirstTokenTime(t time.Time) {
 	m.FirstTokenTime = t
 }
@@ -142,9 +167,11 @@ func (m *RelayMetrics) saveLog(ctx context.Context, err error, duration time.Dur
 	relayLog := model.RelayLog{
 		Time:             m.StartTime.Unix(),
 		RequestModelName: m.RequestModel,
-		ChannelName:      channelName,
-		ChannelId:        channelID,
-		ActualModelName:  actualModel,
+
+		ChannelName:      m.ChannelName,
+		ChannelId:        m.ChannelID,
+		ChannelType:      m.ChannelType,
+		ActualModelName:  m.ActualModel,
 		UseTime:          int(duration.Milliseconds()),
 		Attempts:         attempts,
 		TotalAttempts:    len(attempts),

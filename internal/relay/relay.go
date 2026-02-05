@@ -145,9 +145,96 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 			metrics.Save(c.Request.Context(), true, nil, iter.Attempts())
 			return
 		}
-		if result.Written {
-			metrics.Save(c.Request.Context(), false, result.Err, iter.Attempts())
-			return
+
+		for i := 0; i < itemCount; i++ {
+			select {
+			case <-c.Request.Context().Done():
+				log.Infof("request context canceled, stopping retry")
+				return
+			default:
+			}
+
+			attemptStart := time.Now()
+			channel, err := op.ChannelGet(item.ChannelID, c.Request.Context())
+			if err != nil {
+				log.Warnf("failed to get channel: %v", err)
+				lastErr = err
+				item = b.Next(group.Items, item)
+				continue
+			}
+			if channel.Enabled == false {
+				log.Warnf("channel %s is disabled", channel.Name)
+				lastErr = fmt.Errorf("channel %s is disabled", channel.Name)
+				item = b.Next(group.Items, item)
+				continue
+			}
+
+			log.Infof("request model %s, mode: %d, forwarding to channel: %s model: %s (round %d/%d, item %d/%d)", internalRequest.Model, group.Mode, channel.Name, item.ModelName, round+1, maxRounds, i+1, itemCount)
+
+			internalRequest.Model = item.ModelName
+			metrics.SetChannel(channel.ID, int(channel.Type), channel.Name, item.ModelName)
+
+			outAdapter := outbound.Get(channel.Type)
+			if outAdapter == nil {
+				log.Warnf("unsupported channel type: %d for channel: %s", channel.Type, channel.Name)
+				lastErr = fmt.Errorf("unsupported channel type: %d", channel.Type)
+				item = b.Next(group.Items, item)
+				continue
+			}
+
+			// 验证 channel 类型与请求类型匹配
+			if internalRequest.IsEmbeddingRequest() && !outbound.IsEmbeddingChannelType(channel.Type) {
+				log.Warnf("channel type %d is not compatible with embedding request for channel: %s", channel.Type, channel.Name)
+				lastErr = fmt.Errorf("channel type %d not compatible with embedding request", channel.Type)
+				item = b.Next(group.Items, item)
+				continue
+			}
+
+			if internalRequest.IsChatRequest() && !outbound.IsChatChannelType(channel.Type) {
+				log.Warnf("channel type %d is not compatible with chat request for channel: %s", channel.Type, channel.Name)
+				lastErr = fmt.Errorf("channel type %d not compatible with chat request", channel.Type)
+				item = b.Next(group.Items, item)
+				continue
+			}
+
+			rc := &relayContext{
+				c:                    c,
+				inAdapter:            inAdapter,
+				outAdapter:           outAdapter,
+				internalRequest:      internalRequest,
+				channel:              channel,
+				metrics:              metrics,
+				usedKey:              channel.GetChannelKey(),
+				firstTokenTimeOutSec: group.FirstTokenTimeOut,
+			}
+
+			if statusCode, err := rc.forward(); err == nil {
+				// 成功
+				attemptDuration := time.Since(attemptStart)
+				rc.collectResponse()
+				metrics.AddAttempt(round+1, i+1, true, nil, attemptDuration)
+				rc.usedKey.StatusCode = statusCode
+				rc.usedKey.LastUseTimeStamp = time.Now().Unix()
+				rc.usedKey.TotalCost += metrics.Stats.InputCost + metrics.Stats.OutputCost
+				op.ChannelKeyUpdate(rc.usedKey)
+				metrics.Save(c.Request.Context(), true, nil, round+1)
+				return
+			} else {
+				// 失败
+				attemptDuration := time.Since(attemptStart)
+				metrics.AddAttempt(round+1, i+1, false, err, attemptDuration)
+				rc.usedKey.StatusCode = statusCode
+				rc.usedKey.LastUseTimeStamp = time.Now().Unix()
+				op.ChannelKeyUpdate(rc.usedKey)
+				if c.Writer.Written() {
+					// Streaming responses may have already started; retrying would corrupt the client stream.
+					rc.collectResponse()
+					metrics.Save(c.Request.Context(), false, err, 0)
+					return
+				}
+				lastErr = fmt.Errorf("channel %s failed: %v", channel.Name, err)
+			}
+			item = b.Next(group.Items, item)
 		}
 		lastErr = result.Err
 	}
