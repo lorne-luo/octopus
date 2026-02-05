@@ -26,6 +26,7 @@ export interface RelayLog {
     time: number;                // 时间戳
     request_model_name: string;  // 请求模型名称
     channel: number;             // 实际使用的渠道ID
+    channel_type: number;        // 渠道类型
     channel_name: string;        // 渠道名称
     actual_model_name: string;   // 实际使用模型名称
     input_tokens: number;        // 输入Token

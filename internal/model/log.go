@@ -30,4 +30,5 @@ type RelayLog struct {
 	Attempts         []ChannelAttempt  `json:"attempts" gorm:"serializer:json"`          // 所有尝试记录
 	TotalAttempts    int               `json:"total_attempts"`                           // 总尝试次数
 	SuccessfulRound  int               `json:"successful_round"`                         // 成功的轮次
+	ChannelType      int               `json:"channel_type"`                             // 渠道类型
 }

@@ -88,7 +88,7 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 			log.Infof("request model %s, mode: %d, forwarding to channel: %s model: %s (round %d/%d, item %d/%d)", internalRequest.Model, group.Mode, channel.Name, item.ModelName, round+1, maxRounds, i+1, itemCount)
 
 			internalRequest.Model = item.ModelName
-			metrics.SetChannel(channel.ID, channel.Name, item.ModelName)
+			metrics.SetChannel(channel.ID, int(channel.Type), channel.Name, item.ModelName)
 
 			outAdapter := outbound.Get(channel.Type)
 			if outAdapter == nil {

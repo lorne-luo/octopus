@@ -18,6 +18,7 @@ import (
 type RelayMetrics struct {
 	// 基础信息
 	ChannelID      int
+	ChannelType    int
 	APIKeyID       int
 	ChannelName    string // 渠道名称
 	RequestModel   string // 请求的模型名称
@@ -62,8 +63,9 @@ func (m *RelayMetrics) SetAPIKeyID(apiKeyID int) {
 }
 
 // SetChannel 设置通道信息
-func (m *RelayMetrics) SetChannel(channelID int, channelName string, actualModel string) {
+func (m *RelayMetrics) SetChannel(channelID int, channelType int, channelName string, actualModel string) {
 	m.ChannelID = channelID
+	m.ChannelType = channelType
 	m.ChannelName = channelName
 	m.ActualModel = actualModel
 }
@@ -168,6 +170,7 @@ func (m *RelayMetrics) saveLog(ctx context.Context, err error, duration time.Dur
 		RequestModelName: m.RequestModel,
 		ChannelName:      m.ChannelName,
 		ChannelId:        m.ChannelID,
+		ChannelType:      m.ChannelType,
 		ActualModelName:  m.ActualModel,
 		UseTime:          int(duration.Milliseconds()),
 		Attempts:         m.Attempts,

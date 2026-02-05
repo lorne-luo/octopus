@@ -26,6 +26,7 @@ import { githubDarkTheme } from "@uiw/react-json-view/githubDark";
 import { githubLightTheme } from "@uiw/react-json-view/githubLight";
 import { useTheme } from "next-themes";
 import { type RelayLog, type ChannelAttempt } from "@/api/endpoints/log";
+import { ChannelType } from "@/api/endpoints/channel";
 import { getModelIcon } from "@/lib/model-icons";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -231,6 +232,7 @@ function DeferredJsonContent({
 
 export function LogCard({ log }: { log: RelayLog }) {
   const t = useTranslations("log.card");
+  const tc = useTranslations("channel.form");
   const { Avatar: ModelAvatar, color: brandColor } = useMemo(
     () => getModelIcon(log.actual_model_name),
     [log.actual_model_name],
@@ -629,6 +631,26 @@ export function LogCard({ log }: { log: RelayLog }) {
                         <span className="text-sm font-medium text-card-foreground">
                           {t("requestContent")}
                         </span>
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] bg-secondary/50 border-0"
+                        >
+                          {tc(
+                            log.channel_type === ChannelType.OpenAIChat
+                              ? "typeOpenAIChat"
+                              : log.channel_type === ChannelType.OpenAIResponse
+                                ? "typeOpenAIResponse"
+                                : log.channel_type === ChannelType.Anthropic
+                                  ? "typeAnthropic"
+                                  : log.channel_type === ChannelType.Gemini
+                                    ? "typeGemini"
+                                    : log.channel_type === ChannelType.Volcengine
+                                      ? "typeVolcengine"
+                                      : log.channel_type === ChannelType.OpenAIEmbedding
+                                        ? "typeOpenAIEmbedding"
+                                        : "type",
+                          )}
+                        </Badge>
                         <Badge variant="secondary" className="ml-auto text-xs">
                           {log.input_tokens.toLocaleString()} {t("tokens")}
                         </Badge>
