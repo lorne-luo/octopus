@@ -8,7 +8,6 @@ import {
   AlertCircle,
   ArrowDownToLine,
   ArrowUpFromLine,
-  DollarSign,
   ArrowRight,
   ArrowDown,
   Send,
@@ -302,7 +301,7 @@ export function LogCard({ log }: { log: RelayLog }) {
                     </Badge>
                   )}
                 </div>
-                <div className="grid grid-cols-7 gap-x-4 text-xs tabular-nums text-muted-foreground">
+                <div className="grid grid-cols-6 gap-x-4 text-xs tabular-nums text-muted-foreground">
                   <div className="flex items-center gap-1.5">
                     <Clock
                       className="size-3.5 shrink-0"
@@ -338,12 +337,6 @@ export function LogCard({ log }: { log: RelayLog }) {
                     <ArrowUpFromLine className="size-3.5 shrink-0 text-purple-500" />
                     <span>
                       {t("output")} {log.output_tokens.toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <DollarSign className="size-3.5 shrink-0 text-emerald-500" />
-                    <span className="font-medium text-emerald-600 dark:text-emerald-400">
-                      {t("cost")} {Number(log.cost).toFixed(6)}
                     </span>
                   </div>
                 </div>
@@ -448,12 +441,6 @@ export function LogCard({ log }: { log: RelayLog }) {
                   <ArrowUpFromLine className="size-3.5 shrink-0 text-purple-500" />
                   <span>
                     {t("output")} {log.output_tokens.toLocaleString()}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5 col-span-2 sm:col-span-1">
-                  <DollarSign className="size-3.5 shrink-0 text-emerald-500" />
-                  <span className="font-medium text-emerald-600 dark:text-emerald-400">
-                    {t("cost")} {Number(log.cost).toFixed(6)}
                   </span>
                 </div>
               </div>
@@ -699,12 +686,6 @@ export function LogCard({ log }: { log: RelayLog }) {
                 <Cpu className="size-3.5 text-blue-500" />
                 <span>
                   {t("totalTime")}: {formatDuration(log.use_time)}
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <DollarSign className="size-3.5 text-emerald-500" />
-                <span className="font-medium text-emerald-600 dark:text-emerald-400">
-                  {t("cost")}: {Number(log.cost).toFixed(6)}
                 </span>
               </div>
             </div>
