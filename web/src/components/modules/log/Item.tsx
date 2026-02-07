@@ -21,7 +21,6 @@ import {
   AlertCircle,
   ArrowDownToLine,
   ArrowUpFromLine,
-  DollarSign,
   ArrowRight,
   ArrowDown,
   Send,
@@ -367,7 +366,6 @@ export function LogCard({ log }: { log: RelayLog }) {
                 <span
                   className="font-semibold text-card-foreground truncate"
                   title={log.request_model_name}
-                >
                     <div className={cn("p-4 grid grid-cols-[auto_1fr] gap-4", hasError ? "items-start" : "items-center")}>
                         <ModelAvatar size={40} />
                         <div className="min-w-0 flex flex-col gap-3">
@@ -733,12 +731,6 @@ export function LogCard({ log }: { log: RelayLog }) {
                 <Cpu className="size-3.5 text-blue-500" />
                 <span>
                   {t("totalTime")}: {formatDuration(log.use_time)}
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <DollarSign className="size-3.5 text-emerald-500" />
-                <span className="font-medium text-emerald-600 dark:text-emerald-400">
-                  {t("cost")}: {Number(log.cost).toFixed(6)}
                 </span>
               </div>
             </div>
