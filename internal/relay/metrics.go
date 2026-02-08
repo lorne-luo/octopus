@@ -112,10 +112,10 @@ func (m *RelayMetrics) SetInternalResponse(resp *transformerModel.InternalLLMRes
 
 	// 如果没有 Usage 或者 Token 数为 0，尝试重新计算
 	if m.Stats.InputToken == 0 {
-		m.Stats.InputToken = int64(m.calcInputTokens())
+		m.Stats.InputToken = m.calcInputTokens()
 	}
 	if m.Stats.OutputToken == 0 {
-		m.Stats.OutputToken = int64(m.calcOutputTokens())
+		m.Stats.OutputToken = m.calcOutputTokens()
 	}
 
 	// 计算费用
@@ -132,12 +132,17 @@ func (m *RelayMetrics) SetInternalResponse(resp *transformerModel.InternalLLMRes
 				CachedTokens: 0,
 			}
 		}
+
+		// 优先使用已修正的 Token 数
+		promptTokens := float64(m.Stats.InputToken)
+		cachedTokens := float64(usage.PromptTokensDetails.CachedTokens)
+
 		if usage.AnthropicUsage {
-			m.Stats.InputCost = (float64(usage.PromptTokensDetails.CachedTokens)*modelPrice.CacheRead +
-				float64(usage.PromptTokens)*modelPrice.Input +
+			m.Stats.InputCost = (cachedTokens*modelPrice.CacheRead +
+				promptTokens*modelPrice.Input +
 				float64(usage.CacheCreationInputTokens)*modelPrice.CacheWrite) * 1e-6
 		} else {
-			m.Stats.InputCost = (float64(usage.PromptTokensDetails.CachedTokens)*modelPrice.CacheRead + float64(usage.PromptTokens-usage.PromptTokensDetails.CachedTokens)*modelPrice.Input) * 1e-6
+			m.Stats.InputCost = (cachedTokens*modelPrice.CacheRead + (promptTokens-cachedTokens)*modelPrice.Input) * 1e-6
 		}
 	} else {
 		// 否则使用普通的计算方式
@@ -148,7 +153,7 @@ func (m *RelayMetrics) SetInternalResponse(resp *transformerModel.InternalLLMRes
 }
 
 // calcInputTokens 计算输入 Token
-func (m *RelayMetrics) calcInputTokens() int {
+func (m *RelayMetrics) calcInputTokens() int64 {
 	if m.InternalRequest == nil {
 		return 0
 	}
@@ -163,38 +168,59 @@ func (m *RelayMetrics) calcInputTokens() int {
 			}
 		}
 	}
-	return tokenizer.CountTokens(content, m.RequestModel)
+	return int64(tokenizer.CountTokens(content, m.RequestModel))
 }
 
 // calcOutputTokens 计算输出 Token
-func (m *RelayMetrics) calcOutputTokens() int {
+func (m *RelayMetrics) calcOutputTokens() int64 {
 	if m.InternalResponse == nil {
 		return 0
 	}
 	content := ""
 	for _, choice := range m.InternalResponse.Choices {
 		if choice.Message != nil {
-			if choice.Message.Content.Content != nil {
-				content += *choice.Message.Content.Content
-			}
-			for _, part := range choice.Message.Content.MultipleContent {
-				if part.Text != nil {
-					content += *part.Text
-				}
-			}
+			content += extractMessageContent(choice.Message)
 		}
 		if choice.Delta != nil {
-			if choice.Delta.Content.Content != nil {
-				content += *choice.Delta.Content.Content
-			}
-			for _, part := range choice.Delta.Content.MultipleContent {
-				if part.Text != nil {
-					content += *part.Text
-				}
-			}
+			content += extractMessageContent(choice.Delta)
 		}
 	}
-	return tokenizer.CountTokens(content, m.RequestModel)
+	return int64(tokenizer.CountTokens(content, m.RequestModel))
+}
+
+// extractMessageContent extracts all text content from a message, including tool call arguments.
+func extractMessageContent(msg *transformerModel.Message) string {
+	content := ""
+	if msg.Content.Content != nil {
+		content += *msg.Content.Content
+	}
+	for _, part := range msg.Content.MultipleContent {
+		if part.Text != nil {
+			content += *part.Text
+		}
+	}
+	content += msg.GetReasoningContent()
+	for _, tc := range msg.ToolCalls {
+		content += tc.Function.Name
+		content += tc.Function.Arguments
+	}
+	return content
+}
+
+// CalcTokensFromRequest calculates tokens from the request alone when no response is available.
+// This is a last-resort fallback to ensure input tokens are always recorded.
+func (m *RelayMetrics) CalcTokensFromRequest() {
+	if m.Stats.InputToken == 0 {
+		m.Stats.InputToken = m.calcInputTokens()
+	}
+
+	// Calculate cost with whatever tokens we have
+	modelPrice := price.GetLLMPrice(m.ActualModel)
+	if modelPrice == nil {
+		return
+	}
+	m.Stats.InputCost = float64(m.Stats.InputToken) * modelPrice.Input * 1e-6
+	m.Stats.OutputCost = float64(m.Stats.OutputToken) * modelPrice.Output * 1e-6
 }
 
 // Save 保存日志和统计信息
@@ -250,15 +276,13 @@ func (m *RelayMetrics) saveLog(ctx context.Context, err error, duration time.Dur
 	}
 
 	// 设置 Usage 信息
-	if m.InternalResponse != nil && m.InternalResponse.Usage != nil {
-		relayLog.InputTokens = int(m.InternalResponse.Usage.PromptTokens)
-		relayLog.OutputTokens = int(m.InternalResponse.Usage.CompletionTokens)
-		relayLog.Cost = m.Stats.InputCost + m.Stats.OutputCost
-	}
+	relayLog.InputTokens = m.Stats.InputToken
+	relayLog.OutputTokens = m.Stats.OutputToken
+	relayLog.Cost = m.Stats.InputCost + m.Stats.OutputCost
 
 	// 设置请求内容
-	m.RawRequest = strings.Replace(m.RawRequest, "\n", "", -1)
-	m.RawRequest = strings.Replace(m.RawRequest, "\r", "", -1)
+	m.RawRequest = strings.ReplaceAll(m.RawRequest, "\n", "")
+	m.RawRequest = strings.ReplaceAll(m.RawRequest, "\r", "")
 	relayLog.RequestContent = m.RawRequest
 
 	// 设置响应内容

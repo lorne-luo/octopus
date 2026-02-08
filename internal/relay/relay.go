@@ -167,16 +167,21 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 				} else {
 					apiKeySuffix = key
 				}
+				if c.Writer.Written() {
+					// Streaming responses may have already started; retrying would corrupt the client stream.
+					// Collect response BEFORE AddAttempt so token stats are populated.
+					rc.collectResponse()
+					metrics.AddAttempt(round+1, i+1, false, err, attemptDuration, apiKeySuffix)
+					rc.usedKey.StatusCode = statusCode
+					rc.usedKey.LastUseTimeStamp = time.Now().Unix()
+					op.ChannelKeyUpdate(rc.usedKey)
+					metrics.Save(c.Request.Context(), false, err, 0)
+					return
+				}
 				metrics.AddAttempt(round+1, i+1, false, err, attemptDuration, apiKeySuffix)
 				rc.usedKey.StatusCode = statusCode
 				rc.usedKey.LastUseTimeStamp = time.Now().Unix()
 				op.ChannelKeyUpdate(rc.usedKey)
-				if c.Writer.Written() {
-					// Streaming responses may have already started; retrying would corrupt the client stream.
-					rc.collectResponse()
-					metrics.Save(c.Request.Context(), false, err, 0)
-					return
-				}
 				lastErr = fmt.Errorf("channel %s failed: %v", channel.Name, err)
 			}
 			item = b.Next(group.Items, item)
@@ -448,10 +453,13 @@ func (rc *relayContext) handleResponse(ctx context.Context, response *http.Respo
 // collectResponse 收集响应信息
 func (rc *relayContext) collectResponse() {
 	internalResponse, err := rc.inAdapter.GetInternalResponse(rc.c.Request.Context())
-	if err != nil || internalResponse == nil {
-		return
+	if err != nil {
+		log.Warnf("failed to get internal response for metrics: %v", err)
 	}
-
-	// 设置响应内容
-	rc.metrics.SetInternalResponse(internalResponse)
+	if internalResponse != nil {
+		rc.metrics.SetInternalResponse(internalResponse)
+	} else {
+		// No aggregated response available; calculate tokens directly from the request
+		rc.metrics.CalcTokensFromRequest()
+	}
 }
