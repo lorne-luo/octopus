@@ -328,7 +328,8 @@
             "roundRobin": "輪詢",
             "random": "隨機",
             "failover": "故障轉移",
-            "weighted": "加權分配"
+            "weighted": "加權分配",
+            "successBoost": "成功提升"
         },
         "empty": "暫無分組，點擊左上角按鈕建立"
     },

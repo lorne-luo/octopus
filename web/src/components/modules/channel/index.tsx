@@ -21,6 +21,7 @@ export function Channel() {
 
   // Reset visible count when search term changes
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setVisibleCount(INITIAL_VISIBLE_COUNT);
   }, [searchTerm]);
 

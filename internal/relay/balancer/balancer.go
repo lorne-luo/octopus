@@ -27,6 +27,8 @@ func GetBalancer(mode model.GroupMode) Balancer {
 		return &Failover{}
 	case model.GroupModeWeighted:
 		return &Weighted{}
+	case model.GroupModeSuccessBoost:
+		return &SuccessBoost{}
 	default:
 		return &RoundRobin{}
 	}
@@ -111,6 +113,24 @@ func (b *Weighted) Select(items []model.GroupItem) *model.GroupItem {
 
 func (b *Weighted) Next(items []model.GroupItem, current *model.GroupItem) *model.GroupItem {
 	return b.Select(items)
+}
+
+// SuccessBoost balancer - similar to Failover, but priority is updated on success elsewhere
+type SuccessBoost struct{}
+
+func (b *SuccessBoost) Select(items []model.GroupItem) *model.GroupItem {
+	if len(items) == 0 {
+		return nil
+	}
+	// Use Failover (Priority) logic for selection
+	f := &Failover{}
+	return f.Select(items)
+}
+
+func (b *SuccessBoost) Next(items []model.GroupItem, current *model.GroupItem) *model.GroupItem {
+	// Use Failover (Priority) logic for fallback
+	f := &Failover{}
+	return f.Next(items, current)
 }
 
 func sortByPriority(items []model.GroupItem) []model.GroupItem {
