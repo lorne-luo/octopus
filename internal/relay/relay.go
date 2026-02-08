@@ -223,6 +223,7 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 				rc.usedKey.StatusCode = statusCode
 				rc.usedKey.LastUseTimeStamp = time.Now().Unix()
 				rc.usedKey.TotalCost += metrics.Stats.InputCost + metrics.Stats.OutputCost
+				rc.usedKey.TotalToken += metrics.Stats.InputToken + metrics.Stats.OutputToken
 				op.ChannelKeyUpdate(rc.usedKey)
 				metrics.Save(c.Request.Context(), true, nil, round+1)
 
