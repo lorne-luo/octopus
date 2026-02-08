@@ -346,7 +346,8 @@
             "roundRobin": "轮询",
             "random": "随机",
             "failover": "故障转移",
-            "weighted": "加权分配"
+            "weighted": "加权分配",
+            "successBoost": "成功提升"
         },
         "empty": "暂无分组，点击左上角按钮创建"
     },

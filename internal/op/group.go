@@ -3,6 +3,7 @@ package op
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	"github.com/bestruirui/octopus/internal/db"
 	"github.com/bestruirui/octopus/internal/model"
@@ -381,4 +382,90 @@ func groupRefreshCacheByIDs(ids []int, ctx context.Context) error {
 		groupMap.Set(group.Name, group)
 	}
 	return nil
+}
+
+// GroupItemPromote promotes the priority of a group item (smaller priority value means higher priority)
+// via swapping with the item that has the immediately higher priority (structurally lower value).
+func GroupItemPromote(item *model.GroupItem, ctx context.Context) error {
+	group, ok := groupCache.Get(item.GroupID)
+	if !ok {
+		// Try to load from DB if not in cache
+		if err := groupRefreshCacheByID(item.GroupID, ctx); err != nil {
+			return err
+		}
+		gPtr, errVal := GroupGet(item.GroupID, ctx)
+		if errVal != nil {
+			return fmt.Errorf("group not found: %w", errVal)
+		}
+		group = *gPtr
+	}
+
+	// We need to work with a sorted list of items to find the predecessor
+	items := make([]model.GroupItem, len(group.Items))
+	copy(items, group.Items)
+
+	// Sort by priority (ascending)
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].Priority < items[j].Priority
+	})
+
+	// Find the index of our item
+	var currentIndex = -1
+	for i, it := range items {
+		if it.ID == item.ID {
+			currentIndex = i
+			break
+		}
+	}
+
+	if currentIndex == -1 {
+		return fmt.Errorf("item not found in group")
+	}
+
+	// If it's already at index 0, it has the highest priority (lowest value), so nothing to do.
+	if currentIndex == 0 {
+		return nil
+	}
+
+	// Identify the target to swap with (the one immediately 'before' it in the sorted list)
+	targetUser := items[currentIndex-1]
+	currentUser := items[currentIndex]
+
+	// Use Failover (Priority) logic for selection, but here we want to SWAP priorities to boost 'currentUser'
+	// and lower 'targetUser'.
+
+	newCurrentPriority := targetUser.Priority
+	newTargetPriority := currentUser.Priority
+
+	// If priorities are equal, simply swapping values (which are identical) won't change the sort order.
+	// To ensure 'currentUser' is promoted above 'targetUser', we need to make its priority strictly better (smaller).
+	if newCurrentPriority == newTargetPriority {
+		newCurrentPriority--
+	}
+
+	tx := db.GetDB().WithContext(ctx).Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// Update currentUser to have target's priority
+	if err := tx.Model(&model.GroupItem{}).Where("id = ?", currentUser.ID).Update("priority", newCurrentPriority).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to update current item priority: %w", err)
+	}
+
+	// Update targetUser to have currentUser's old priority
+	if err := tx.Model(&model.GroupItem{}).Where("id = ?", targetUser.ID).Update("priority", newTargetPriority).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to update target item priority: %w", err)
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	// Refresh cache
+	return groupRefreshCacheByID(item.GroupID, ctx)
 }

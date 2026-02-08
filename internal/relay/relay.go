@@ -225,6 +225,19 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 				rc.usedKey.TotalCost += metrics.Stats.InputCost + metrics.Stats.OutputCost
 				op.ChannelKeyUpdate(rc.usedKey)
 				metrics.Save(c.Request.Context(), true, nil, round+1)
+
+				// Success Boost Hook
+				if group.Mode == coreModel.GroupModeSuccessBoost {
+					go func() {
+						// Run in background to not block response
+						ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+						defer cancel()
+						if err := op.GroupItemPromote(item, ctx); err != nil {
+							log.Warnf("failed to promote group item %d: %v", item.ID, err)
+						}
+					}()
+				}
+
 				return
 			} else {
 				// 失败

@@ -105,6 +105,7 @@ export function GroupCard({ group }: { group: Group }) {
     );
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         if (!isDragging.current) setMembers([...displayMembers]);
     }, [displayMembers]);
 
@@ -313,9 +314,8 @@ export function GroupCard({ group }: { group: Group }) {
                 </AnimatePresence>
             </header>
 
-            {/* Mode: quick switch (no need to enter Edit) */}
             <div className="flex gap-1 mb-3">
-                {([GroupMode.RoundRobin, GroupMode.Random, GroupMode.Failover, GroupMode.Weighted] as const).map((m) => (
+                {([GroupMode.RoundRobin, GroupMode.Random, GroupMode.Failover, GroupMode.Weighted, GroupMode.SuccessBoost] as const).map((m) => (
                     <button
                         key={m}
                         type="button"
