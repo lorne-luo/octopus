@@ -12,6 +12,7 @@ import (
 	"github.com/bestruirui/octopus/internal/price"
 	transformerModel "github.com/bestruirui/octopus/internal/transformer/model"
 	"github.com/bestruirui/octopus/internal/utils/log"
+	"github.com/bestruirui/octopus/internal/utils/tokenizer"
 )
 
 // RelayMetrics 统一管理请求的日志记录和统计信息
@@ -104,32 +105,96 @@ func (m *RelayMetrics) SetInternalResponse(resp *transformerModel.InternalLLMRes
 	m.InternalResponse = resp
 
 	// 从响应中提取 Usage 并计算费用
-	if resp == nil || resp.Usage == nil {
-		return
+	if resp != nil && resp.Usage != nil {
+		m.Stats.InputToken = resp.Usage.PromptTokens
+		m.Stats.OutputToken = resp.Usage.CompletionTokens
 	}
 
-	usage := resp.Usage
-	m.Stats.InputToken = usage.PromptTokens
-	m.Stats.OutputToken = usage.CompletionTokens
+	// 如果没有 Usage 或者 Token 数为 0，尝试重新计算
+	if m.Stats.InputToken == 0 {
+		m.Stats.InputToken = int64(m.calcInputTokens())
+	}
+	if m.Stats.OutputToken == 0 {
+		m.Stats.OutputToken = int64(m.calcOutputTokens())
+	}
 
 	// 计算费用
 	modelPrice := price.GetLLMPrice(m.ActualModel)
 	if modelPrice == nil {
 		return
 	}
-	if usage.PromptTokensDetails == nil {
-		usage.PromptTokensDetails = &transformerModel.PromptTokensDetails{
-			CachedTokens: 0,
+
+	// 如果有 Usage 并且有 PromptTokensDetails，则可以计算更精确的费用
+	if resp != nil && resp.Usage != nil {
+		usage := resp.Usage
+		if usage.PromptTokensDetails == nil {
+			usage.PromptTokensDetails = &transformerModel.PromptTokensDetails{
+				CachedTokens: 0,
+			}
+		}
+		if usage.AnthropicUsage {
+			m.Stats.InputCost = (float64(usage.PromptTokensDetails.CachedTokens)*modelPrice.CacheRead +
+				float64(usage.PromptTokens)*modelPrice.Input +
+				float64(usage.CacheCreationInputTokens)*modelPrice.CacheWrite) * 1e-6
+		} else {
+			m.Stats.InputCost = (float64(usage.PromptTokensDetails.CachedTokens)*modelPrice.CacheRead + float64(usage.PromptTokens-usage.PromptTokensDetails.CachedTokens)*modelPrice.Input) * 1e-6
+		}
+	} else {
+		// 否则使用普通的计算方式
+		m.Stats.InputCost = float64(m.Stats.InputToken) * modelPrice.Input * 1e-6
+	}
+
+	m.Stats.OutputCost = float64(m.Stats.OutputToken) * modelPrice.Output * 1e-6
+}
+
+// calcInputTokens 计算输入 Token
+func (m *RelayMetrics) calcInputTokens() int {
+	if m.InternalRequest == nil {
+		return 0
+	}
+	content := ""
+	for _, msg := range m.InternalRequest.Messages {
+		if msg.Content.Content != nil {
+			content += *msg.Content.Content
+		}
+		for _, part := range msg.Content.MultipleContent {
+			if part.Text != nil {
+				content += *part.Text
+			}
 		}
 	}
-	if usage.AnthropicUsage {
-		m.Stats.InputCost = (float64(usage.PromptTokensDetails.CachedTokens)*modelPrice.CacheRead +
-			float64(usage.PromptTokens)*modelPrice.Input +
-			float64(usage.CacheCreationInputTokens)*modelPrice.CacheWrite) * 1e-6
-	} else {
-		m.Stats.InputCost = (float64(usage.PromptTokensDetails.CachedTokens)*modelPrice.CacheRead + float64(usage.PromptTokens-usage.PromptTokensDetails.CachedTokens)*modelPrice.Input) * 1e-6
+	return tokenizer.CountTokens(content, m.RequestModel)
+}
+
+// calcOutputTokens 计算输出 Token
+func (m *RelayMetrics) calcOutputTokens() int {
+	if m.InternalResponse == nil {
+		return 0
 	}
-	m.Stats.OutputCost = float64(usage.CompletionTokens) * modelPrice.Output * 1e-6
+	content := ""
+	for _, choice := range m.InternalResponse.Choices {
+		if choice.Message != nil {
+			if choice.Message.Content.Content != nil {
+				content += *choice.Message.Content.Content
+			}
+			for _, part := range choice.Message.Content.MultipleContent {
+				if part.Text != nil {
+					content += *part.Text
+				}
+			}
+		}
+		if choice.Delta != nil {
+			if choice.Delta.Content.Content != nil {
+				content += *choice.Delta.Content.Content
+			}
+			for _, part := range choice.Delta.Content.MultipleContent {
+				if part.Text != nil {
+					content += *part.Text
+				}
+			}
+		}
+	}
+	return tokenizer.CountTokens(content, m.RequestModel)
 }
 
 // Save 保存日志和统计信息
