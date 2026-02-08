@@ -163,18 +163,7 @@ func (m *RelayMetrics) calcInputTokens() int64 {
 	if m.InternalRequest == nil {
 		return 0
 	}
-	content := ""
-	for _, msg := range m.InternalRequest.Messages {
-		if msg.Content.Content != nil {
-			content += *msg.Content.Content
-		}
-		for _, part := range msg.Content.MultipleContent {
-			if part.Text != nil {
-				content += *part.Text
-			}
-		}
-	}
-	return int64(tokenizer.CountTokens(content, m.RequestModel))
+	return int64(tokenizer.CountTokens(m.InternalRequest.GetFullContent(), m.RequestModel))
 }
 
 // calcOutputTokens 计算输出 Token
@@ -182,35 +171,7 @@ func (m *RelayMetrics) calcOutputTokens() int64 {
 	if m.InternalResponse == nil {
 		return 0
 	}
-	content := ""
-	for _, choice := range m.InternalResponse.Choices {
-		if choice.Message != nil {
-			content += extractMessageContent(choice.Message)
-		}
-		if choice.Delta != nil {
-			content += extractMessageContent(choice.Delta)
-		}
-	}
-	return int64(tokenizer.CountTokens(content, m.RequestModel))
-}
-
-// extractMessageContent extracts all text content from a message, including tool call arguments.
-func extractMessageContent(msg *transformerModel.Message) string {
-	content := ""
-	if msg.Content.Content != nil {
-		content += *msg.Content.Content
-	}
-	for _, part := range msg.Content.MultipleContent {
-		if part.Text != nil {
-			content += *part.Text
-		}
-	}
-	content += msg.GetReasoningContent()
-	for _, tc := range msg.ToolCalls {
-		content += tc.Function.Name
-		content += tc.Function.Arguments
-	}
-	return content
+	return int64(tokenizer.CountTokens(m.InternalResponse.GetFullContent(), m.RequestModel))
 }
 
 // CalcTokensFromRequest calculates tokens from the request alone when no response is available.

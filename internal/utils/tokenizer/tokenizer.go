@@ -57,7 +57,7 @@ func countOpenAITokens(content, model string) int {
 	enc, err := tiktoken.ForModel(tiktoken.Model(model))
 	if err != nil {
 		// Fallback to cl100k_base (GPT-4) as a reasonable approximation for modern models
-		enc, err = tiktoken.Get(tiktoken.Cl100kBase)
+		enc, err = tiktoken.Get(tiktoken.O200kBase)
 		if err != nil {
 			return 0
 		}

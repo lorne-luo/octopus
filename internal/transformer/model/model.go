@@ -276,6 +276,22 @@ func (r *InternalLLMRequest) Validate() error {
 	return nil
 }
 
+// GetFullContent returns the full text content of all messages in the request.
+func (r *InternalLLMRequest) GetFullContent() string {
+	var builder strings.Builder
+	for _, msg := range r.Messages {
+		if msg.Content.Content != nil {
+			builder.WriteString(*msg.Content.Content)
+		}
+		for _, part := range msg.Content.MultipleContent {
+			if part.Text != nil {
+				builder.WriteString(*part.Text)
+			}
+		}
+	}
+	return builder.String()
+}
+
 // IsEmbeddingRequest returns true if this is an embedding request.
 func (r *InternalLLMRequest) IsEmbeddingRequest() bool {
 	return r.EmbeddingInput != nil
@@ -407,6 +423,26 @@ func (m *Message) ClearHelpFields() {
 	m.ReasoningContent = nil
 	m.Reasoning = nil
 	m.ReasoningSignature = nil
+}
+
+// GetFullContent returns the full text content of all messages in the choice,
+// including text content, reasoning content, and tool call arguments.
+func (m *Message) GetFullContent() string {
+	var builder strings.Builder
+	if m.Content.Content != nil {
+		builder.WriteString(*m.Content.Content)
+	}
+	for _, part := range m.Content.MultipleContent {
+		if part.Text != nil {
+			builder.WriteString(*part.Text)
+		}
+	}
+	builder.WriteString(m.GetReasoningContent())
+	for _, tc := range m.ToolCalls {
+		builder.WriteString(tc.Function.Name)
+		builder.WriteString(tc.Function.Arguments)
+	}
+	return builder.String()
 }
 
 // GetReasoningContent returns the reasoning content from either ReasoningContent or Reasoning field.
@@ -585,6 +621,20 @@ func (r *InternalLLMResponse) ClearHelpFields() {
 }
 
 // IsEmbeddingResponse returns true if this is an embedding response.
+// GetFullContent returns the full text content of all choices in the response.
+func (r *InternalLLMResponse) GetFullContent() string {
+	var builder strings.Builder
+	for _, choice := range r.Choices {
+		if choice.Message != nil {
+			builder.WriteString(choice.Message.GetFullContent())
+		}
+		if choice.Delta != nil {
+			builder.WriteString(choice.Delta.GetFullContent())
+		}
+	}
+	return builder.String()
+}
+
 func (r *InternalLLMResponse) IsEmbeddingResponse() bool {
 	return len(r.EmbeddingData) > 0
 }
