@@ -1,6 +1,8 @@
 package model
 
 import (
+	"math/rand"
+	"strings"
 	"time"
 
 	"github.com/bestruirui/octopus/internal/transformer/outbound"
@@ -52,6 +54,7 @@ type ChannelKey struct {
 	StatusCode       int     `json:"status_code"`
 	LastUseTimeStamp int64   `json:"last_use_time_stamp"`
 	TotalCost        float64 `json:"total_cost"`
+	TotalToken       int64   `json:"total_token" gorm:"default:0"`
 	Remark           string  `json:"remark"`
 }
 
@@ -129,26 +132,32 @@ func (c *Channel) GetChannelKey() ChannelKey {
 	nowSec := time.Now().Unix()
 
 	best := ChannelKey{}
-	bestCost := 0.0
+	lowestToken := int64(0)
 	bestSet := false
 
+	var candidates []ChannelKey
+
 	for _, k := range c.Keys {
-		if !k.Enabled || k.ChannelKey == "" {
+		if !k.Enabled || strings.TrimSpace(k.ChannelKey) == "" {
 			continue
 		}
+		candidates = append(candidates, k)
 		if k.StatusCode == 429 && k.LastUseTimeStamp > 0 {
 			if nowSec-k.LastUseTimeStamp < int64(5*time.Minute/time.Second) {
 				continue
 			}
 		}
-		if !bestSet || k.TotalCost < bestCost {
+		if !bestSet || k.TotalToken < lowestToken {
 			best = k
-			bestCost = k.TotalCost
+			lowestToken = k.TotalToken
 			bestSet = true
 		}
 	}
 
 	if !bestSet {
+		if len(candidates) > 0 {
+			return candidates[rand.Intn(len(candidates))]
+		}
 		return ChannelKey{}
 	}
 	return best
