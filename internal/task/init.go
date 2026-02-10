@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/bestruirui/octopus/internal/db"
 	"github.com/bestruirui/octopus/internal/model"
 	"github.com/bestruirui/octopus/internal/op"
 	"github.com/bestruirui/octopus/internal/price"
@@ -57,6 +58,13 @@ func Init() {
 	Register(TaskRelayLogSave, 10*time.Minute, false, func() {
 		if err := op.RelayLogSaveDBTask(context.Background()); err != nil {
 			log.Warnf("relay log save db task failed: %v", err)
+		}
+	})
+
+	// 注册SQLite Vacuum任务
+	Register("sqlite_vacuum", 20*time.Hour, true, func() {
+		if err := db.Vacuum(); err != nil {
+			log.Warnf("failed to vacuum sqlite database: %v", err)
 		}
 	})
 }
