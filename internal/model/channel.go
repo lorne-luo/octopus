@@ -52,6 +52,7 @@ type ChannelKey struct {
 	StatusCode       int     `json:"status_code"`
 	LastUseTimeStamp int64   `json:"last_use_time_stamp"`
 	TotalCost        float64 `json:"total_cost"`
+	TotalToken       int64   `json:"total_token"`
 	Remark           string  `json:"remark"`
 }
 
@@ -129,8 +130,10 @@ func (c *Channel) GetChannelKey() ChannelKey {
 	nowSec := time.Now().Unix()
 
 	best := ChannelKey{}
-	bestCost := 0.0
+	bestToken := int64(0)
 	bestSet := false
+
+	var candidates []ChannelKey
 
 	for _, k := range c.Keys {
 		if !k.Enabled || k.ChannelKey == "" {
@@ -141,15 +144,20 @@ func (c *Channel) GetChannelKey() ChannelKey {
 				continue
 			}
 		}
-		if !bestSet || k.TotalCost < bestCost {
+		candidates = append(candidates, k)
+		if !bestSet || k.TotalToken < bestToken {
 			best = k
-			bestCost = k.TotalCost
+			bestToken = k.TotalToken
 			bestSet = true
 		}
 	}
 
 	if !bestSet {
-		return ChannelKey{}
+		// If no best set but candidates exist (e.g. all have high token count? no, condition checks token count < bestToken)
+		// Wait, if candidates is not empty, bestSet MUST be true because of !bestSet condition.
+		// Unless candidates is empty.
+		// If candidates is empty, return empty.
+		return c.Keys[0]
 	}
 	return best
 }
