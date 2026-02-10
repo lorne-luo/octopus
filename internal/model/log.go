@@ -15,6 +15,8 @@ type ChannelAttempt struct {
 	ChannelID    int           `json:"channel_id"`
 	ChannelKeyID int           `json:"channel_key_id,omitempty"`
 	ChannelName  string        `json:"channel_name"`
+	ChannelType  int           `json:"channel_type"`
+	ApiKeySuffix string        `json:"api_key_suffix,omitempty"`
 	ModelName    string        `json:"model_name"`
 	AttemptNum   int           `json:"attempt_num"`
 	Status       AttemptStatus `json:"status"`
@@ -29,6 +31,7 @@ type RelayLog struct {
 	RequestModelName string           `json:"request_model_name"`                       // 请求模型名称
 	ChannelId        int              `json:"channel"`                                  // 实际使用的渠道ID
 	ChannelName      string           `json:"channel_name"`                             // 渠道名称
+	ChannelType      int              `json:"channel_type"`                             // 渠道类型
 	ActualModelName  string           `json:"actual_model_name"`                        // 实际使用模型名称
 	InputTokens      int              `json:"input_tokens"`                             // 输入Token
 	OutputTokens     int              `json:"output_tokens"`                            // 输出 Token
