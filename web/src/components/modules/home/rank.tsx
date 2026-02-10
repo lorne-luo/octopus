@@ -5,6 +5,7 @@ import { useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { TrendingUp } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContents, TabsContent } from '@/components/animate-ui/components/animate/tabs';
+import { useChannelName } from '@/hooks/use-channel-name';
 
 type SortMode = 'cost' | 'count';
 type ChannelData = NonNullable<ReturnType<typeof useChannelList>['data']>[number];
@@ -12,6 +13,7 @@ type ChannelData = NonNullable<ReturnType<typeof useChannelList>['data']>[number
 export function Rank() {
     const { data: channelData } = useChannelList();
     const t = useTranslations('home.rank');
+    const { getChannelName } = useChannelName();
 
     const rankedByCost = useMemo<ChannelData[]>(() => {
         if (!channelData) return [];
@@ -57,7 +59,7 @@ export function Rank() {
                             </div>
 
                             <div className="flex-1 min-w-0">
-                                <p className="font-medium text-sm truncate">{channel.raw.name}</p>
+                                <p className="font-medium text-sm truncate">{getChannelName(channel.raw)}</p>
                                 {mode === 'count' && (() => {
                                     const successCount = channel.formatted.request_success.raw;
                                     const failedCount = channel.formatted.request_failed.raw;
