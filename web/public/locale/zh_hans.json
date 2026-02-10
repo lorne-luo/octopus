@@ -112,6 +112,8 @@
         },
         "chart": {
             "totalRequests": "请求次数",
+            "totalToken": "消耗 Token",
+            "totalTokens": "总 Token 消耗",
             "totalCost": "消费金额",
             "timePeriod": "时间范围",
             "period": {
@@ -374,7 +376,8 @@
             "roundRobin": "轮询",
             "random": "随机",
             "failover": "故障转移",
-            "weighted": "加权分配"
+            "weighted": "加权分配",
+            "successBoost": "成功提升"
         },
         "empty": "暂无分组，点击左上角按钮创建"
     },
@@ -420,9 +423,10 @@
             "error": "错误",
             "errorInfo": "错误信息",
             "firstToken": "首字",
-            "totalTime": "总耗时",
+            "totalTime": "耗时",
             "input": "输入",
             "output": "输出",
+            "speed": "速度",
             "cost": "费用",
             "requestContent": "请求内容",
             "responseContent": "响应内容",
@@ -439,6 +443,8 @@
     "channel": {
         "card": {
             "requestCount": "请求次数",
+            "totalToken": "总 Token",
+            "totalTokens": "总 Token 消耗",
             "totalCost": "总成本",
             "toast": {
                 "enabled": "渠道已启用",
@@ -469,7 +475,7 @@
                 "outputToken": "输出 Token",
                 "inputCost": "输入成本",
                 "outputCost": "输出成本",
-                "avgWaitTime": "等待时间"
+                "avgWaitTime": "耗时"
             },
             "actions": {
                 "edit": "编辑",

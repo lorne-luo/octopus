@@ -112,6 +112,8 @@
         },
         "chart": {
             "totalRequests": "請求次數",
+            "totalToken": "消耗 Token",
+            "totalTokens": "總 Token 消耗",
             "totalCost": "消費金額",
             "timePeriod": "時間範圍",
             "period": {
@@ -374,7 +376,8 @@
             "roundRobin": "輪詢",
             "random": "隨機",
             "failover": "故障轉移",
-            "weighted": "加權分配"
+            "weighted": "加權分配",
+            "successBoost": "成功提升"
         },
         "empty": "暫無分組，點擊左上角按鈕建立"
     },
@@ -420,9 +423,10 @@
             "error": "錯誤",
             "errorInfo": "錯誤訊息",
             "firstToken": "首字",
-            "totalTime": "總耗時",
+            "totalTime": "耗時",
             "input": "輸入",
             "output": "輸出",
+            "speed": "速度",
             "cost": "費用",
             "requestContent": "請求內容",
             "responseContent": "響應內容",
@@ -439,6 +443,8 @@
     "channel": {
         "card": {
             "requestCount": "請求次數",
+            "totalToken": "總 Token",
+            "totalTokens": "總 Token 消耗",
             "totalCost": "總成本",
             "toast": {
                 "enabled": "供應源已啟用",
@@ -469,7 +475,7 @@
                 "outputToken": "輸出 Token",
                 "inputCost": "輸入成本",
                 "outputCost": "輸出成本",
-                "avgWaitTime": "等待時間"
+                "avgWaitTime": "耗時"
             },
             "actions": {
                 "edit": "編輯",
