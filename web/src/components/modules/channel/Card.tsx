@@ -73,7 +73,7 @@ export function Card({ channel, stats }: { channel: Channel; stats: StatsMetrics
                                 <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
                                     <Cpu className="h-4.5 w-4.5" />
                                 </span>
-                                <dt className="text-sm text-muted-foreground">{t('totalTokens')}</dt>
+                                <dt className="text-sm text-muted-foreground">{t('totalToken')}</dt>
                             </div>
                             <dd className="text-sm font-medium pr-1">
                                 {stats.total_token.formatted.value}

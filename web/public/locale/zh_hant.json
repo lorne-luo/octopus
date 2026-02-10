@@ -113,7 +113,6 @@
         "chart": {
             "totalRequests": "請求次數",
             "totalToken": "消耗 Token",
-            "totalTokens": "總 Token 消耗",
             "totalCost": "消費金額",
             "timePeriod": "時間範圍",
             "period": {
@@ -443,8 +442,7 @@
     "channel": {
         "card": {
             "requestCount": "請求次數",
-            "totalToken": "總 Token",
-            "totalTokens": "總 Token 消耗",
+            "totalToken": "總Tokens",
             "totalCost": "總成本",
             "toast": {
                 "enabled": "供應源已啟用",
@@ -467,7 +465,7 @@
             "noKeys": "暫無金鑰",
             "metrics": {
                 "totalRequests": "總請求",
-                "totalToken": "總 Token",
+                "totalToken": "總Tokens",
                 "totalCost": "總成本",
                 "successRequests": "成功請求",
                 "failedRequests": "失敗請求",
