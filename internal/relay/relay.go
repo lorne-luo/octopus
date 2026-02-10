@@ -86,40 +86,45 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 		channel, err := op.ChannelGet(item.ChannelID, c.Request.Context())
 		if err != nil {
 			log.Warnf("failed to get channel %d: %v", item.ChannelID, err)
-			iter.Skip(item.ChannelID, 0, fmt.Sprintf("channel_%d", item.ChannelID), fmt.Sprintf("channel not found: %v", err))
+			iter.Skip(item.ChannelID, 0, fmt.Sprintf("channel_%d", item.ChannelID), 0, "", fmt.Sprintf("channel not found: %v", err))
 			lastErr = err
 			continue
 		}
 		if !channel.Enabled {
-			iter.Skip(channel.ID, 0, channel.Name, "channel disabled")
+			iter.Skip(channel.ID, 0, channel.Name, int(channel.Type), "", "channel disabled")
 			continue
 		}
 
 		usedKey := channel.GetChannelKey()
 		if usedKey.ChannelKey == "" {
-			iter.Skip(channel.ID, 0, channel.Name, "no available key")
+			iter.Skip(channel.ID, 0, channel.Name, int(channel.Type), "", "no available key")
 			continue
 		}
 
+		apiKeySuffix := ""
+		if len(usedKey.ChannelKey) > 4 {
+			apiKeySuffix = usedKey.ChannelKey[len(usedKey.ChannelKey)-4:]
+		}
+
 		// 熔断检查
-		if iter.SkipCircuitBreak(channel.ID, usedKey.ID, channel.Name) {
+		if iter.SkipCircuitBreak(channel.ID, usedKey.ID, channel.Name, int(channel.Type), apiKeySuffix) {
 			continue
 		}
 
 		// 出站适配器
 		outAdapter := outbound.Get(channel.Type)
 		if outAdapter == nil {
-			iter.Skip(channel.ID, usedKey.ID, channel.Name, fmt.Sprintf("unsupported channel type: %d", channel.Type))
+			iter.Skip(channel.ID, usedKey.ID, channel.Name, int(channel.Type), apiKeySuffix, fmt.Sprintf("unsupported channel type: %d", channel.Type))
 			continue
 		}
 
 		// 类型兼容性检查
 		if internalRequest.IsEmbeddingRequest() && !outbound.IsEmbeddingChannelType(channel.Type) {
-			iter.Skip(channel.ID, usedKey.ID, channel.Name, "channel type not compatible with embedding request")
+			iter.Skip(channel.ID, usedKey.ID, channel.Name, int(channel.Type), apiKeySuffix, "channel type not compatible with embedding request")
 			continue
 		}
 		if internalRequest.IsChatRequest() && !outbound.IsChatChannelType(channel.Type) {
-			iter.Skip(channel.ID, usedKey.ID, channel.Name, "channel type not compatible with chat request")
+			iter.Skip(channel.ID, usedKey.ID, channel.Name, int(channel.Type), apiKeySuffix, "channel type not compatible with chat request")
 			continue
 		}
 
@@ -158,7 +163,11 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 
 // attempt 统一管理一次通道尝试的完整生命周期
 func (ra *relayAttempt) attempt() attemptResult {
-	span := ra.iter.StartAttempt(ra.channel.ID, ra.usedKey.ID, ra.channel.Name)
+	apiKeySuffix := ""
+	if len(ra.usedKey.ChannelKey) > 4 {
+		apiKeySuffix = ra.usedKey.ChannelKey[len(ra.usedKey.ChannelKey)-4:]
+	}
+	span := ra.iter.StartAttempt(ra.channel.ID, ra.usedKey.ID, ra.channel.Name, int(ra.channel.Type), apiKeySuffix)
 
 	// 转发请求
 	statusCode, fwdErr := ra.forward()
@@ -185,6 +194,15 @@ func (ra *relayAttempt) attempt() attemptResult {
 		balancer.RecordSuccess(ra.channel.ID, ra.usedKey.ID, ra.internalRequest.Model)
 		// 会话保持：更新粘性记录
 		balancer.SetSticky(ra.apiKeyID, ra.requestModel, ra.channel.ID, ra.usedKey.ID)
+
+		// 成功提权：如果是 SuccessBoost 模式，成功后提升该项优先级
+		if ra.iter.Mode == dbmodel.GroupModeSuccessBoost {
+			item := ra.iter.Item()
+			go func() {
+				// 使用背景上下文避免请求结束导致数据库操作被取消
+				_ = op.GroupItemPromote(ra.iter.GroupID, item.ChannelID, item.ModelName, context.Background())
+			}()
+		}
 
 		return attemptResult{Success: true}
 	}
