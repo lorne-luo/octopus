@@ -26,11 +26,13 @@ import { ChannelForm, type ChannelFormData } from './Form';
 import { formatMoney } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { useChannelName } from '@/hooks/use-channel-name';
 
 export function CardContent({ channel, stats }: { channel: Channel; stats: StatsMetricsFormatted }) {
     const { setIsOpen } = useMorphingDialog();
     const updateChannel = useUpdateChannel();
     const deleteChannel = useDeleteChannel();
+    const { getChannelName } = useChannelName();
     const [isEditing, setIsEditing] = useState(false);
     const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
     const [formData, setFormData] = useState<ChannelFormData>({
@@ -167,7 +169,7 @@ export function CardContent({ channel, stats }: { channel: Channel; stats: Stats
             <MorphingDialogTitle>
                 <header className="mb-6 flex items-center justify-between">
                     <h2 className="text-2xl font-bold text-card-foreground">
-                        {isEditing ? t('title.edit') : t('title.view')}
+                        {isEditing ? t('title.edit') : getChannelName(channel)}
                     </h2>
                     <MorphingDialogClose
                         className="relative top-0 right-0"
