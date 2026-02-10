@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/components/common/Toast';
 import { useTranslations } from 'next-intl';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { RefreshCw, X, Plus } from 'lucide-react';
 
 export interface ChannelKeyFormItem {
@@ -73,6 +73,17 @@ export function ChannelForm({
     idPrefix = 'channel',
 }: ChannelFormProps) {
     const t = useTranslations('channel.form');
+
+    const channelTypeMap: Record<ChannelType, string> = useMemo(() => ({
+        [ChannelType.OpenAIChat]: 'typeOpenAIChat',
+        [ChannelType.OpenAIResponse]: 'typeOpenAIResponse',
+        [ChannelType.Anthropic]: 'typeAnthropic',
+        [ChannelType.Gemini]: 'typeGemini',
+        [ChannelType.Volcengine]: 'typeVolcengine',
+        [ChannelType.OpenAIEmbedding]: 'typeOpenAIEmbedding',
+    }), []);
+
+    const defaultName = t(channelTypeMap[formData.type] || 'Unknown');
 
     // Ensure the form always shows at least 1 row for base_urls / keys / custom_header.
     // This avoids "empty list" UI and also keeps URL + APIKEY layout consistent.
@@ -234,7 +245,7 @@ export function ChannelForm({
                         type="text"
                         value={formData.name}
                         onChange={(event) => onFormDataChange({ ...formData, name: event.target.value })}
-                        required
+                        placeholder={defaultName}
                     />
                 </div>
 
