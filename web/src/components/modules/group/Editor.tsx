@@ -446,7 +446,7 @@ export function GroupEditor({
 
                     {/* Mode */}
                     <div className="flex gap-1">
-                        {([1, 2, 3, 4] as const).map((m) => (
+                        {([1, 2, 3, 4, 5] as const).map((m) => (
                             <button
                                 key={m}
                                 type="button"
