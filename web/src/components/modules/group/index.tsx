@@ -1,30 +1,23 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { GroupCard } from './Card';
 import { useGroupList } from '@/api/endpoints/group';
-import { usePaginationStore, useSearchStore } from '@/components/modules/toolbar';
+import { useSearchStore } from '@/components/modules/toolbar';
 import { EASING } from '@/lib/animations/fluid-transitions';
-import { useGridPageSize } from '@/hooks/use-grid-page-size';
+import { Loader2 } from 'lucide-react';
 
-/** Group card approximate height (variable due to content) */
-const GROUP_CARD_HEIGHT = 280;
+const INITIAL_COUNT = 9;
+const INCREMENT_COUNT = 9;
 
 export function Group() {
     const { data: groups } = useGroupList();
     const pageKey = 'group' as const;
-    const pageSize = useGridPageSize({
-        itemHeight: GROUP_CARD_HEIGHT,
-        gap: 16,
-        columns: { default: 1, md: 2, lg: 3 },
-    });
     const searchTerm = useSearchStore((s) => s.getSearchTerm(pageKey));
-    const page = usePaginationStore((s) => s.getPage(pageKey));
-    const setPage = usePaginationStore((s) => s.setPage);
-    const setTotalItems = usePaginationStore((s) => s.setTotalItems);
-    const setPageSize = usePaginationStore((s) => s.setPageSize);
-    const direction = usePaginationStore((s) => s.getDirection(pageKey));
+
+    const [displayCount, setDisplayCount] = useState(INITIAL_COUNT);
+    const sentinelRef = useRef<HTMLDivElement>(null);
 
     const filteredGroups = useMemo(() => {
         if (!groups) return [];
@@ -34,62 +27,68 @@ export function Group() {
         return sorted.filter((g) => g.name.toLowerCase().includes(term));
     }, [groups, searchTerm]);
 
-    // Sync to store for Toolbar to display pagination info
+    // Reset display count when search term changes
     useEffect(() => {
-        setTotalItems(pageKey, filteredGroups.length);
-        setPageSize(pageKey, pageSize);
-    }, [filteredGroups.length, pageSize, pageKey, setTotalItems, setPageSize]);
+        setDisplayCount(INITIAL_COUNT);
+    }, [searchTerm]);
 
-    // Reset to page 1 when search term changes
+    const displayGroups = useMemo(() => {
+        return filteredGroups.slice(0, displayCount);
+    }, [filteredGroups, displayCount]);
+
+    const hasMore = displayCount < filteredGroups.length;
+
     useEffect(() => {
-        setPage(pageKey, 1);
-    }, [searchTerm, pageKey, setPage]);
+        if (!hasMore) return;
 
-    const pagedGroups = useMemo(() => {
-        const start = (page - 1) * pageSize;
-        return filteredGroups.slice(start, start + pageSize);
-    }, [filteredGroups, page, pageSize]);
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting) {
+                    setDisplayCount((prev) => prev + INCREMENT_COUNT);
+                }
+            },
+            { rootMargin: '200px' }
+        );
+
+        if (sentinelRef.current) {
+            observer.observe(sentinelRef.current);
+        }
+
+        return () => observer.disconnect();
+    }, [hasMore]);
 
     return (
-        <AnimatePresence mode="popLayout" initial={false} custom={direction}>
-            <motion.div
-                key={`group-page-${page}`}
-                custom={direction}
-                variants={{
-                    enter: (d: number) => ({ x: d >= 0 ? 24 : -24, opacity: 0 }),
-                    center: { x: 0, opacity: 1 },
-                    exit: (d: number) => ({ x: d >= 0 ? -24 : 24, opacity: 0 }),
-                }}
-                initial="enter"
-                animate="center"
-                exit="exit"
-                transition={{ duration: 0.25, ease: EASING.easeOutExpo }}
-            >
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <AnimatePresence mode="popLayout">
-                        {pagedGroups.map((group, index) => (
-                            <motion.div
-                                key={group.id}
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{
-                                    opacity: 0,
-                                    scale: 0.95,
-                                    transition: { duration: 0.2 }
-                                }}
-                                transition={{
-                                    duration: 0.45,
-                                    ease: EASING.easeOutExpo,
-                                    delay: index === 0 ? 0 : Math.min(0.08 * Math.log2(index + 1), 0.4),
-                                }}
-                                layout={!searchTerm.trim()}
-                            >
-                                <GroupCard group={group} />
-                            </motion.div>
-                        ))}
-                    </AnimatePresence>
+        <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <AnimatePresence mode="popLayout">
+                    {displayGroups.map((group, index) => (
+                        <motion.div
+                            key={group.id}
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{
+                                opacity: 0,
+                                scale: 0.95,
+                                transition: { duration: 0.2 }
+                            }}
+                            transition={{
+                                duration: 0.45,
+                                ease: EASING.easeOutExpo,
+                                delay: Math.min(0.05 * (index % INITIAL_COUNT), 0.3),
+                            }}
+                            layout={!searchTerm.trim()}
+                        >
+                            <GroupCard group={group} />
+                        </motion.div>
+                    ))}
+                </AnimatePresence>
+            </div>
+
+            {hasMore && (
+                <div ref={sentinelRef} className="flex justify-center py-8">
+                    <Loader2 className="size-6 text-muted-foreground animate-spin" />
                 </div>
-            </motion.div>
-        </AnimatePresence>
+            )}
+        </div>
     );
 }
