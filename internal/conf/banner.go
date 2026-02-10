@@ -54,6 +54,7 @@ func PrintBanner() {
 	printInfo("Build Time", formatDate(BuildTime), Blue)
 	printInfo("Built By", Author, Purple)
 	printInfo("Repo", Repo, Cyan)
+	printInfo("Visit URL", fmt.Sprintf("http://localhost:%d", AppConfig.Server.Port), Green)
 
 	fmt.Print(Dim)
 	fmt.Println(strings.Repeat("═", 60))
