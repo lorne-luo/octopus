@@ -18,6 +18,7 @@ import { useSearchStore } from './search-store';
 import { usePaginationStore } from './pagination-store';
 
 const TOOLBAR_PAGES: NavItem[] = ['channel', 'group', 'model'];
+const LAZY_LOAD_PAGES: NavItem[] = ['channel', 'group'];
 
 function CreateDialogContent({ activeItem }: { activeItem: NavItem }) {
     switch (activeItem) {
@@ -52,6 +53,7 @@ export function Toolbar() {
     }, [activeItem, setSearchTerm, setPage]);
 
     const showToolbar = TOOLBAR_PAGES.includes(activeItem);
+    const showPagination = !LAZY_LOAD_PAGES.includes(activeItem);
 
     return (
         <AnimatePresence mode="wait">
@@ -102,35 +104,37 @@ export function Toolbar() {
                     </div>
 
                     {/* 页码指示器 */}
-                    <div className="flex items-center h-9 rounded-xl border">
-                        <button
-                            type="button"
-                            aria-label="Previous page"
-                            onClick={() => prevPage(activeItem)}
-                            disabled={page <= 1}
-                            className="size-8 inline-flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:hover:text-muted-foreground"
-                        >
-                            <ChevronLeft className="size-4" />
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setPage(activeItem, 1)}
-                            className="px-2 text-sm tabular-nums text-muted-foreground hover:text-foreground"
-                            aria-label="Page indicator"
-                            title="Click to go to first page"
-                        >
-                            {page}/{totalPages}
-                        </button>
-                        <button
-                            type="button"
-                            aria-label="Next page"
-                            onClick={() => nextPage(activeItem)}
-                            disabled={page >= totalPages}
-                            className="size-8 inline-flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:hover:text-muted-foreground"
-                        >
-                            <ChevronRight className="size-4" />
-                        </button>
-                    </div>
+                    {showPagination && (
+                        <div className="flex items-center h-9 rounded-xl border">
+                            <button
+                                type="button"
+                                aria-label="Previous page"
+                                onClick={() => prevPage(activeItem)}
+                                disabled={page <= 1}
+                                className="size-8 inline-flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:hover:text-muted-foreground"
+                            >
+                                <ChevronLeft className="size-4" />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setPage(activeItem, 1)}
+                                className="px-2 text-sm tabular-nums text-muted-foreground hover:text-foreground"
+                                aria-label="Page indicator"
+                                title="Click to go to first page"
+                            >
+                                {page}/{totalPages}
+                            </button>
+                            <button
+                                type="button"
+                                aria-label="Next page"
+                                onClick={() => nextPage(activeItem)}
+                                disabled={page >= totalPages}
+                                className="size-8 inline-flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:hover:text-muted-foreground"
+                            >
+                                <ChevronRight className="size-4" />
+                            </button>
+                        </div>
+                    )}
 
                     {/* 创建按钮 */}
                     <MorphingDialog>

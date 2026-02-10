@@ -219,6 +219,7 @@ build_frontend() {
         cd ..
         return 1
     fi
+    pnpm add -D baseline-browser-mapping@latest
     log_success "Frontend dependencies installed"
 
     # Build the project
