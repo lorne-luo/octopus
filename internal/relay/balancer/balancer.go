@@ -28,6 +28,8 @@ func GetBalancer(mode model.GroupMode) Balancer {
 		return &Failover{}
 	case model.GroupModeWeighted:
 		return &Weighted{}
+	case model.GroupModeSuccessBoost:
+		return &SuccessBoost{}
 	default:
 		return &RoundRobin{}
 	}
