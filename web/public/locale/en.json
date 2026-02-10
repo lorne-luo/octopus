@@ -117,6 +117,7 @@
         "chart": {
             "title": "Trend",
             "totalRequests": "Total Requests",
+            "totalToken": "Total Tokens",
             "totalCost": "Total Cost",
             "totalTokens": "Total Tokens",
             "timePeriod": "Time Period",
@@ -451,6 +452,7 @@
     "channel": {
         "card": {
             "requestCount": "Requests",
+            "totalToken": "Total Tokens",
             "totalCost": "Total Cost",
             "toast": {
                 "enabled": "Channel enabled",
