@@ -84,7 +84,6 @@
         "chart": {
             "totalRequests": "请求次数",
             "totalToken": "消耗 Token",
-            "totalTokens": "总 Token 消耗",
             "totalCost": "消费金额",
             "timePeriod": "时间范围",
             "period": {
@@ -414,8 +413,7 @@
     "channel": {
         "card": {
             "requestCount": "请求次数",
-            "totalToken": "总 Token",
-            "totalTokens": "总 Token 消耗",
+            "totalToken": "总Tokens",
             "totalCost": "总成本",
             "toast": {
                 "enabled": "渠道已启用",
@@ -438,7 +436,7 @@
             "noKeys": "暂无密钥",
             "metrics": {
                 "totalRequests": "总请求",
-                "totalToken": "总 Token",
+                "totalToken": "总Tokens",
                 "totalCost": "总成本",
                 "successRequests": "成功请求",
                 "failedRequests": "失败请求",
