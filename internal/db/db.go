@@ -121,3 +121,14 @@ func Close() error {
 func GetDB() *gorm.DB {
 	return db
 }
+
+func Vacuum() error {
+	if db == nil {
+		return fmt.Errorf("database not initialized")
+	}
+
+	if db.Dialector.Name() == "sqlite" {
+		return db.Exec("VACUUM").Error
+	}
+	return nil
+}
