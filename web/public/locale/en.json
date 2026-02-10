@@ -83,6 +83,8 @@
         },
         "chart": {
             "totalRequests": "Total Requests",
+            "totalToken": "Total Tokens",
+            "totalTokens": "Total Tokens Used",
             "totalCost": "Total Cost",
             "timePeriod": "Time Period",
             "period": {
@@ -345,7 +347,8 @@
             "roundRobin": "Round Robin",
             "random": "Random",
             "failover": "Failover",
-            "weighted": "Weighted"
+            "weighted": "Weighted",
+            "successBoost": "SuccessBoost"
         },
         "empty": "No groups yet, click the button above to create one"
     },
@@ -394,6 +397,7 @@
             "totalTime": "Total",
             "input": "Input",
             "output": "Output",
+            "speed": "Speed",
             "cost": "Cost",
             "requestContent": "Request Content",
             "responseContent": "Response Content",
@@ -410,6 +414,8 @@
     "channel": {
         "card": {
             "requestCount": "Requests",
+            "totalToken": "Total Tokens",
+            "totalTokens": "Total Tokens Used",
             "totalCost": "Total Cost",
             "toast": {
                 "enabled": "Channel enabled",
