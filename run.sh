@@ -6,6 +6,7 @@ echo "Building Frontend..."
 cd web
 pnpm install
 pnpm build
+
 cd ..
 rm -rf static/out
 mv -f web/out static/
