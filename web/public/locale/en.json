@@ -84,7 +84,6 @@
         "chart": {
             "totalRequests": "Total Requests",
             "totalToken": "Total Tokens",
-            "totalTokens": "Total Tokens Used",
             "totalCost": "Total Cost",
             "timePeriod": "Time Period",
             "period": {
@@ -415,7 +414,6 @@
         "card": {
             "requestCount": "Requests",
             "totalToken": "Total Tokens",
-            "totalTokens": "Total Tokens Used",
             "totalCost": "Total Cost",
             "toast": {
                 "enabled": "Channel enabled",
