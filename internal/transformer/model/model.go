@@ -248,6 +248,22 @@ type InternalLLMRequest struct {
 	Query url.Values `json:"-"`
 }
 
+func (r *InternalLLMRequest) GetFullContent() string {
+	var sb strings.Builder
+	for _, msg := range r.Messages {
+		sb.WriteString(msg.GetFullContent())
+	}
+	if r.EmbeddingInput != nil {
+		if r.EmbeddingInput.Single != nil {
+			sb.WriteString(*r.EmbeddingInput.Single)
+		}
+		for _, s := range r.EmbeddingInput.Multiple {
+			sb.WriteString(s)
+		}
+	}
+	return sb.String()
+}
+
 func (r *InternalLLMRequest) Validate() error {
 	if r.Model == "" {
 		return errors.New("model is required")
@@ -500,6 +516,20 @@ type Message struct {
 	CacheControl *CacheControl `json:"-"`
 }
 
+func (m *Message) GetFullContent() string {
+	var sb strings.Builder
+	sb.WriteString(m.Content.GetFullContent())
+	sb.WriteString(m.GetReasoningContent())
+	if m.Refusal != "" {
+		sb.WriteString(m.Refusal)
+	}
+	for _, tc := range m.ToolCalls {
+		sb.WriteString(tc.Function.Name)
+		sb.WriteString(tc.Function.Arguments)
+	}
+	return sb.String()
+}
+
 func (m *Message) ClearHelpFields() {
 	m.ReasoningContent = nil
 	m.Reasoning = nil
@@ -521,6 +551,19 @@ func (m *Message) GetReasoningContent() string {
 // SetReasoningContent sets the reasoning content to the ReasoningContent field.
 func (m *Message) SetReasoningContent(s string) {
 	m.ReasoningContent = &s
+}
+
+func (c MessageContent) GetFullContent() string {
+	if c.Content != nil {
+		return *c.Content
+	}
+	var sb strings.Builder
+	for _, p := range c.MultipleContent {
+		if p.Type == "text" && p.Text != nil {
+			sb.WriteString(*p.Text)
+		}
+	}
+	return sb.String()
 }
 
 type MessageContent struct {
@@ -665,6 +708,19 @@ type InternalLLMResponse struct {
 
 	// Error is the error information, will present if request to llm service failed with status >= 400.
 	Error *ResponseError `json:"error,omitempty"`
+}
+
+func (r *InternalLLMResponse) GetFullContent() string {
+	var sb strings.Builder
+	for _, choice := range r.Choices {
+		if choice.Message != nil {
+			sb.WriteString(choice.Message.GetFullContent())
+		}
+		if choice.Delta != nil {
+			sb.WriteString(choice.Delta.GetFullContent())
+		}
+	}
+	return sb.String()
 }
 
 func (r *InternalLLMResponse) ClearHelpFields() {
