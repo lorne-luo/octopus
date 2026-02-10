@@ -1,7 +1,9 @@
 package relay
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -25,7 +27,7 @@ import (
 // Handler 处理入站请求并转发到上游服务
 func Handler(inboundType inbound.InboundType, c *gin.Context) {
 	// 解析请求
-	internalRequest, inAdapter, err := parseRequest(inboundType, c)
+	internalRequest, inAdapter, body, err := parseRequest(inboundType, c)
 	if err != nil {
 		return
 	}
@@ -57,6 +59,7 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 
 	// 初始化 Metrics
 	metrics := NewRelayMetrics(apiKeyID, requestModel, internalRequest)
+	metrics.SetRawRequest(string(body))
 
 	// 请求级上下文
 	req := &relayRequest{
@@ -75,6 +78,8 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 		select {
 		case <-c.Request.Context().Done():
 			log.Infof("request context canceled, stopping retry")
+			// 确保有 Token 统计
+			metrics.CalcTokensFromRequest()
 			metrics.Save(c.Request.Context(), false, context.Canceled, iter.Attempts())
 			return
 		default:
@@ -150,6 +155,10 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 			return
 		}
 		if result.Written {
+			// 如果响应已经写入，但发生错误，确保统计了 Token
+			if metrics.Stats.InputToken == 0 {
+				metrics.CalcTokensFromRequest()
+			}
 			metrics.Save(c.Request.Context(), false, result.Err, iter.Attempts())
 			return
 		}
@@ -157,6 +166,7 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 	}
 
 	// 所有通道都失败
+	metrics.CalcTokensFromRequest()
 	metrics.Save(c.Request.Context(), false, lastErr, iter.Attempts())
 	resp.Error(c, http.StatusBadGateway, "all channels failed")
 }
@@ -180,6 +190,7 @@ func (ra *relayAttempt) attempt() attemptResult {
 		// ====== 成功 ======
 		ra.collectResponse()
 		ra.usedKey.TotalCost += ra.metrics.Stats.InputCost + ra.metrics.Stats.OutputCost
+		ra.usedKey.TotalToken += ra.metrics.Stats.InputToken + ra.metrics.Stats.OutputToken // Feature 020
 		op.ChannelKeyUpdate(ra.usedKey)
 
 		span.End(dbmodel.AttemptSuccess, statusCode, "")
@@ -198,9 +209,12 @@ func (ra *relayAttempt) attempt() attemptResult {
 		// 成功提权：如果是 SuccessBoost 模式，成功后提升该项优先级
 		if ra.iter.Mode == dbmodel.GroupModeSuccessBoost {
 			item := ra.iter.Item()
+			groupID := ra.iter.GroupID
 			go func() {
 				// 使用背景上下文避免请求结束导致数据库操作被取消
-				_ = op.GroupItemPromote(ra.iter.GroupID, item.ChannelID, item.ModelName, context.Background())
+				if err := op.GroupItemPromote(groupID, item.ChannelID, item.ModelName, context.Background()); err != nil {
+					log.Warnf("failed to promote group item %d/%s: %v", item.ChannelID, item.ModelName, err)
+				}
 			}()
 		}
 
@@ -232,18 +246,18 @@ func (ra *relayAttempt) attempt() attemptResult {
 }
 
 // parseRequest 解析并验证入站请求
-func parseRequest(inboundType inbound.InboundType, c *gin.Context) (*model.InternalLLMRequest, model.Inbound, error) {
+func parseRequest(inboundType inbound.InboundType, c *gin.Context) (*model.InternalLLMRequest, model.Inbound, []byte, error) {
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
 		resp.Error(c, http.StatusInternalServerError, err.Error())
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	inAdapter := inbound.Get(inboundType)
 	internalRequest, err := inAdapter.TransformRequest(c.Request.Context(), body)
 	if err != nil {
 		resp.Error(c, http.StatusInternalServerError, err.Error())
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	// Pass through the original query parameters
@@ -251,10 +265,10 @@ func parseRequest(inboundType inbound.InboundType, c *gin.Context) (*model.Inter
 
 	if err := internalRequest.Validate(); err != nil {
 		resp.Error(c, http.StatusBadRequest, err.Error())
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	return internalRequest, inAdapter, nil
+	return internalRequest, inAdapter, body, nil
 }
 
 // forward 转发请求到上游服务
@@ -289,6 +303,8 @@ func (ra *relayAttempt) forward() (int, error) {
 		if err != nil {
 			return 0, fmt.Errorf("failed to read response body: %w", err)
 		}
+		// 记录原始错误响应
+		ra.metrics.AppendRawResponse(string(body))
 		return 0, fmt.Errorf("upstream error: %d: %s", response.StatusCode, string(body))
 	}
 
@@ -343,6 +359,7 @@ func (ra *relayAttempt) sendRequest(req *http.Request) (*http.Response, error) {
 func (ra *relayAttempt) handleStreamResponse(ctx context.Context, response *http.Response) error {
 	if ct := response.Header.Get("Content-Type"); ct != "" && !strings.Contains(strings.ToLower(ct), "text/event-stream") {
 		body, _ := io.ReadAll(io.LimitReader(response.Body, 16*1024))
+		ra.metrics.AppendRawResponse(string(body))
 		return fmt.Errorf("upstream returned non-SSE content-type %q for stream request: %s", ct, string(body))
 	}
 
@@ -402,6 +419,9 @@ func (ra *relayAttempt) handleStreamResponse(ctx context.Context, response *http
 				return fmt.Errorf("failed to read stream event: %w", r.err)
 			}
 
+			// 记录原始流数据
+			ra.metrics.AppendRawResponse(r.data)
+
 			data, err := ra.transformStreamData(ctx, r.data)
 			if err != nil || len(data) == 0 {
 				continue
@@ -449,6 +469,16 @@ func (ra *relayAttempt) transformStreamData(ctx context.Context, data string) ([
 
 // handleResponse 处理非流式响应
 func (ra *relayAttempt) handleResponse(ctx context.Context, response *http.Response) error {
+	// 读取并保存原始响应
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+	ra.metrics.AppendRawResponse(string(body))
+
+	// 重新设置 Response Body 供 TransformResponse 使用
+	response.Body = io.NopCloser(bytes.NewReader(body))
+
 	internalResponse, err := ra.outAdapter.TransformResponse(ctx, response)
 	if err != nil {
 		log.Warnf("failed to transform response: %v", err)
@@ -458,6 +488,10 @@ func (ra *relayAttempt) handleResponse(ctx context.Context, response *http.Respo
 	inResponse, err := ra.inAdapter.TransformResponse(ctx, internalResponse)
 	if err != nil {
 		log.Warnf("failed to transform response: %v", err)
+		// Feature 009: Handle Context Canceled
+		if errors.Is(err, context.Canceled) {
+			return fmt.Errorf("request canceled by client: %w", context.Canceled)
+		}
 		return fmt.Errorf("failed to transform inbound response: %w", err)
 	}
 
