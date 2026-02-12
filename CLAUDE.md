@@ -1,11 +1,11 @@
 # Claude Code Guide
 
 ## Project Overview
-Octopus is an "all AI service in one place" application, likely a unified API gateway or management platform for LLMs.
+Octopus is an "all API in one place" application, likely a unified API gateway or management platform for LLMs.
 It is built with Go (Backend) and React/Next.js (Frontend).
 
 ## Tech Stack
-- **Backend**: Go, Gin (likely), GORM
+- **Backend**: Go, Gin, GORM
 - **Frontend**: React, Next.js, Tailwind CSS
 - **Database**: SQLite, MySQL, PostgreSQL
 - **Container**: Docker

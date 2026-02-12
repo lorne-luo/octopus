@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/bestruirui/octopus/internal/model"
 	"github.com/bestruirui/octopus/internal/op"
@@ -75,12 +76,16 @@ func getModelList(c *gin.Context) {
 		})
 	}
 
+	now := time.Now()
+	nowUnix := int(now.Unix())
+	nowRFC3339 := now.UTC().Format(time.RFC3339)
+
 	if c.GetString("request_type") == "anthropic" {
 		var anthropicModels []model.AnthropicModel
 		for _, m := range models {
 			anthropicModels = append(anthropicModels, model.AnthropicModel{
 				ID:          m,
-				CreatedAt:   "2024-01-01T00:00:00Z",
+				CreatedAt:   nowRFC3339,
 				DisplayName: m,
 				Type:        "model",
 			})
@@ -100,7 +105,7 @@ func getModelList(c *gin.Context) {
 			openAIModels = append(openAIModels, model.OpenAIModel{
 				ID:      m,
 				Object:  "model",
-				Created: 1763395200,
+				Created: nowUnix,
 				OwnedBy: "octopus",
 			})
 		}
