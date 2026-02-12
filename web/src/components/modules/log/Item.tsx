@@ -231,6 +231,17 @@ export function LogCard({ log }: { log: RelayLog }) {
         [log.channel_name, log.channel_type, getChannelNameByType]
     );
 
+    // 提取 API Key 后缀：优先使用成功尝试的，否则用最后一次尝试的
+    const apiKeySuffix = useMemo(() => {
+        if (!log.attempts || log.attempts.length === 0) return null;
+        const successAttempt = log.attempts.find(a => a.status === 'success');
+        if (successAttempt?.api_key_suffix) {
+            return successAttempt.api_key_suffix;
+        }
+        const lastAttempt = log.attempts[log.attempts.length - 1];
+        return lastAttempt?.api_key_suffix || null;
+    }, [log.attempts]);
+
     return (
         <TooltipProvider>
             <MorphingDialog>
@@ -263,10 +274,26 @@ export function LogCard({ log }: { log: RelayLog }) {
                                         {effectiveChannelName}
                                     </Badge>
                                 )}
-                                <ChannelTypeBadge type={log.channel_type} />
                                 <span className="text-muted-foreground truncate" title={log.actual_model_name}>
                                     {log.actual_model_name}
                                 </span>
+                                <ChannelTypeBadge type={log.channel_type} />
+                                {apiKeySuffix && (
+                                    <Badge
+                                        variant="outline"
+                                        className="shrink-0 text-xs px-1.5 py-0 font-mono"
+                                    >
+                                        •••{apiKeySuffix}
+                                    </Badge>
+                                )}
+                                {log.attempts && log.attempts.length > 1 && (
+                                    <Badge
+                                        variant="outline"
+                                        className="shrink-0 text-xs px-1.5 py-0"
+                                    >
+                                        {log.attempts.length} 次
+                                    </Badge>
+                                )}
                                 {log.attempts?.some(a => a.sticky) && (
                                     <Pin className="size-3.5 shrink-0 text-amber-500" />
                                 )}
