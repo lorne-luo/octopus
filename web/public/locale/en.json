@@ -506,5 +506,32 @@
             "matchRegexPlaceholder": "Optional: regex pattern to match request model names",
             "remark": "Remark"
         }
+    },
+    "oauthProvider": {
+        "title": "OAuth Providers",
+        "create": "Create Provider",
+        "name": "Name",
+        "namePlaceholder": "Enter provider name",
+        "type": "Type",
+        "status": "Status",
+        "active": "Active",
+        "inactive": "Inactive",
+        "disabled": "Disabled",
+        "cookie": "Cookie",
+        "cookiePlaceholder": "Enter cookie",
+        "cookiePlaceholderEdit": "Leave empty to keep existing cookie",
+        "lastRefresh": "Last Refresh",
+        "createdAt": "Created At",
+        "actions": "Actions",
+        "refresh": "Refresh",
+        "edit": "Edit",
+        "delete": "Delete",
+        "confirmDelete": "Are you sure you want to delete this provider?",
+        "noData": "No providers found",
+        "createTitle": "Create OAuth Provider",
+        "editTitle": "Edit OAuth Provider",
+        "cancel": "Cancel",
+        "saving": "Saving...",
+        "update": "Update"
     }
 }
