@@ -72,6 +72,36 @@ func (o *MessageOutbound) TransformRequest(ctx context.Context, request *model.I
 	return req, nil
 }
 
+// BuildPassthroughRequest 构建 passthrough 模式的 HTTP 请求。
+// 直接使用原始 request body，不做格式转换。
+func (o *MessageOutbound) BuildPassthroughRequest(ctx context.Context, rawBody []byte, stream bool, baseUrl, key string, query url.Values) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "", bytes.NewReader(rawBody))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	if stream {
+		req.Header.Set("Accept", "text/event-stream")
+	} else {
+		req.Header.Set("Accept", "application/json")
+	}
+	req.Header.Set("Anthropic-Version", "2023-06-01")
+	req.Header.Set("X-API-Key", key)
+
+	parsedUrl, err := url.Parse(strings.TrimSuffix(baseUrl, "/"))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse base url: %w", err)
+	}
+	parsedUrl.Path = parsedUrl.Path + "/messages"
+	if query != nil {
+		parsedUrl.RawQuery = query.Encode()
+	}
+	req.URL = parsedUrl
+
+	return req, nil
+}
+
 func (o *MessageOutbound) TransformResponse(ctx context.Context, response *http.Response) (*model.InternalLLMResponse, error) {
 	if response == nil {
 		return nil, fmt.Errorf("response is nil")
