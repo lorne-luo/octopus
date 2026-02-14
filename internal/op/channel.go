@@ -364,6 +364,7 @@ func channelRefreshCache(ctx context.Context) error {
 	if err := db.GetDB().WithContext(ctx).
 		Preload("Keys").
 		Preload("Stats").
+		Preload("OAuthProvider").
 		Find(&channels).Error; err != nil {
 		log.Warnf("failed to get channels: %v", err)
 		return err
@@ -395,6 +396,7 @@ func channelRefreshCacheByID(id int, ctx context.Context) error {
 	if err := db.GetDB().WithContext(ctx).
 		Preload("Keys").
 		Preload("Stats").
+		Preload("OAuthProvider").
 		First(&channel, id).Error; err != nil {
 		return err
 	}
