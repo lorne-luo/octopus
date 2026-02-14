@@ -26,18 +26,44 @@ func setupTestDB() {
 func TestManager_RefreshAPIKey(t *testing.T) {
 	setupTestDB()
 
-	// Mock IFlow server
+	// Mock IFlow server - handles both GET and POST
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "GET" {
+			resp := iflow.IFlowAPIKeyResponse{
+				Success: true,
+				Data: struct {
+					APIKey     string `json:"apiKey"`
+					ExpireTime string `json:"expireTime"`
+					HasExpired bool   `json:"hasExpired"`
+					Name       string `json:"name"`
+					APIKeyMask string `json:"apiKeyMask"`
+				}{
+					APIKey:     "existing-key",
+					ExpireTime: "2025-01-01 12:00",
+					HasExpired: false,
+					Name:       "test-key-name",
+					APIKeyMask: "sk-xxx",
+				},
+			}
+			json.NewEncoder(w).Encode(resp)
+			return
+		}
+
+		// POST request
 		resp := iflow.IFlowAPIKeyResponse{
 			Success: true,
 			Data: struct {
 				APIKey     string `json:"apiKey"`
 				ExpireTime string `json:"expireTime"`
 				HasExpired bool   `json:"hasExpired"`
+				Name       string `json:"name"`
+				APIKeyMask string `json:"apiKeyMask"`
 			}{
 				APIKey:     "refreshed-key",
-				ExpireTime: "2025-01-01 12:00",
+				ExpireTime: "2025-02-01 12:00",
 				HasExpired: false,
+				Name:       "test-key-name",
+				APIKeyMask: "sk-yyy",
 			},
 		}
 		json.NewEncoder(w).Encode(resp)
@@ -66,11 +92,18 @@ func TestManager_RefreshAPIKey(t *testing.T) {
 		t.Errorf("expected api key 'refreshed-key', got %s", provider.APIKey)
 	}
 
+	if provider.KeyName != "test-key-name" {
+		t.Errorf("expected key name 'test-key-name', got %s", provider.KeyName)
+	}
+
 	// Verify DB update
 	var updatedProvider model.OAuthProvider
 	db.GetDB().First(&updatedProvider, provider.ID)
 	if updatedProvider.APIKey != "refreshed-key" {
 		t.Errorf("expected db api key 'refreshed-key', got %s", updatedProvider.APIKey)
+	}
+	if updatedProvider.KeyName != "test-key-name" {
+		t.Errorf("expected db key name 'test-key-name', got %s", updatedProvider.KeyName)
 	}
 }
 
