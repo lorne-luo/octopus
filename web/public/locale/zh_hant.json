@@ -533,6 +533,17 @@
         "editTitle": "編輯 OAuth 供應商",
         "cancel": "取消",
         "saving": "儲存中...",
-        "update": "更新"
+        "update": "更新",
+        "model": "模型",
+        "modelRefresh": "刷新",
+        "modelRefreshSuccess": "模型獲取成功",
+        "modelRefreshEmpty": "未找到模型",
+        "modelRefreshFailed": "模型獲取失敗",
+        "modelRefreshNoProvider": "請先保存提供商",
+        "modelCustomPlaceholder": "輸入模型名稱...",
+        "modelAdd": "添加模型",
+        "modelSelected": "已選擇",
+        "modelClearAll": "清除全部",
+        "modelNoSelected": "未選擇模型"
     }
 }
