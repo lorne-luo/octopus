@@ -49,6 +49,7 @@
         "group": "分组",
         "key": "密钥",
         "model": "价格",
+        "oauth": "OAuth",
         "log": "日志",
         "setting": "设置"
     },

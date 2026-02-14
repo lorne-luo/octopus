@@ -13,6 +13,8 @@ type OAuthProvider struct {
 	RefreshFailCount int    `json:"refresh_fail_count"`
 	CreatedAt        int64  `json:"created_at"`
 	UpdatedAt        int64  `json:"updated_at"`
+	Model            string `gorm:"type:text" json:"model"`           // Auto-fetched models, comma-separated
+	CustomModel      string `gorm:"type:text" json:"custom_model"`    // Manually added models, comma-separated
 }
 
 type OAuthProviderUpdateRequest struct {
@@ -21,4 +23,6 @@ type OAuthProviderUpdateRequest struct {
 	ProviderType *string `json:"provider_type,omitempty"`
 	Cookie       *string `json:"cookie,omitempty"`
 	Status       *int    `json:"status,omitempty"`
+	Model        *string `json:"model,omitempty"`
+	CustomModel  *string `json:"custom_model,omitempty"`
 }
