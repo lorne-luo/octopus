@@ -175,11 +175,17 @@ func (ra *relayAttempt) handlePassthroughStreamResponse(ctx context.Context, res
 			return fmt.Errorf("first token timeout (%ds)", ra.firstTokenTimeOutSec)
 		case r, ok := <-results:
 			if !ok {
-				// stream 结束，从最后一个 event 中解析 usage
-				if lastEventData != "" {
-					extractAndSetUsage(ra.metrics, []byte(lastEventData), ra.internalRequest.Model)
+				// stream 结束，尝试构建完整的 InternalResponse 用于日志
+				ra.captureFinalStreamResponse(ctx)
+
+				// 如果 captureFinalStreamResponse 没有生成 FinalResponse (例如解析失败)，
+				// 则回退到使用原始累积的 rawResponse
+				if ra.metrics.FinalResponse == "" {
+					if lastEventData != "" {
+						extractAndSetUsage(ra.metrics, []byte(lastEventData), ra.internalRequest.Model)
+					}
+					ra.metrics.SetFinalResponse(rawResponse.String())
 				}
-				ra.metrics.SetFinalResponse(rawResponse.String())
 				log.Infof("passthrough stream end")
 				return nil
 			}
@@ -203,6 +209,13 @@ func (ra *relayAttempt) handlePassthroughStreamResponse(ctx context.Context, res
 					firstTokenTimer = nil
 					firstTokenC = nil
 				}
+			}
+
+			// 尝试解析并聚合 chunk 用于日志
+			// 注意：这里只进行解析和聚合，不影响向客户端的输出
+			// 忽略错误，保证 passthrough 的核心功能（转发）不受影响
+			if internalStream, err := ra.outAdapter.TransformStream(ctx, []byte(r.data)); err == nil && internalStream != nil {
+				_, _ = ra.inAdapter.TransformStream(ctx, internalStream)
 			}
 
 			// 直接写入原始 SSE event
