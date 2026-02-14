@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -59,7 +60,7 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 
 	// 初始化 Metrics
 	metrics := NewRelayMetrics(apiKeyID, requestModel, internalRequest)
-	metrics.SetRawRequest(string(body))
+	metrics.SetRawRequest(normalizeLogJSONPayload(body))
 
 	// 请求级上下文
 	req := &relayRequest{
@@ -70,6 +71,8 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 		apiKeyID:        apiKeyID,
 		requestModel:    requestModel,
 		iter:            iter,
+		rawBody:         body,
+		inboundType:     inboundType,
 	}
 
 	var lastErr error
@@ -140,13 +143,23 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 			requestModel, group.Mode, channel.Name, item.ModelName,
 			iter.Index()+1, iter.Len(), iter.IsSticky())
 
-		// 构造尝试级上下文 -- 只写变化的 4 个字段
+		// 检测是否可以走 passthrough 路径
+		isPassthrough := false
+		if inbound.MatchesOutbound(inboundType, channel.Type) {
+			if _, ok := outAdapter.(model.PassthroughOutbound); ok {
+				isPassthrough = true
+				log.Infof("passthrough mode enabled for channel %s (inbound=%d, outbound=%d)", channel.Name, inboundType, channel.Type)
+			}
+		}
+
+		// 构造尝试级上下文
 		ra := &relayAttempt{
 			relayRequest:         req,
 			outAdapter:           outAdapter,
 			channel:              channel,
 			usedKey:              usedKey,
 			firstTokenTimeOutSec: group.FirstTokenTimeOut,
+			isPassthrough:        isPassthrough,
 		}
 
 		result := ra.attempt()
@@ -167,6 +180,7 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 
 	// 所有通道都失败
 	metrics.CalcTokensFromRequest()
+	metrics.SetFinalResponse(errorResponseBody(http.StatusBadGateway, "all channels failed"))
 	metrics.Save(c.Request.Context(), false, lastErr, iter.Attempts())
 	resp.Error(c, http.StatusBadGateway, "all channels failed")
 }
@@ -180,7 +194,14 @@ func (ra *relayAttempt) attempt() attemptResult {
 	span := ra.iter.StartAttempt(ra.channel.ID, ra.usedKey.ID, ra.channel.Name, int(ra.channel.Type), apiKeySuffix)
 
 	// 转发请求
-	statusCode, fwdErr := ra.forward()
+	var statusCode int
+	var fwdErr error
+	if ra.isPassthrough {
+		passthrough := ra.outAdapter.(model.PassthroughOutbound)
+		statusCode, fwdErr = ra.forwardPassthrough(passthrough)
+	} else {
+		statusCode, fwdErr = ra.forward()
+	}
 
 	// 更新 channel key 状态
 	ra.usedKey.StatusCode = statusCode
@@ -408,9 +429,11 @@ func (ra *relayAttempt) handleStreamResponse(ctx context.Context, response *http
 		case <-firstTokenC:
 			log.Warnf("first token timeout (%ds), switching channel", ra.firstTokenTimeOutSec)
 			_ = response.Body.Close()
+			ra.captureFinalStreamResponse(ctx)
 			return fmt.Errorf("first token timeout (%ds)", ra.firstTokenTimeOutSec)
 		case r, ok := <-results:
 			if !ok {
+				ra.captureFinalStreamResponse(ctx)
 				log.Infof("stream end")
 				return nil
 			}
@@ -496,15 +519,62 @@ func (ra *relayAttempt) handleResponse(ctx context.Context, response *http.Respo
 	}
 
 	ra.c.Data(http.StatusOK, "application/json", inResponse)
+	ra.metrics.SetFinalResponse(string(inResponse))
 	return nil
 }
 
 // collectResponse 收集响应信息
 func (ra *relayAttempt) collectResponse() {
+	if ra.isPassthrough {
+		// Passthrough 模式下，metrics 已经在 handlePassthroughResponse/handlePassthroughStreamResponse 中设置
+		return
+	}
+
 	internalResponse, err := ra.inAdapter.GetInternalResponse(ra.c.Request.Context())
 	if err != nil || internalResponse == nil {
 		return
 	}
 
 	ra.metrics.SetInternalResponse(internalResponse, ra.internalRequest.Model)
+	if ra.metrics.FinalResponse == "" {
+		if finalResp, transformErr := ra.inAdapter.TransformResponse(ra.c.Request.Context(), internalResponse); transformErr == nil {
+			ra.metrics.SetFinalResponse(string(finalResp))
+		}
+	}
+}
+
+func (ra *relayAttempt) captureFinalStreamResponse(ctx context.Context) {
+	internalResponse, err := ra.inAdapter.GetInternalResponse(ctx)
+	if err != nil || internalResponse == nil {
+		return
+	}
+	if finalResp, transformErr := ra.inAdapter.TransformResponse(ctx, internalResponse); transformErr == nil {
+		ra.metrics.SetFinalResponse(string(finalResp))
+	}
+}
+
+func normalizeLogJSONPayload(payload []byte) string {
+	if len(payload) == 0 {
+		return ""
+	}
+	var jsonData any
+	if err := json.Unmarshal(payload, &jsonData); err != nil {
+		return string(payload)
+	}
+	normalized, err := json.Marshal(jsonData)
+	if err != nil {
+		return string(payload)
+	}
+	return string(normalized)
+}
+
+func errorResponseBody(code int, msg string) string {
+	b, err := json.Marshal(resp.ResponseStruct{
+		Code:    code,
+		Message: msg,
+	})
+	if err != nil {
+		return fmt.Sprintf(`{"code":%d,"message":%q}`, code, msg)
+	}
+	return string(b)
 }

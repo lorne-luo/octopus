@@ -27,9 +27,10 @@ type RelayMetrics struct {
 	// 请求和响应内容
 	InternalRequest  *transformerModel.InternalLLMRequest
 	InternalResponse *transformerModel.InternalLLMResponse
+	RawRequest       string
+	FinalResponse    string
 
-	// 原始请求和响应（用于调试）
-	RawRequest  string
+	// 原始响应（用于调试）
 	RawResponse *strings.Builder
 
 	// 统计指标
@@ -111,7 +112,10 @@ func (m *RelayMetrics) SetInternalResponse(resp *transformerModel.InternalLLMRes
 	m.Stats.OutputCost = float64(m.Stats.OutputToken) * modelPrice.Output * 1e-6
 }
 
-// calcInputTokens 计算输入 Token
+func (m *RelayMetrics) SetFinalResponse(raw string) {
+	m.FinalResponse = raw
+}
+
 func (m *RelayMetrics) calcInputTokens() int {
 	if m.InternalRequest == nil {
 		return 0
@@ -260,8 +264,10 @@ func (m *RelayMetrics) saveLog(ctx context.Context, err error, duration time.Dur
 	}
 
 	// 响应内容
-	if m.InternalResponse != nil {
-		// 如果有 InternalResponse，使用过滤后的 JSON
+
+	if m.FinalResponse != "" {
+		relayLog.ResponseContent = m.FinalResponse
+	} else if m.InternalResponse != nil {
 		respForLog := m.filterResponseForLog(m.InternalResponse)
 		if respJSON, jsonErr := json.Marshal(respForLog); jsonErr == nil {
 			if m.InternalResponse.Usage != nil && m.InternalResponse.Usage.AnthropicUsage {
