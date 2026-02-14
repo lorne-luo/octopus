@@ -49,6 +49,7 @@
         "group": "Group",
         "key": "Key",
         "model": "Price",
+        "oauth": "OAuth",
         "log": "Log",
         "setting": "Setting"
     },

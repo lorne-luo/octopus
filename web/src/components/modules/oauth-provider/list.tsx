@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { MoreHorizontal, Plus, RefreshCw, Pencil, Trash } from "lucide-react"
 import { useOAuthProviderList, useDeleteOAuthProvider, useRefreshOAuthProvider, OAuthProvider } from "@/api/endpoints/oauthProvider"
-import { formatTime } from "@/lib/utils"
+import { formatDateTime } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { useState } from "react"
 import { CreateEditOAuthProviderModal } from "./create-modal"
@@ -85,8 +85,8 @@ export function OAuthProviderList() {
                                         {provider.status === 1 ? t("active") : t("inactive")}
                                     </Badge>
                                 </TableCell>
-                                <TableCell>{formatTime(provider.last_refresh_at)}</TableCell>
-                                <TableCell>{formatTime(provider.created_at)}</TableCell>
+                                <TableCell>{formatDateTime(provider.last_refresh_at)}</TableCell>
+                                <TableCell>{formatDateTime(provider.created_at)}</TableCell>
                                 <TableCell className="text-right">
                                     <DropdownMenu>
                                         <DropdownMenuTrigger asChild>

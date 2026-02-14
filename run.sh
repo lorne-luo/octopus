@@ -7,6 +7,9 @@ cd web
 pnpm install
 pnpm build
 cd ..
+rm  -rf static/out
+mv -f web/out static/
+git co internal/price/presets.go static/out/README.md
 
 # Start Backend
 echo "Starting Backend..."
