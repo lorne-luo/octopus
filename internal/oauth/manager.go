@@ -3,6 +3,7 @@ package oauth
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/bestruirui/octopus/internal/db"
@@ -12,37 +13,52 @@ import (
 
 type Manager struct{}
 
-var sharedManager *Manager
+var (
+	sharedManager *Manager
+	once          sync.Once
+)
 
 func GetManager() *Manager {
-	if sharedManager == nil {
+	once.Do(func() {
 		sharedManager = &Manager{}
-	}
+	})
 	return sharedManager
 }
 
+// RefreshAPIKey refreshes the API key for an OAuth provider
+// For IFlow: it first fetches key info via GET, then refreshes via POST
 func (m *Manager) RefreshAPIKey(ctx context.Context, provider *model.OAuthProvider) error {
 	if provider.ProviderType == "iflow" {
-		resp, err := iflow.RefreshAPIKey(provider.Cookie, provider.Name)
+		// Step 1: Get API key info to obtain the correct key name
+		keyInfo, err := iflow.FetchAPIKeyInfo(ctx, provider.Cookie)
 		if err != nil {
 			m.recordFailure(provider)
-			return err
+			return fmt.Errorf("fetch api key info: %w", err)
 		}
 
-		// Update provider
+		// Use stored key name or the one from GET response
+		keyName := provider.KeyName
+		if keyName == "" {
+			keyName = keyInfo.Data.Name
+		}
+
+		// Step 2: Refresh API key using POST with the correct key name
+		resp, err := iflow.RefreshAPIKey(ctx, provider.Cookie, keyName)
+		if err != nil {
+			m.recordFailure(provider)
+			return fmt.Errorf("refresh api key: %w", err)
+		}
+
+		// Update provider with new data
 		provider.APIKey = resp.Data.APIKey
+		provider.KeyName = resp.Data.Name
 
 		// Parse expiration time
 		// IFlow format example: "2025-01-01 00:00"
 		expireTime, err := time.Parse("2006-01-02 15:04", resp.Data.ExpireTime)
 		if err != nil {
-			// Try without time if parsing fails, or log error.
-			// For now, assume format is consistent.
-			// If parsing fails, maybe set a default or don't update expire time?
-			// Let's log it but proceed if we got a key.
-			// Actually, if we can't parse expire time, we might loop refresh.
-			// Let's assume standard format for now.
-			fmt.Printf("failed to parse expire time: %v\n", err)
+			// Log error but proceed - we got a valid key
+			fmt.Printf("warning: failed to parse expire time: %v\n", err)
 		} else {
 			provider.APIKeyExpireAt = expireTime.Unix()
 		}
@@ -69,7 +85,7 @@ func (m *Manager) ShouldRefresh(provider *model.OAuthProvider) bool {
 
 func (m *Manager) recordFailure(provider *model.OAuthProvider) {
 	provider.RefreshFailCount++
-	// If failed too many times, maybe disable it?
+	// If failed too many times, mark as expired
 	if provider.RefreshFailCount > 3 {
 		provider.Status = 2 // Error/Expired
 	}

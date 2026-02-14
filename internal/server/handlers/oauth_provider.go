@@ -49,13 +49,30 @@ func listOAuthProvider(c *gin.Context) {
 	resp.Success(c, providers)
 }
 
+type CreateOAuthProviderRequest struct {
+	Name         string `json:"name" binding:"required"`
+	ProviderType string `json:"provider_type" binding:"required"`
+	Cookie       string `json:"cookie" binding:"required"`
+	APIKey       string `json:"api_key"`
+	Status       int    `json:"status"`
+}
+
 func createOAuthProvider(c *gin.Context) {
-	var provider model.OAuthProvider
-	if err := c.ShouldBindJSON(&provider); err != nil {
+	var req CreateOAuthProviderRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		resp.Error(c, http.StatusBadRequest, resp.ErrInvalidJSON)
 		return
 	}
-	if err := op.OAuthProviderCreate(&provider, c.Request.Context()); err != nil {
+
+	provider := &model.OAuthProvider{
+		Name:         req.Name,
+		ProviderType: req.ProviderType,
+		Cookie:       req.Cookie,
+		APIKey:       req.APIKey,
+		Status:       req.Status,
+	}
+
+	if err := op.OAuthProviderCreate(provider, c.Request.Context()); err != nil {
 		resp.Error(c, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -63,7 +80,7 @@ func createOAuthProvider(c *gin.Context) {
 	if provider.Cookie != "" && provider.APIKey == "" {
 		manager := oauth.GetManager()
 		go func() {
-			_ = manager.RefreshAPIKey(context.Background(), &provider)
+			_ = manager.RefreshAPIKey(context.Background(), provider)
 		}()
 	}
 	resp.Success(c, provider)

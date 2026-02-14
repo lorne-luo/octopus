@@ -2,10 +2,13 @@ package iflow
 
 import (
 	"bytes"
+	"compress/gzip"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -15,21 +18,18 @@ type apiKeyRequest struct {
 	Name string `json:"name"`
 }
 
-func RefreshAPIKey(cookie, keyName string) (*IFlowAPIKeyResponse, error) {
-	reqBody, err := json.Marshal(apiKeyRequest{Name: keyName})
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
+// FetchAPIKeyInfo retrieves API key information using GET request with cookie
+func FetchAPIKeyInfo(ctx context.Context, cookie string) (*IFlowAPIKeyResponse, error) {
+	if strings.TrimSpace(cookie) == "" {
+		return nil, fmt.Errorf("iflow: cookie is empty")
 	}
 
-	req, err := http.NewRequest("POST", IFlowAPIKeyEndpoint, bytes.NewBuffer(reqBody))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, IFlowAPIKeyEndpoint, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, fmt.Errorf("iflow: create GET request failed: %w", err)
 	}
 
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Cookie", cookie)
-	// Add User-Agent to mimic browser if needed, or just standard
-	req.Header.Set("User-Agent", "Octopus/1.0")
+	setBrowserHeaders(req, cookie)
 
 	client := &http.Client{
 		Timeout: 30 * time.Second,
@@ -37,27 +37,116 @@ func RefreshAPIKey(cookie, keyName string) (*IFlowAPIKeyResponse, error) {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %w", err)
+		return nil, fmt.Errorf("iflow: GET request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := readResponseBody(resp)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
+		return nil, err
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("iflow api returned status %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("iflow: GET request failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
 	var parsedResp IFlowAPIKeyResponse
 	if err := json.Unmarshal(body, &parsedResp); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+		return nil, fmt.Errorf("iflow: unmarshal response failed: %w", err)
 	}
 
 	if !parsedResp.Success {
-		return nil, fmt.Errorf("iflow api returned false success")
+		return nil, fmt.Errorf("iflow: request not successful: %s", parsedResp.Message)
 	}
 
 	return &parsedResp, nil
+}
+
+// RefreshAPIKey refreshes the API key using POST request
+func RefreshAPIKey(ctx context.Context, cookie, keyName string) (*IFlowAPIKeyResponse, error) {
+	if strings.TrimSpace(cookie) == "" {
+		return nil, fmt.Errorf("iflow: cookie is empty")
+	}
+	if strings.TrimSpace(keyName) == "" {
+		return nil, fmt.Errorf("iflow: key name is empty")
+	}
+
+	reqBody, err := json.Marshal(apiKeyRequest{Name: keyName})
+	if err != nil {
+		return nil, fmt.Errorf("iflow: marshal request failed: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, IFlowAPIKeyEndpoint, bytes.NewBuffer(reqBody))
+	if err != nil {
+		return nil, fmt.Errorf("iflow: create POST request failed: %w", err)
+	}
+
+	setBrowserHeaders(req, cookie)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Origin", "https://platform.iflow.cn")
+	req.Header.Set("Referer", "https://platform.iflow.cn/")
+
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("iflow: POST request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := readResponseBody(resp)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("iflow: POST request failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var parsedResp IFlowAPIKeyResponse
+	if err := json.Unmarshal(body, &parsedResp); err != nil {
+		return nil, fmt.Errorf("iflow: unmarshal response failed: %w", err)
+	}
+
+	if !parsedResp.Success {
+		return nil, fmt.Errorf("iflow: request not successful: %s", parsedResp.Message)
+	}
+
+	return &parsedResp, nil
+}
+
+// setBrowserHeaders sets headers to mimic browser behavior
+func setBrowserHeaders(req *http.Request, cookie string) {
+	req.Header.Set("Cookie", cookie)
+	req.Header.Set("Accept", "application/json, text/plain, */*")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+	req.Header.Set("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
+	req.Header.Set("Accept-Encoding", "gzip, deflate, br")
+	req.Header.Set("Connection", "keep-alive")
+	req.Header.Set("Sec-Fetch-Dest", "empty")
+	req.Header.Set("Sec-Fetch-Mode", "cors")
+	req.Header.Set("Sec-Fetch-Site", "same-origin")
+}
+
+// readResponseBody reads response body with gzip decompression support
+func readResponseBody(resp *http.Response) ([]byte, error) {
+	var reader io.Reader = resp.Body
+
+	if resp.Header.Get("Content-Encoding") == "gzip" {
+		gzipReader, err := gzip.NewReader(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("iflow: create gzip reader failed: %w", err)
+		}
+		defer gzipReader.Close()
+		reader = gzipReader
+	}
+
+	body, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, fmt.Errorf("iflow: read response body failed: %w", err)
+	}
+
+	return body, nil
 }
