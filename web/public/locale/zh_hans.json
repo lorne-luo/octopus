@@ -533,6 +533,17 @@
         "editTitle": "编辑 OAuth 渠道",
         "cancel": "取消",
         "saving": "保存中...",
-        "update": "更新"
+        "update": "更新",
+        "model": "模型",
+        "modelRefresh": "刷新",
+        "modelRefreshSuccess": "模型获取成功",
+        "modelRefreshEmpty": "未找到模型",
+        "modelRefreshFailed": "模型获取失败",
+        "modelRefreshNoProvider": "请先保存提供商",
+        "modelCustomPlaceholder": "输入模型名称...",
+        "modelAdd": "添加模型",
+        "modelSelected": "已选择",
+        "modelClearAll": "清除全部",
+        "modelNoSelected": "未选择模型"
     }
 }
