@@ -16,22 +16,25 @@ const (
 )
 
 type Channel struct {
-	ID            int                   `json:"id" gorm:"primaryKey"`
-	Name          string                `json:"name" gorm:"unique;not null"`
-	Type          outbound.OutboundType `json:"type"`
-	Enabled       bool                  `json:"enabled" gorm:"default:true"`
-	BaseUrls      []BaseUrl             `json:"base_urls" gorm:"serializer:json"`
-	Keys          []ChannelKey          `json:"keys" gorm:"foreignKey:ChannelID"`
-	Model         string                `json:"model"`
-	CustomModel   string                `json:"custom_model"`
-	Proxy         bool                  `json:"proxy" gorm:"default:false"`
-	AutoSync      bool                  `json:"auto_sync" gorm:"default:false"`
-	AutoGroup     AutoGroupType         `json:"auto_group" gorm:"default:0"`
-	CustomHeader  []CustomHeader        `json:"custom_header" gorm:"serializer:json"`
-	ParamOverride *string               `json:"param_override"`
-	ChannelProxy  *string               `json:"channel_proxy"`
-	Stats         *StatsChannel         `json:"stats,omitempty" gorm:"foreignKey:ChannelID"`
-	MatchRegex    *string               `json:"match_regex"`
+	ID              int                   `json:"id" gorm:"primaryKey"`
+	Name            string                `json:"name" gorm:"unique;not null"`
+	Type            outbound.OutboundType `json:"type"`
+	Enabled         bool                  `json:"enabled" gorm:"default:true"`
+	BaseUrls        []BaseUrl             `json:"base_urls" gorm:"serializer:json"`
+	Keys            []ChannelKey          `json:"keys" gorm:"foreignKey:ChannelID"`
+	Model           string                `json:"model"`
+	CustomModel     string                `json:"custom_model"`
+	Proxy           bool                  `json:"proxy" gorm:"default:false"`
+	AutoSync        bool                  `json:"auto_sync" gorm:"default:false"`
+	AutoGroup       AutoGroupType         `json:"auto_group" gorm:"default:0"`
+	CustomHeader    []CustomHeader        `json:"custom_header" gorm:"serializer:json"`
+	ParamOverride   *string               `json:"param_override"`
+	ChannelProxy    *string               `json:"channel_proxy"`
+	Stats           *StatsChannel         `json:"stats,omitempty" gorm:"foreignKey:ChannelID"`
+	MatchRegex      *string               `json:"match_regex"`
+	UseOAuth        bool                  `json:"use_oauth" gorm:"default:false"`
+	OAuthProviderID int                   `json:"oauth_provider_id" gorm:"default:0"`
+	OAuthProvider   *OAuthProvider        `json:"oauth_provider,omitempty" gorm:"foreignKey:OAuthProviderID"`
 }
 
 type BaseUrl struct {
@@ -73,9 +76,11 @@ type ChannelUpdateRequest struct {
 	ParamOverride *string                `json:"param_override,omitempty"`
 	MatchRegex    *string                `json:"match_regex,omitempty"`
 
-	KeysToAdd    []ChannelKeyAddRequest    `json:"keys_to_add,omitempty"`
-	KeysToUpdate []ChannelKeyUpdateRequest `json:"keys_to_update,omitempty"`
-	KeysToDelete []int                     `json:"keys_to_delete,omitempty"`
+	KeysToAdd       []ChannelKeyAddRequest    `json:"keys_to_add,omitempty"`
+	KeysToUpdate    []ChannelKeyUpdateRequest `json:"keys_to_update,omitempty"`
+	KeysToDelete    []int                     `json:"keys_to_delete,omitempty"`
+	UseOAuth        *bool                     `json:"use_oauth,omitempty"`
+	OAuthProviderID *int                      `json:"oauth_provider_id,omitempty"`
 }
 
 type ChannelKeyAddRequest struct {

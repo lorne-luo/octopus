@@ -103,7 +103,22 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 			continue
 		}
 
-		usedKey := channel.GetChannelKey()
+		var usedKey dbmodel.ChannelKey
+		if channel.UseOAuth {
+			apiKey, err := GetChannelKey(c.Request.Context(), channel)
+			if err != nil {
+				iter.Skip(channel.ID, 0, channel.Name, int(channel.Type), "", "oauth failed: "+err.Error())
+				continue
+			}
+			usedKey = dbmodel.ChannelKey{
+				ChannelID:  channel.ID,
+				ChannelKey: apiKey,
+				Enabled:    true,
+				// ID is 0, which means per-key stats/circuit breaking might be skipped or fail gracefully
+			}
+		} else {
+			usedKey = channel.GetChannelKey()
+		}
 		if usedKey.ChannelKey == "" {
 			iter.Skip(channel.ID, 0, channel.Name, int(channel.Type), "", "no available key")
 			continue
