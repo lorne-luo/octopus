@@ -12,6 +12,8 @@ export type OAuthProvider = {
     refresh_fail_count: number;
     created_at: number;
     updated_at: number;
+    model: string;
+    custom_model: string;
 };
 
 export type CreateOAuthProviderRequest = {
@@ -20,6 +22,8 @@ export type CreateOAuthProviderRequest = {
     cookie: string;
     api_key?: string;
     status?: number;
+    model?: string;
+    custom_model?: string;
 };
 
 export type UpdateOAuthProviderRequest = {
@@ -28,6 +32,8 @@ export type UpdateOAuthProviderRequest = {
     provider_type?: string;
     cookie?: string;
     status?: number;
+    model?: string;
+    custom_model?: string;
 };
 
 export function useOAuthProviderList() {
@@ -99,6 +105,20 @@ export function useRefreshOAuthProvider() {
         },
         onError: (error) => {
             logger.error('Failed to refresh OAuth provider:', error);
+        },
+    });
+}
+
+export function useFetchOAuthModel() {
+    return useMutation({
+        mutationFn: async (id: number) => {
+            return apiClient.post<string[]>('/api/v1/oauth-provider/fetch-model', { id });
+        },
+        onSuccess: (data) => {
+            logger.log('OAuth models fetched:', data);
+        },
+        onError: (error) => {
+            logger.error('Failed to fetch OAuth models:', error);
         },
     });
 }
