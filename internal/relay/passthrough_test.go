@@ -1,9 +1,17 @@
 package relay
 
 import (
+	"context"
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 
 	dbmodel "github.com/bestruirui/octopus/internal/model"
+	transformerModel "github.com/bestruirui/octopus/internal/transformer/model"
+	"github.com/gin-gonic/gin"
 )
 
 func TestReplaceModelInBody(t *testing.T) {
@@ -115,5 +123,160 @@ func TestExtractAndSetUsage(t *testing.T) {
 				t.Errorf("OutputToken = %d, want %d", metrics.Stats.OutputToken, tt.expectOutputTokens)
 			}
 		})
+	}
+}
+
+// MockInbound implements transformerModel.Inbound
+type MockInbound struct {
+	CapturedChunks []*transformerModel.InternalLLMResponse
+}
+
+func (m *MockInbound) TransformRequest(ctx context.Context, body []byte) (*transformerModel.InternalLLMRequest, error) {
+	return nil, nil
+}
+
+func (m *MockInbound) TransformResponse(ctx context.Context, response *transformerModel.InternalLLMResponse) ([]byte, error) {
+	return json.Marshal(response)
+}
+
+func (m *MockInbound) TransformStream(ctx context.Context, stream *transformerModel.InternalLLMResponse) ([]byte, error) {
+	if stream == nil {
+		return nil, nil
+	}
+	m.CapturedChunks = append(m.CapturedChunks, stream)
+	return []byte("data: mock\n\n"), nil
+}
+
+func (m *MockInbound) GetInternalResponse(ctx context.Context) (*transformerModel.InternalLLMResponse, error) {
+	if len(m.CapturedChunks) == 0 {
+		return nil, nil
+	}
+	// Simple aggregation for testing
+	fullContent := ""
+	for _, chunk := range m.CapturedChunks {
+		if len(chunk.Choices) > 0 && chunk.Choices[0].Delta != nil && chunk.Choices[0].Delta.Content.Content != nil {
+			fullContent += *chunk.Choices[0].Delta.Content.Content
+		}
+	}
+
+	return &transformerModel.InternalLLMResponse{
+		Choices: []transformerModel.Choice{
+			{
+				Message: &transformerModel.Message{
+					Content: transformerModel.MessageContent{Content: &fullContent},
+				},
+			},
+		},
+	}, nil
+}
+
+// MockOutbound implements transformerModel.Outbound
+type MockOutbound struct{}
+
+func (m *MockOutbound) TransformRequest(ctx context.Context, request *transformerModel.InternalLLMRequest, baseUrl, key string) (*http.Request, error) {
+	return nil, nil
+}
+
+func (m *MockOutbound) TransformResponse(ctx context.Context, response *http.Response) (*transformerModel.InternalLLMResponse, error) {
+	return nil, nil
+}
+
+func (m *MockOutbound) TransformStream(ctx context.Context, eventData []byte) (*transformerModel.InternalLLMResponse, error) {
+	str := string(eventData)
+	if str == "[DONE]" {
+		return nil, nil
+	}
+	var resp transformerModel.InternalLLMResponse
+	if err := json.Unmarshal(eventData, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+func TestHandlePassthroughStreamResponse_Aggregation(t *testing.T) {
+	// Setup Gin context
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = &http.Request{}
+	c.Request = c.Request.WithContext(context.Background())
+
+	// Setup mocks
+	mockIn := &MockInbound{}
+	mockOut := &MockOutbound{}
+
+	// Setup metrics
+	internalReq := &transformerModel.InternalLLMRequest{
+		Model: "test-model",
+	}
+	metrics := NewRelayMetrics(1, "test-model", internalReq)
+
+	// Setup relayAttempt
+	ra := &relayAttempt{
+		relayRequest: &relayRequest{
+			c:               c,
+			inAdapter:       mockIn,
+			internalRequest: internalReq,
+			metrics:         metrics,
+			requestModel:    "test-model",
+		},
+		outAdapter: mockOut,
+		channel: &dbmodel.Channel{
+			ID:   1,
+			Type: 1, // OpenAI type
+		},
+		usedKey: dbmodel.ChannelKey{
+			ID: 1,
+		},
+	}
+
+	// Setup pipe to simulate streaming response from upstream
+	pr, pw := io.Pipe()
+	resp := &http.Response{
+		StatusCode: 200,
+		Body:       pr,
+		Header:     make(http.Header),
+	}
+	resp.Header.Set("Content-Type", "text/event-stream")
+
+	// Start writing to pipe in goroutine
+	go func() {
+		defer pw.Close()
+		events := []string{
+			`{"id":"1","choices":[{"index":0,"delta":{"content":"Hello"}}]}`,
+			`{"id":"1","choices":[{"index":0,"delta":{"content":" World"}}]}`,
+			`[DONE]`,
+		}
+
+		for _, event := range events {
+			// Write SSE format
+			_, _ = io.WriteString(pw, "data: "+event+"\n\n")
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
+
+	// Execute handler
+	err := ra.handlePassthroughStreamResponse(c.Request.Context(), resp)
+	if err != nil {
+		t.Fatalf("handlePassthroughStreamResponse failed: %v", err)
+	}
+
+	// Verify metrics.FinalResponse
+	// GetInternalResponse in mock aggregates to "Hello World"
+	// TransformResponse in mock marshals it to JSON
+	// So we expect JSON containing "Hello World"
+
+	var finalResp transformerModel.InternalLLMResponse
+	if err := json.Unmarshal([]byte(metrics.FinalResponse), &finalResp); err != nil {
+		t.Fatalf("failed to unmarshal FinalResponse: %v, raw: %s", err, metrics.FinalResponse)
+	}
+
+	if len(finalResp.Choices) == 0 || finalResp.Choices[0].Message == nil || finalResp.Choices[0].Message.Content.Content == nil {
+		t.Fatalf("unexpected FinalResponse structure: %+v", finalResp)
+	}
+
+	got := *finalResp.Choices[0].Message.Content.Content
+	want := "Hello World"
+	if got != want {
+		t.Errorf("FinalResponse content = %q, want %q", got, want)
 	}
 }
