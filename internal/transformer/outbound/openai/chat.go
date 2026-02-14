@@ -65,6 +65,30 @@ func (o *ChatOutbound) TransformRequest(ctx context.Context, request *model.Inte
 	return req, nil
 }
 
+// BuildPassthroughRequest 构建 passthrough 模式的 HTTP 请求。
+func (o *ChatOutbound) BuildPassthroughRequest(ctx context.Context, rawBody []byte, stream bool, baseUrl, key string, query url.Values) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "", bytes.NewReader(rawBody))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+key)
+
+	parsedUrl, err := url.Parse(strings.TrimSuffix(baseUrl, "/"))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse base url: %w", err)
+	}
+	parsedUrl.Path = parsedUrl.Path + "/chat/completions"
+	if query != nil {
+		parsedUrl.RawQuery = query.Encode()
+	}
+	req.URL = parsedUrl
+	req.Method = http.MethodPost
+	return req, nil
+}
+
 func (o *ChatOutbound) TransformResponse(ctx context.Context, response *http.Response) (*model.InternalLLMResponse, error) {
 	body, err := io.ReadAll(response.Body)
 	if err != nil {

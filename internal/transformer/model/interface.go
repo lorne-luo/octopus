@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"net/http"
+	"net/url"
 )
 
 type Inbound interface {
@@ -30,6 +31,15 @@ type Outbound interface {
 
 	// 将出站流式转为内部通用流式响应格式
 	TransformStream(ctx context.Context, eventData []byte) (*InternalLLMResponse, error)
+}
+
+// PassthroughOutbound 是 Outbound 的可选扩展接口。
+// 当入站格式与出站 channel 格式相同时，实现该接口的 outbound 可以跳过
+// InternalLLMRequest → provider 格式的转换，直接使用原始 request body。
+type PassthroughOutbound interface {
+	// BuildPassthroughRequest 使用原始 body 构建 HTTP 请求。
+	// rawBody 中的 model 名已由调用方完成替换。
+	BuildPassthroughRequest(ctx context.Context, rawBody []byte, stream bool, baseUrl, key string, query url.Values) (*http.Request, error)
 }
 
 /*

@@ -8,6 +8,7 @@ import (
 	"github.com/bestruirui/octopus/internal/conf"
 	dbmodel "github.com/bestruirui/octopus/internal/model"
 	"github.com/bestruirui/octopus/internal/relay/balancer"
+	"github.com/bestruirui/octopus/internal/transformer/inbound"
 	"github.com/bestruirui/octopus/internal/transformer/model"
 	"github.com/gin-gonic/gin"
 )
@@ -61,6 +62,8 @@ type relayRequest struct {
 	apiKeyID        int
 	requestModel    string
 	iter            *balancer.Iterator
+	rawBody         []byte              // 原始请求 body，passthrough 模式使用
+	inboundType     inbound.InboundType // 入站格式类型
 }
 
 // relayAttempt 尝试级上下文
@@ -71,6 +74,7 @@ type relayAttempt struct {
 	channel              *dbmodel.Channel
 	usedKey              dbmodel.ChannelKey
 	firstTokenTimeOutSec int
+	isPassthrough        bool // 是否为 passthrough 模式
 }
 
 // attemptResult 封装单次尝试的结果
