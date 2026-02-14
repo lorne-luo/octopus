@@ -5,6 +5,7 @@ type OAuthProvider struct {
 	Name             string `gorm:"size:255;not null" json:"name"`
 	ProviderType     string `gorm:"size:50;not null" json:"provider_type"` // e.g., "iflow"
 	Cookie           string `gorm:"type:text;not null" json:"-"`           // Never expose in JSON
+	KeyName          string `gorm:"size:255" json:"-"`                     // IFlow key name for refresh
 	APIKey           string `gorm:"size:255" json:"api_key"`
 	APIKeyExpireAt   int64  `json:"api_key_expire_at"`
 	Status           int    `gorm:"default:1" json:"status"` // 1: Active, 2: Expired, 0: Disabled

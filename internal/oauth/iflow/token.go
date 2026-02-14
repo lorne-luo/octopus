@@ -9,10 +9,14 @@ type IFlowTokenStorage struct {
 }
 
 type IFlowAPIKeyResponse struct {
-	Success bool `json:"success"`
+	Success bool   `json:"success"`
+	Code    string `json:"code"`
+	Message string `json:"message"`
 	Data    struct {
 		APIKey     string `json:"apiKey"`
 		ExpireTime string `json:"expireTime"`
 		HasExpired bool   `json:"hasExpired"`
+		Name       string `json:"name"`
+		APIKeyMask string `json:"apiKeyMask"`
 	} `json:"data"`
 }
