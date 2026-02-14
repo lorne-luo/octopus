@@ -533,6 +533,17 @@
         "editTitle": "Edit OAuth Provider",
         "cancel": "Cancel",
         "saving": "Saving...",
-        "update": "Update"
+        "update": "Update",
+        "model": "Models",
+        "modelRefresh": "Refresh",
+        "modelRefreshSuccess": "Models fetched successfully",
+        "modelRefreshEmpty": "No models found",
+        "modelRefreshFailed": "Failed to fetch models",
+        "modelRefreshNoProvider": "Please save the provider first",
+        "modelCustomPlaceholder": "Enter model name...",
+        "modelAdd": "Add model",
+        "modelSelected": "Selected",
+        "modelClearAll": "Clear all",
+        "modelNoSelected": "No models selected"
     }
 }
