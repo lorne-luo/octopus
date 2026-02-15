@@ -341,7 +341,9 @@
             "autoAdd": "自動新增",
             "clear": "清空",
             "selectChannel": "供應源",
-            "selectModel": "模型"
+            "selectModel": "模型",
+            "channels": "供應源",
+            "oauthProviders": "OAuth 提供者"
         },
         "mode": {
             "roundRobin": "輪詢",
@@ -519,7 +521,7 @@
         "inactive": "未啟用",
         "disabled": "停用",
         "cookie": "Cookie",
-        "cookiePlaceholder": "請輸入 Cookie",
+        "cookiePlaceholder": "以 BXAuth= 開頭，例如：BXAuth=xxxxx;",
         "cookiePlaceholderEdit": "留空則保持原有 Cookie",
         "lastRefresh": "上次刷新",
         "createdAt": "建立時間",

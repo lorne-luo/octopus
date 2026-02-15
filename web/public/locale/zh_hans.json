@@ -341,7 +341,9 @@
             "autoAdd": "自动添加",
             "clear": "清空",
             "selectChannel": "渠道",
-            "selectModel": "模型"
+            "selectModel": "模型",
+            "channels": "渠道",
+            "oauthProviders": "OAuth 提供商"
         },
         "mode": {
             "roundRobin": "轮询",
@@ -519,7 +521,7 @@
         "inactive": "无效",
         "disabled": "禁用",
         "cookie": "Cookie",
-        "cookiePlaceholder": "输入 Cookie",
+        "cookiePlaceholder": "以 BXAuth= 开头，例如：BXAuth=xxxxx;",
         "cookiePlaceholderEdit": "留空则保留现有 Cookie",
         "lastRefresh": "上次刷新",
         "createdAt": "创建时间",
