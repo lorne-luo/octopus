@@ -71,7 +71,12 @@ type relayAttempt struct {
 	*relayRequest // 嵌入请求级上下文
 
 	outAdapter           model.Outbound
-	channel              *dbmodel.Channel
+	channel              *dbmodel.Channel      // 仅当 channelID > 0 时使用
+	oauthProvider        *dbmodel.OAuthProvider // 仅当 channelID < 0 时使用
+	channelID            int                   // 正值=Channel ID，负值=OAuth Provider ID
+	channelName          string
+	channelType          int
+	baseUrl              string
 	usedKey              dbmodel.ChannelKey
 	firstTokenTimeOutSec int
 	isPassthrough        bool // 是否为 passthrough 模式

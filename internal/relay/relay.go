@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bestruirui/octopus/internal/client"
 	"github.com/bestruirui/octopus/internal/helper"
 	dbmodel "github.com/bestruirui/octopus/internal/model"
 	"github.com/bestruirui/octopus/internal/op"
@@ -90,37 +91,82 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 
 		item := iter.Item()
 
-		// 获取通道
-		channel, err := op.ChannelGet(item.ChannelID, c.Request.Context())
-		if err != nil {
-			log.Warnf("failed to get channel %d: %v", item.ChannelID, err)
-			iter.Skip(item.ChannelID, 0, fmt.Sprintf("channel_%d", item.ChannelID), 0, "", fmt.Sprintf("channel not found: %v", err))
-			lastErr = err
-			continue
-		}
-		if !channel.Enabled {
-			iter.Skip(channel.ID, 0, channel.Name, int(channel.Type), "", "channel disabled")
+		// 获取通道或 OAuth Provider
+		var channel *dbmodel.Channel
+		var oauthProvider *dbmodel.OAuthProvider
+		var channelType int
+		var channelName string
+		var baseUrl string
+
+		if item.ChannelID > 0 {
+			// 现有 Channel 逻辑
+			var err error
+			channel, err = op.ChannelGet(item.ChannelID, c.Request.Context())
+			if err != nil {
+				log.Warnf("failed to get channel %d: %v", item.ChannelID, err)
+				iter.Skip(item.ChannelID, 0, fmt.Sprintf("channel_%d", item.ChannelID), 0, "", fmt.Sprintf("channel not found: %v", err))
+				lastErr = err
+				continue
+			}
+			if !channel.Enabled {
+				iter.Skip(channel.ID, 0, channel.Name, int(channel.Type), "", "channel disabled")
+				continue
+			}
+			channelType = int(channel.Type)
+			channelName = channel.Name
+			baseUrl = channel.GetBaseUrl()
+		} else if item.ChannelID < 0 {
+			// OAuth Provider 逻辑
+			var err error
+			oauthProvider, err = op.OAuthProviderGet(-item.ChannelID, c.Request.Context())
+			if err != nil {
+				log.Warnf("failed to get oauth provider %d: %v", -item.ChannelID, err)
+				iter.Skip(item.ChannelID, 0, "", 0, "", fmt.Sprintf("oauth provider not found: %v", err))
+				lastErr = err
+				continue
+			}
+			if oauthProvider.Status != 1 {
+				iter.Skip(item.ChannelID, 0, oauthProvider.Name, 0, "", "oauth provider disabled")
+				continue
+			}
+			if oauthProvider.APIKey == "" {
+				iter.Skip(item.ChannelID, 0, oauthProvider.Name, 0, "", "oauth provider has no api key")
+				continue
+			}
+			channelType = int(outbound.OutboundTypeOpenAIChat)
+			channelName = oauthProvider.Name
+			baseUrl = oauthProvider.GetBaseURL()
+		} else {
+			// channel_id = 0 is invalid
+			iter.Skip(item.ChannelID, 0, "", 0, "", "invalid channel_id: 0")
 			continue
 		}
 
 		var usedKey dbmodel.ChannelKey
-		if channel.UseOAuth {
-			apiKey, err := GetChannelKey(c.Request.Context(), channel)
-			if err != nil {
-				iter.Skip(channel.ID, 0, channel.Name, int(channel.Type), "", "oauth failed: "+err.Error())
-				continue
+		if item.ChannelID > 0 {
+			if channel.UseOAuth {
+				apiKey, err := GetChannelKey(c.Request.Context(), channel)
+				if err != nil {
+					iter.Skip(channel.ID, 0, channel.Name, int(channel.Type), "", "oauth failed: "+err.Error())
+					continue
+				}
+				usedKey = dbmodel.ChannelKey{
+					ChannelID:  channel.ID,
+					ChannelKey: apiKey,
+					Enabled:    true,
+				}
+			} else {
+				usedKey = channel.GetChannelKey()
 			}
+		} else if item.ChannelID < 0 {
+			// OAuth Provider 直接使用其 API Key
 			usedKey = dbmodel.ChannelKey{
-				ChannelID:  channel.ID,
-				ChannelKey: apiKey,
+				ChannelKey: oauthProvider.APIKey,
 				Enabled:    true,
-				// ID is 0, which means per-key stats/circuit breaking might be skipped or fail gracefully
 			}
-		} else {
-			usedKey = channel.GetChannelKey()
 		}
 		if usedKey.ChannelKey == "" {
-			iter.Skip(channel.ID, 0, channel.Name, int(channel.Type), "", "no available key")
+			iter.Skip(item.ChannelID, 0, channelName, channelType, "", "no available key")
 			continue
 		}
 
@@ -130,24 +176,24 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 		}
 
 		// 熔断检查
-		if iter.SkipCircuitBreak(channel.ID, usedKey.ID, channel.Name, int(channel.Type), apiKeySuffix) {
+		if iter.SkipCircuitBreak(item.ChannelID, usedKey.ID, channelName, channelType, apiKeySuffix) {
 			continue
 		}
 
 		// 出站适配器
-		outAdapter := outbound.Get(channel.Type)
+		outAdapter := outbound.Get(outbound.OutboundType(channelType))
 		if outAdapter == nil {
-			iter.Skip(channel.ID, usedKey.ID, channel.Name, int(channel.Type), apiKeySuffix, fmt.Sprintf("unsupported channel type: %d", channel.Type))
+			iter.Skip(item.ChannelID, usedKey.ID, channelName, channelType, apiKeySuffix, fmt.Sprintf("unsupported channel type: %d", channelType))
 			continue
 		}
 
 		// 类型兼容性检查
-		if internalRequest.IsEmbeddingRequest() && !outbound.IsEmbeddingChannelType(channel.Type) {
-			iter.Skip(channel.ID, usedKey.ID, channel.Name, int(channel.Type), apiKeySuffix, "channel type not compatible with embedding request")
+		if internalRequest.IsEmbeddingRequest() && !outbound.IsEmbeddingChannelType(outbound.OutboundType(channelType)) {
+			iter.Skip(item.ChannelID, usedKey.ID, channelName, channelType, apiKeySuffix, "channel type not compatible with embedding request")
 			continue
 		}
-		if internalRequest.IsChatRequest() && !outbound.IsChatChannelType(channel.Type) {
-			iter.Skip(channel.ID, usedKey.ID, channel.Name, int(channel.Type), apiKeySuffix, "channel type not compatible with chat request")
+		if internalRequest.IsChatRequest() && !outbound.IsChatChannelType(outbound.OutboundType(channelType)) {
+			iter.Skip(item.ChannelID, usedKey.ID, channelName, channelType, apiKeySuffix, "channel type not compatible with chat request")
 			continue
 		}
 
@@ -155,15 +201,15 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 		internalRequest.Model = item.ModelName
 
 		log.Infof("request model %s, mode: %d, forwarding to channel: %s model: %s (attempt %d/%d, sticky=%t)",
-			requestModel, group.Mode, channel.Name, item.ModelName,
+			requestModel, group.Mode, channelName, item.ModelName,
 			iter.Index()+1, iter.Len(), iter.IsSticky())
 
 		// 检测是否可以走 passthrough 路径
 		isPassthrough := false
-		if inbound.MatchesOutbound(inboundType, channel.Type) {
+		if inbound.MatchesOutbound(inboundType, outbound.OutboundType(channelType)) {
 			if _, ok := outAdapter.(model.PassthroughOutbound); ok {
 				isPassthrough = true
-				log.Infof("passthrough mode enabled for channel %s (inbound=%d, outbound=%d)", channel.Name, inboundType, channel.Type)
+				log.Infof("passthrough mode enabled for channel %s (inbound=%d, outbound=%d)", channelName, inboundType, channelType)
 			}
 		}
 
@@ -172,6 +218,11 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 			relayRequest:         req,
 			outAdapter:           outAdapter,
 			channel:              channel,
+			oauthProvider:        oauthProvider,
+			channelID:            item.ChannelID,
+			channelName:          channelName,
+			channelType:          channelType,
+			baseUrl:              baseUrl,
 			usedKey:              usedKey,
 			firstTokenTimeOutSec: group.FirstTokenTimeOut,
 			isPassthrough:        isPassthrough,
@@ -206,7 +257,7 @@ func (ra *relayAttempt) attempt() attemptResult {
 	if len(ra.usedKey.ChannelKey) > 4 {
 		apiKeySuffix = ra.usedKey.ChannelKey[len(ra.usedKey.ChannelKey)-4:]
 	}
-	span := ra.iter.StartAttempt(ra.channel.ID, ra.usedKey.ID, ra.channel.Name, int(ra.channel.Type), apiKeySuffix)
+	span := ra.iter.StartAttempt(ra.channelID, ra.usedKey.ID, ra.channelName, ra.channelType, apiKeySuffix)
 
 	// 转发请求
 	var statusCode int
@@ -227,20 +278,25 @@ func (ra *relayAttempt) attempt() attemptResult {
 		ra.collectResponse()
 		ra.usedKey.TotalCost += ra.metrics.Stats.InputCost + ra.metrics.Stats.OutputCost
 		ra.usedKey.TotalToken += ra.metrics.Stats.InputToken + ra.metrics.Stats.OutputToken // Feature 020
-		op.ChannelKeyUpdate(ra.usedKey)
+		// 仅对 Channel 更新 key 状态（OAuth Provider 没有 key 表）
+		if ra.channelID > 0 {
+			op.ChannelKeyUpdate(ra.usedKey)
+		}
 
 		span.End(dbmodel.AttemptSuccess, statusCode, "")
 
-		// Channel 维度统计
-		op.StatsChannelUpdate(ra.channel.ID, dbmodel.StatsMetrics{
-			WaitTime:       span.Duration().Milliseconds(),
-			RequestSuccess: 1,
-		})
+		// Channel 维度统计（仅对 Channel）
+		if ra.channelID > 0 {
+			op.StatsChannelUpdate(ra.channelID, dbmodel.StatsMetrics{
+				WaitTime:       span.Duration().Milliseconds(),
+				RequestSuccess: 1,
+			})
+		}
 
 		// 熔断器：记录成功
-		balancer.RecordSuccess(ra.channel.ID, ra.usedKey.ID, ra.internalRequest.Model)
+		balancer.RecordSuccess(ra.channelID, ra.usedKey.ID, ra.internalRequest.Model)
 		// 会话保持：更新粘性记录
-		balancer.SetSticky(ra.apiKeyID, ra.requestModel, ra.channel.ID, ra.usedKey.ID)
+		balancer.SetSticky(ra.apiKeyID, ra.requestModel, ra.channelID, ra.usedKey.ID)
 
 		// 成功提权：如果是 SuccessBoost 模式，成功后提升该项优先级
 		if ra.iter.Mode == dbmodel.GroupModeSuccessBoost {
@@ -258,17 +314,22 @@ func (ra *relayAttempt) attempt() attemptResult {
 	}
 
 	// ====== 失败 ======
-	op.ChannelKeyUpdate(ra.usedKey)
+	// 仅对 Channel 更新 key 状态
+	if ra.channelID > 0 {
+		op.ChannelKeyUpdate(ra.usedKey)
+	}
 	span.End(dbmodel.AttemptFailed, statusCode, fwdErr.Error())
 
-	// Channel 维度统计
-	op.StatsChannelUpdate(ra.channel.ID, dbmodel.StatsMetrics{
-		WaitTime:      span.Duration().Milliseconds(),
-		RequestFailed: 1,
-	})
+	// Channel 维度统计（仅对 Channel）
+	if ra.channelID > 0 {
+		op.StatsChannelUpdate(ra.channelID, dbmodel.StatsMetrics{
+			WaitTime:      span.Duration().Milliseconds(),
+			RequestFailed: 1,
+		})
+	}
 
 	// 熔断器：记录失败
-	balancer.RecordFailure(ra.channel.ID, ra.usedKey.ID, ra.internalRequest.Model)
+	balancer.RecordFailure(ra.channelID, ra.usedKey.ID, ra.internalRequest.Model)
 
 	written := ra.c.Writer.Written()
 	if written {
@@ -277,7 +338,7 @@ func (ra *relayAttempt) attempt() attemptResult {
 	return attemptResult{
 		Success: false,
 		Written: written,
-		Err:     fmt.Errorf("channel %s failed: %v", ra.channel.Name, fwdErr),
+		Err:     fmt.Errorf("channel %s failed: %v", ra.channelName, fwdErr),
 	}
 }
 
@@ -315,7 +376,7 @@ func (ra *relayAttempt) forward() (int, error) {
 	outboundRequest, err := ra.outAdapter.TransformRequest(
 		ctx,
 		ra.internalRequest,
-		ra.channel.GetBaseUrl(),
+		ra.baseUrl,
 		ra.usedKey.ChannelKey,
 	)
 	if err != nil {
@@ -367,7 +428,8 @@ func (ra *relayAttempt) copyHeaders(outboundRequest *http.Request) {
 			outboundRequest.Header.Set(key, value)
 		}
 	}
-	if len(ra.channel.CustomHeader) > 0 {
+	// 仅 Channel 有自定义头
+	if ra.channel != nil && len(ra.channel.CustomHeader) > 0 {
 		for _, header := range ra.channel.CustomHeader {
 			outboundRequest.Header.Set(header.HeaderKey, header.HeaderValue)
 		}
@@ -376,10 +438,23 @@ func (ra *relayAttempt) copyHeaders(outboundRequest *http.Request) {
 
 // sendRequest 发送 HTTP 请求
 func (ra *relayAttempt) sendRequest(req *http.Request) (*http.Response, error) {
-	httpClient, err := helper.ChannelHttpClient(ra.channel)
-	if err != nil {
-		log.Warnf("failed to get http client: %v", err)
-		return nil, err
+	var httpClient *http.Client
+	var err error
+
+	// 仅 Channel 有代理配置，OAuth Provider 使用默认客户端
+	if ra.channel != nil {
+		httpClient, err = helper.ChannelHttpClient(ra.channel)
+		if err != nil {
+			log.Warnf("failed to get http client: %v", err)
+			return nil, err
+		}
+	} else {
+		// OAuth Provider 使用默认 HTTP 客户端（不使用代理）
+		httpClient, err = client.GetHTTPClientSystemProxy(false)
+		if err != nil {
+			log.Warnf("failed to get default http client: %v", err)
+			return nil, err
+		}
 	}
 
 	response, err := httpClient.Do(req)
