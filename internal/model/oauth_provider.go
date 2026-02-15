@@ -28,3 +28,17 @@ type OAuthProviderUpdateRequest struct {
 	CustomModel  *string `json:"custom_model,omitempty"`
 	BaseURL      *string `json:"base_url,omitempty"`
 }
+
+// GetBaseURL returns the base URL for the OAuth Provider
+// Returns configured BaseURL or default based on ProviderType
+func (p *OAuthProvider) GetBaseURL() string {
+	if p.BaseURL != "" {
+		return p.BaseURL
+	}
+	switch p.ProviderType {
+	case "iflow":
+		return "https://apis.iflow.cn/v1"
+	default:
+		return ""
+	}
+}
