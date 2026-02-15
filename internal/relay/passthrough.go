@@ -52,11 +52,12 @@ func (ra *relayAttempt) forwardPassthrough(passthrough model.PassthroughOutbound
 	stream := ra.internalRequest.Stream != nil && *ra.internalRequest.Stream
 
 	// 构建 passthrough 请求
+	// 使用 ra.baseUrl，它已经正确设置了 Channel 或 OAuth Provider 的 base URL
 	outboundRequest, err := passthrough.BuildPassthroughRequest(
 		ctx,
 		body,
 		stream,
-		ra.channel.GetBaseUrl(),
+		ra.baseUrl,
 		ra.usedKey.ChannelKey,
 		ra.internalRequest.Query,
 	)

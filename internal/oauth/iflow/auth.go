@@ -56,7 +56,13 @@ func FetchAPIKeyInfo(ctx context.Context, cookie string) (*IFlowAPIKeyResponse, 
 	}
 
 	if !parsedResp.Success {
-		return nil, fmt.Errorf("iflow: request not successful: %s", parsedResp.Message)
+		return nil, fmt.Errorf("iflow: request not successful (code=%s): %s", parsedResp.Code, parsedResp.Message)
+	}
+
+	// Handle initial response where apiKey field might be apiKeyMask
+	// This matches CLIProxyAPI behavior
+	if parsedResp.Data.APIKey == "" && parsedResp.Data.APIKeyMask != "" {
+		parsedResp.Data.APIKey = parsedResp.Data.APIKeyMask
 	}
 
 	return &parsedResp, nil

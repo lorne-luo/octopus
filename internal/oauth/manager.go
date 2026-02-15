@@ -42,11 +42,23 @@ func (m *Manager) RefreshAPIKey(ctx context.Context, provider *model.OAuthProvid
 			keyName = keyInfo.Data.Name
 		}
 
+		// Validate key name is not empty
+		if keyName == "" {
+			m.recordFailure(provider)
+			return fmt.Errorf("no valid key name found (stored key name is empty and GET response name is empty)")
+		}
+
 		// Step 2: Refresh API key using POST with the correct key name
 		resp, err := iflow.RefreshAPIKey(ctx, provider.Cookie, keyName)
 		if err != nil {
 			m.recordFailure(provider)
-			return fmt.Errorf("refresh api key: %w", err)
+			return fmt.Errorf("refresh api key with name '%s': %w", keyName, err)
+		}
+
+		// Validate response has API key
+		if resp.Data.APIKey == "" {
+			m.recordFailure(provider)
+			return fmt.Errorf("refresh response missing api key")
 		}
 
 		// Update provider with new data

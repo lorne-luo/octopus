@@ -4,10 +4,12 @@ import (
 	"context"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/bestruirui/octopus/internal/helper"
 	"github.com/bestruirui/octopus/internal/model"
 	"github.com/bestruirui/octopus/internal/oauth"
+	"github.com/bestruirui/octopus/internal/oauth/iflow"
 	"github.com/bestruirui/octopus/internal/op"
 	"github.com/bestruirui/octopus/internal/server/middleware"
 	"github.com/bestruirui/octopus/internal/server/resp"
@@ -43,6 +45,10 @@ func init() {
 		AddRoute(
 			router.NewRoute("/fetch-model", http.MethodPost).
 				Handle(fetchOAuthProviderModels),
+		).
+		AddRoute(
+			router.NewRoute("/channel-list", http.MethodGet).
+				Handle(listOAuthProviderChannels),
 		)
 }
 
@@ -72,10 +78,21 @@ func createOAuthProvider(c *gin.Context) {
 		return
 	}
 
+	// Validate and normalize cookie format for iflow provider
+	cookie := req.Cookie
+	if req.ProviderType == "iflow" && cookie != "" {
+		normalizedCookie, err := iflow.NormalizeCookie(cookie)
+		if err != nil {
+			resp.Error(c, http.StatusBadRequest, err.Error())
+			return
+		}
+		cookie = normalizedCookie
+	}
+
 	provider := &model.OAuthProvider{
 		Name:         req.Name,
 		ProviderType: req.ProviderType,
-		Cookie:       req.Cookie,
+		Cookie:       cookie,
 		APIKey:       req.APIKey,
 		Status:       req.Status,
 		Model:        req.Model,
@@ -102,6 +119,25 @@ func updateOAuthProvider(c *gin.Context) {
 		resp.Error(c, http.StatusBadRequest, resp.ErrInvalidJSON)
 		return
 	}
+
+	// Validate cookie format if cookie is being updated for iflow provider
+	if req.Cookie != nil && *req.Cookie != "" {
+		// Get existing provider to check type
+		existingProvider, err := op.OAuthProviderGet(req.ID, c.Request.Context())
+		if err != nil {
+			resp.Error(c, http.StatusNotFound, "provider not found")
+			return
+		}
+		if existingProvider.ProviderType == "iflow" {
+			normalizedCookie, err := iflow.NormalizeCookie(*req.Cookie)
+			if err != nil {
+				resp.Error(c, http.StatusBadRequest, err.Error())
+				return
+			}
+			*req.Cookie = normalizedCookie
+		}
+	}
+
 	provider, err := op.OAuthProviderUpdate(&req, c.Request.Context())
 	if err != nil {
 		resp.Error(c, http.StatusInternalServerError, err.Error())
@@ -163,9 +199,14 @@ func fetchOAuthProviderModels(c *gin.Context) {
 		return
 	}
 
+	// If no API key, try to refresh first
 	if provider.APIKey == "" {
-		resp.Error(c, http.StatusBadRequest, "provider has no api key, please refresh first")
-		return
+		manager := oauth.GetManager()
+		if err := manager.RefreshAPIKey(c.Request.Context(), provider); err != nil {
+
+			resp.Error(c, http.StatusBadRequest, "failed to refresh api key2: "+err.Error())
+			return
+		}
 	}
 
 	// Build Channel-like request for FetchModels
@@ -176,8 +217,8 @@ func fetchOAuthProviderModels(c *gin.Context) {
 		CustomHeader: []model.CustomHeader{},
 	}
 	channel.Keys = []model.ChannelKey{{
-		Enabled:     true,
-		ChannelKey:  provider.APIKey,
+		Enabled:    true,
+		ChannelKey: provider.APIKey,
 	}}
 
 	models, err := helper.FetchModels(c.Request.Context(), channel)
@@ -187,4 +228,60 @@ func fetchOAuthProviderModels(c *gin.Context) {
 	}
 
 	resp.Success(c, models)
+}
+
+func listOAuthProviderChannels(c *gin.Context) {
+	providers, err := op.OAuthProviderList(c.Request.Context())
+	if err != nil {
+		resp.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	var result []model.LLMChannel
+	for _, provider := range providers {
+		// Only return active providers with API key
+		if provider.Status != 1 || provider.APIKey == "" {
+			continue
+		}
+
+		models := parseModels(provider.Model, provider.CustomModel)
+		for _, modelName := range models {
+			result = append(result, model.LLMChannel{
+				Name:        modelName,
+				Enabled:     true,
+				ChannelID:   -provider.ID, // Negative ID indicates OAuth Provider
+				ChannelName: provider.Name,
+			})
+		}
+	}
+
+	resp.Success(c, result)
+}
+
+// parseModels parses comma-separated model strings and returns unique model names
+func parseModels(model, customModel string) []string {
+	seen := make(map[string]struct{})
+	var result []string
+
+	for _, m := range strings.Split(model, ",") {
+		m = strings.TrimSpace(m)
+		if m != "" {
+			if _, exists := seen[m]; !exists {
+				seen[m] = struct{}{}
+				result = append(result, m)
+			}
+		}
+	}
+
+	for _, m := range strings.Split(customModel, ",") {
+		m = strings.TrimSpace(m)
+		if m != "" {
+			if _, exists := seen[m]; !exists {
+				seen[m] = struct{}{}
+				result = append(result, m)
+			}
+		}
+	}
+
+	return result
 }
