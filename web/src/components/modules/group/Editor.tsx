@@ -5,6 +5,7 @@ import { Check, ChevronDownIcon, Plus, Sparkles, Trash2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import * as AccordionPrimitive from '@radix-ui/react-accordion';
 import { useModelChannelList, type LLMChannel } from '@/api/endpoints/model';
+import { useOAuthProviderChannelList } from '@/api/endpoints/oauthProvider';
 import { Button } from '@/components/ui/button';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -31,24 +32,28 @@ export type GroupEditorValues = {
 
 function ModelPickerSection({
     modelChannels,
+    oauthProviderChannels,
     selectedMembers,
     onAdd,
     onAutoAdd,
     autoAddDisabled,
 }: {
     modelChannels: LLMChannel[];
+    oauthProviderChannels: LLMChannel[];
     selectedMembers: SelectedMember[];
     onAdd: (channel: LLMChannel) => void;
     onAutoAdd: () => void;
     autoAddDisabled: boolean;
 }) {
     const t = useTranslations('group');
+    const [activeTab, setActiveTab] = useState<'channels' | 'oauth'>('channels');
+    const displayChannels = activeTab === 'channels' ? modelChannels : oauthProviderChannels;
 
     const selectedKeys = useMemo(() => new Set(selectedMembers.map(memberKey)), [selectedMembers]);
 
     const channels = useMemo(() => {
         const byId = new Map<number, { id: number; name: string; models: LLMChannel[] }>();
-        modelChannels.forEach((mc) => {
+        displayChannels.forEach((mc) => {
             const existing = byId.get(mc.channel_id);
             if (existing) existing.models.push(mc);
             else byId.set(mc.channel_id, { id: mc.channel_id, name: mc.channel_name, models: [mc] });
@@ -57,7 +62,7 @@ function ModelPickerSection({
         return Array.from(byId.values())
             .map((c) => ({ ...c, models: [...c.models].sort((a, b) => a.name.localeCompare(b.name)) }))
             .sort((a, b) => a.id - b.id);
-    }, [modelChannels]);
+    }, [displayChannels]);
 
     return (
         <div className="rounded-xl border border-border/50 bg-muted/30 flex flex-col min-h-0">
@@ -69,21 +74,51 @@ function ModelPickerSection({
                     </span>
                 </span>
 
-                <button
-                    type="button"
-                    onClick={onAutoAdd}
-                    className={cn(
-                        'flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-colors',
-                        autoAddDisabled
-                            ? 'text-muted-foreground/50 cursor-not-allowed'
-                            : 'hover:bg-muted text-muted-foreground hover:text-foreground'
-                    )}
-                    disabled={autoAddDisabled}
-                    title={t('form.autoAdd')}
-                >
-                    <Sparkles className="size-3.5" />
-                    <span>{t('form.autoAdd')}</span>
-                </button>
+                <div className="flex items-center gap-2">
+                    {/* Tab 切换 */}
+                    <div className="flex rounded-lg bg-muted p-0.5">
+                        <button
+                            type="button"
+                            onClick={() => setActiveTab('channels')}
+                            className={cn(
+                                'px-2 py-0.5 text-xs rounded-md transition-colors',
+                                activeTab === 'channels'
+                                    ? 'bg-background text-foreground shadow-sm'
+                                    : 'text-muted-foreground hover:text-foreground'
+                            )}
+                        >
+                            {t('form.channels')}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setActiveTab('oauth')}
+                            className={cn(
+                                'px-2 py-0.5 text-xs rounded-md transition-colors',
+                                activeTab === 'oauth'
+                                    ? 'bg-background text-foreground shadow-sm'
+                                    : 'text-muted-foreground hover:text-foreground'
+                            )}
+                        >
+                            {t('form.oauthProviders')}
+                        </button>
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={onAutoAdd}
+                        className={cn(
+                            'flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-colors',
+                            autoAddDisabled
+                                ? 'text-muted-foreground/50 cursor-not-allowed'
+                                : 'hover:bg-muted text-muted-foreground hover:text-foreground'
+                        )}
+                        disabled={autoAddDisabled}
+                        title={t('form.autoAdd')}
+                    >
+                        <Sparkles className="size-3.5" />
+                        <span>{t('form.autoAdd')}</span>
+                    </button>
+                </div>
             </div>
 
             <div className="flex-1 min-h-0 overflow-y-auto p-2">
@@ -228,6 +263,7 @@ export function GroupEditor({
 }) {
     const t = useTranslations('group');
     const { data: modelChannels = [] } = useModelChannelList();
+    const { data: oauthProviderChannels = [] } = useOAuthProviderChannelList();
 
     const [groupName, setGroupName] = useState(initial?.name ?? '');
     const [matchRegex, setMatchRegex] = useState(initial?.match_regex ?? '');
@@ -442,6 +478,7 @@ export function GroupEditor({
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-full min-h-0">
                             <ModelPickerSection
                                 modelChannels={modelChannels}
+                                oauthProviderChannels={oauthProviderChannels}
                                 selectedMembers={selectedMembers}
                                 onAdd={handleAddMember}
                                 onAutoAdd={handleAutoAdd}
