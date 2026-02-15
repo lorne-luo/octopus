@@ -15,6 +15,7 @@ type OAuthProvider struct {
 	UpdatedAt        int64  `json:"updated_at"`
 	Model            string `gorm:"type:text" json:"model"`           // Auto-fetched models, comma-separated
 	CustomModel      string `gorm:"type:text" json:"custom_model"`    // Manually added models, comma-separated
+	BaseURL          string `gorm:"size:255" json:"base_url"`
 }
 
 type OAuthProviderUpdateRequest struct {
@@ -25,4 +26,5 @@ type OAuthProviderUpdateRequest struct {
 	Status       *int    `json:"status,omitempty"`
 	Model        *string `json:"model,omitempty"`
 	CustomModel  *string `json:"custom_model,omitempty"`
+	BaseURL      *string `json:"base_url,omitempty"`
 }
