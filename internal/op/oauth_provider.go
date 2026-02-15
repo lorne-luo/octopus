@@ -47,6 +47,9 @@ func OAuthProviderUpdate(req *model.OAuthProviderUpdateRequest, ctx context.Cont
 	if req.CustomModel != nil {
 		updates["custom_model"] = *req.CustomModel
 	}
+	if req.BaseURL != nil {
+		updates["base_url"] = *req.BaseURL
+	}
 
 	if len(updates) > 0 {
 		if err := db.GetDB().WithContext(ctx).Model(&provider).Updates(updates).Error; err != nil {
