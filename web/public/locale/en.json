@@ -341,7 +341,9 @@
             "autoAdd": "Auto Add",
             "clear": "Clear",
             "selectChannel": "Channel",
-            "selectModel": "Model"
+            "selectModel": "Model",
+            "channels": "Channels",
+            "oauthProviders": "OAuth Providers"
         },
         "mode": {
             "roundRobin": "Round Robin",
@@ -519,7 +521,7 @@
         "inactive": "Inactive",
         "disabled": "Disabled",
         "cookie": "Cookie",
-        "cookiePlaceholder": "Enter cookie",
+        "cookiePlaceholder": "Must start with BXAuth=, e.g.: BXAuth=xxxxx;",
         "cookiePlaceholderEdit": "Leave empty to keep existing cookie",
         "lastRefresh": "Last Refresh",
         "createdAt": "Created At",
