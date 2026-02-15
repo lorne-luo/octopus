@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../client';
 import { logger } from '@/lib/logger';
+import type { LLMChannel } from './model';
 
 export type OAuthProvider = {
     id: number;
@@ -120,5 +121,15 @@ export function useFetchOAuthModel() {
         onError: (error) => {
             logger.error('Failed to fetch OAuth models:', error);
         },
+    });
+}
+
+export function useOAuthProviderChannelList() {
+    return useQuery({
+        queryKey: ['oauth-provider', 'channel-list'],
+        queryFn: async () => {
+            return apiClient.get<LLMChannel[]>('/api/v1/oauth-provider/channel-list');
+        },
+        refetchInterval: 30000,
     });
 }
