@@ -22,7 +22,7 @@ func GetChannelKey(ctx context.Context, channel *model.Channel) (string, error) 
 
 	if manager.ShouldRefresh(provider) {
 		if err := manager.RefreshAPIKey(ctx, provider); err != nil {
-			return "", fmt.Errorf("failed to refresh api key: %w", err)
+			return "", fmt.Errorf("failed to refresh api key1: %w", err)
 		}
 	}
 
