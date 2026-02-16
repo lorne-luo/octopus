@@ -413,10 +413,11 @@ func (i *MessagesInbound) TransformResponse(ctx context.Context, response *model
 					}
 
 					contentBlocks = append(contentBlocks, MessageContentBlock{
-						Type:  "tool_use",
-						ID:    toolCall.ID,
-						Name:  &toolCall.Function.Name,
-						Input: input,
+						Type:         "tool_use",
+						ID:           toolCall.ID,
+						Name:         &toolCall.Function.Name,
+						Input:        input,
+						CacheControl: convertToAnthropicCacheControl(toolCall.CacheControl),
 					})
 				}
 			}
@@ -993,11 +994,16 @@ func mergeToolCall(toolCalls []model.ToolCall, delta model.ToolCall) []model.Too
 			if delta.Type != "" {
 				toolCalls[i].Type = delta.Type
 			}
-			if delta.Function.Name != "" {
-				toolCalls[i].Function.Name += delta.Function.Name
+			// Only set name if not already set to avoid duplication
+			if delta.Function.Name != "" && toolCalls[i].Function.Name == "" {
+				toolCalls[i].Function.Name = delta.Function.Name
 			}
 			if delta.Function.Arguments != "" {
 				toolCalls[i].Function.Arguments += delta.Function.Arguments
+			}
+			// Preserve CacheControl from delta
+			if delta.CacheControl != nil {
+				toolCalls[i].CacheControl = delta.CacheControl
 			}
 			return toolCalls
 		}
