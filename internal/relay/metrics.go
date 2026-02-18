@@ -27,7 +27,6 @@ type RelayMetrics struct {
 	// 请求和响应内容
 	InternalRequest  *transformerModel.InternalLLMRequest
 	InternalResponse *transformerModel.InternalLLMResponse
-	RawRequest       string
 	FinalResponse    string
 
 	// 原始请求和响应（用于调试）
@@ -111,10 +110,6 @@ func (m *RelayMetrics) SetInternalResponse(resp *transformerModel.InternalLLMRes
 		m.Stats.InputCost = (float64(cachedTokens)*modelPrice.CacheRead + float64(inputBase)*modelPrice.Input) * 1e-6
 	}
 	m.Stats.OutputCost = float64(m.Stats.OutputToken) * modelPrice.Output * 1e-6
-}
-
-func (m *RelayMetrics) SetRawRequest(raw string) {
-	m.RawRequest = raw
 }
 
 func (m *RelayMetrics) SetFinalResponse(raw string) {

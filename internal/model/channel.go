@@ -158,11 +158,8 @@ func (c *Channel) GetChannelKey() ChannelKey {
 	}
 
 	if !bestSet {
-		// If no best set but candidates exist (e.g. all have high token count? no, condition checks token count < bestToken)
-		// Wait, if candidates is not empty, bestSet MUST be true because of !bestSet condition.
-		// Unless candidates is empty.
-		// If candidates is empty, return empty.
-		return c.Keys[0]
+		// No valid candidate found (all keys are disabled or rate-limited)
+		return ChannelKey{}
 	}
 	return best
 }
