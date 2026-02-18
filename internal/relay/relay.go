@@ -15,6 +15,7 @@ import (
 	"github.com/bestruirui/octopus/internal/client"
 	"github.com/bestruirui/octopus/internal/helper"
 	dbmodel "github.com/bestruirui/octopus/internal/model"
+	"github.com/bestruirui/octopus/internal/oauth"
 	"github.com/bestruirui/octopus/internal/op"
 	"github.com/bestruirui/octopus/internal/relay/balancer"
 	"github.com/bestruirui/octopus/internal/server/resp"
@@ -159,7 +160,15 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 				usedKey = channel.GetChannelKey()
 			}
 		} else if item.ChannelID < 0 {
-			// OAuth Provider 直接使用其 API Key
+			// OAuth Provider: 检查是否需要刷新 API Key
+			manager := oauth.GetManager()
+			if manager.ShouldRefresh(oauthProvider) {
+				if err := manager.RefreshAPIKey(c.Request.Context(), oauthProvider); err != nil {
+					errMsg := fmt.Sprintf("OAuth Provider '%s' API Key refresh failed: %s. Please update the cookie in OAuth Provider settings.", oauthProvider.Name, err.Error())
+					iter.Skip(item.ChannelID, 0, oauthProvider.Name, 0, "", errMsg)
+					continue
+				}
+			}
 			usedKey = dbmodel.ChannelKey{
 				ChannelKey: oauthProvider.APIKey,
 				Enabled:    true,
@@ -402,6 +411,10 @@ func (ra *relayAttempt) forward() (int, error) {
 		}
 		// 记录原始错误响应
 		ra.metrics.AppendRawResponse(string(body))
+		// 检查是否是 OAuth Provider 的 Invalid apiKey 错误
+		if ra.channelID < 0 && isInvalidAPIKeyError(body) {
+			return 0, fmt.Errorf("OAuth Provider '%s' returned Invalid apiKey. Please update the cookie in OAuth Provider settings. Response: %s", ra.channelName, string(body))
+		}
 		return 0, fmt.Errorf("upstream error: %d: %s", response.StatusCode, string(body))
 	}
 

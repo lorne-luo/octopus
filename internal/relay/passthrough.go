@@ -82,6 +82,10 @@ func (ra *relayAttempt) forwardPassthrough(passthrough model.PassthroughOutbound
 		if err != nil {
 			return 0, fmt.Errorf("failed to read response body: %w", err)
 		}
+		// 检查是否是 OAuth Provider 的 Invalid apiKey 错误
+		if ra.channelID < 0 && isInvalidAPIKeyError(respBody) {
+			return 0, fmt.Errorf("OAuth Provider '%s' returned Invalid apiKey. Please update the cookie in OAuth Provider settings. Response: %s", ra.channelName, string(respBody))
+		}
 		return 0, fmt.Errorf("upstream error: %d: %s", response.StatusCode, string(respBody))
 	}
 
@@ -282,4 +286,12 @@ type usageInfo struct {
 
 type promptTokensDetails struct {
 	CachedTokens int64 `json:"cached_tokens,omitempty"`
+}
+
+// isInvalidAPIKeyError checks if the response body indicates an invalid API key error
+// from iflow or similar OAuth providers
+func isInvalidAPIKeyError(body []byte) bool {
+	// Check for iflow specific error format: {"status":"434","msg":"Invalid apiKey..."}
+	bodyStr := strings.ToLower(string(body))
+	return strings.Contains(bodyStr, "invalid apikey") || strings.Contains(bodyStr, "invalid api key")
 }

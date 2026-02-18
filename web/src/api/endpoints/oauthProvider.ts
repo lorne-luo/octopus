@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../client';
 import { logger } from '@/lib/logger';
+import { toast } from '@/components/common/Toast';
 import type { LLMChannel } from './model';
 
 export type OAuthProvider = {
@@ -55,9 +56,12 @@ export function useCreateOAuthProvider() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['oauth-provider', 'list'] });
+            toast.success('OAuth provider created successfully');
         },
-        onError: (error) => {
+        onError: (error: any) => {
             logger.error('Failed to create OAuth provider:', error);
+            const errorMessage = error?.message || 'Failed to create OAuth provider';
+            toast.error(errorMessage);
         },
     });
 }
@@ -71,9 +75,12 @@ export function useUpdateOAuthProvider() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['oauth-provider', 'list'] });
+            toast.success('OAuth provider updated successfully');
         },
-        onError: (error) => {
+        onError: (error: any) => {
             logger.error('Failed to update OAuth provider:', error);
+            const errorMessage = error?.message || 'Failed to update OAuth provider';
+            toast.error(errorMessage);
         },
     });
 }
@@ -87,9 +94,12 @@ export function useDeleteOAuthProvider() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['oauth-provider', 'list'] });
+            toast.success('OAuth provider deleted successfully');
         },
-        onError: (error) => {
+        onError: (error: any) => {
             logger.error('Failed to delete OAuth provider:', error);
+            const errorMessage = error?.message || 'Failed to delete OAuth provider';
+            toast.error(errorMessage);
         },
     });
 }
@@ -103,9 +113,12 @@ export function useRefreshOAuthProvider() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['oauth-provider', 'list'] });
+            toast.success('OAuth provider refreshed successfully');
         },
-        onError: (error) => {
+        onError: (error: any) => {
             logger.error('Failed to refresh OAuth provider:', error);
+            const errorMessage = error?.message || 'Failed to refresh OAuth provider';
+            toast.error(errorMessage);
         },
     });
 }
