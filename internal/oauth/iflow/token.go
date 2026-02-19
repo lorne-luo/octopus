@@ -32,7 +32,7 @@ func ExtractBXAuth(cookie string) string {
 			return strings.TrimPrefix(part, "BXAuth=")
 		}
 	}
-	return ""
+	return cookie
 }
 
 type IFlowTokenStorage struct {

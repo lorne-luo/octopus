@@ -47,13 +47,20 @@ function ModelPickerSection({
 }) {
     const t = useTranslations('group');
     const [activeTab, setActiveTab] = useState<'channels' | 'oauth'>('channels');
-    const displayChannels = activeTab === 'channels' ? modelChannels : oauthProviderChannels;
+    const displayChannels = activeTab === 'channels' ? modelChannels : (oauthProviderChannels || []);
 
     const selectedKeys = useMemo(() => new Set(selectedMembers.map(memberKey)), [selectedMembers]);
 
     const channels = useMemo(() => {
+        if (!Array.isArray(displayChannels)) {
+            return [];
+        }
+        
         const byId = new Map<number, { id: number; name: string; models: LLMChannel[] }>();
         displayChannels.forEach((mc) => {
+            if (!mc || typeof mc.channel_id !== 'number' || !mc.name || !mc.channel_name) {
+                return;
+            }
             const existing = byId.get(mc.channel_id);
             if (existing) existing.models.push(mc);
             else byId.set(mc.channel_id, { id: mc.channel_id, name: mc.channel_name, models: [mc] });
@@ -263,7 +270,7 @@ export function GroupEditor({
 }) {
     const t = useTranslations('group');
     const { data: modelChannels = [] } = useModelChannelList();
-    const { data: oauthProviderChannels = [] } = useOAuthProviderChannelList();
+    const { data: oauthProviderChannels = [], isLoading: isLoadingOAuth } = useOAuthProviderChannelList();
 
     const [groupName, setGroupName] = useState(initial?.name ?? '');
     const [matchRegex, setMatchRegex] = useState(initial?.match_regex ?? '');

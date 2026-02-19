@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { useChannelList } from '@/api/endpoints/channel';
+import { useChannelListRegular } from '@/api/endpoints/channel';
 import { Card } from './Card';
 import { useSearchStore } from '@/components/modules/toolbar';
 import { EASING } from '@/lib/animations/fluid-transitions';
@@ -13,7 +13,7 @@ const INITIAL_COUNT = 16;
 const INCREMENT_COUNT = 16;
 
 export function Channel() {
-    const { data: channelsData } = useChannelList();
+    const { data: channelsData } = useChannelListRegular();
     const { getChannelName } = useChannelName();
     const pageKey = 'channel' as const;
     const searchTerm = useSearchStore((s) => s.getSearchTerm(pageKey));
