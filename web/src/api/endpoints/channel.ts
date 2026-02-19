@@ -66,6 +66,9 @@ export type Channel = {
     channel_proxy?: string | null;
     match_regex?: string | null;
     stats: StatsChannel;
+    use_oauth: boolean;
+    oauth_provider_id: number;
+    oauth_provider?: any | null;
 };
 
 // Internal type: backend may return null for slice fields; normalize to [] in select()
@@ -93,6 +96,8 @@ export type CreateChannelRequest = {
     channel_proxy?: string | null;
     param_override?: string | null;
     match_regex?: string | null;
+    use_oauth?: boolean;
+    oauth_provider_id?: number;
 };
 
 /**
@@ -113,6 +118,8 @@ export type UpdateChannelRequest = {
     channel_proxy?: string | null;
     param_override?: string | null;
     match_regex?: string | null;
+    use_oauth?: boolean;
+    oauth_provider_id?: number;
     // keys diff
     keys_to_add?: Array<Pick<ChannelKey, 'enabled' | 'channel_key' | 'remark'>>;
     keys_to_update?: Array<{ id: number; enabled?: boolean; channel_key?: string; remark?: string }>;
@@ -166,6 +173,66 @@ export function useChannelList() {
                 wait_time: formatTime(item.stats.wait_time),
             }
         })) as Array<{ raw: Channel; formatted: StatsMetricsFormatted }>,
+        refetchInterval: 30000,
+        refetchOnMount: 'always',
+    });
+}
+
+// Helper function to transform channel data
+function transformChannelData(data: ChannelServer[]) {
+    return data.map((item) => ({
+        raw: ({
+            ...item,
+            base_urls: item.base_urls ?? [],
+            custom_header: item.custom_header ?? [],
+            keys: item.keys ?? [],
+        }) satisfies Channel,
+        formatted: {
+            input_token: formatCount(item.stats.input_token),
+            output_token: formatCount(item.stats.output_token),
+            total_token: formatCount(item.stats.input_token + item.stats.output_token),
+            input_cost: formatMoney(item.stats.input_cost),
+            output_cost: formatMoney(item.stats.output_cost),
+            total_cost: formatMoney(item.stats.input_cost + item.stats.output_cost),
+            request_success: formatCount(item.stats.request_success),
+            request_failed: formatCount(item.stats.request_failed),
+            request_count: formatCount(item.stats.request_success + item.stats.request_failed),
+            wait_time: formatTime(item.stats.wait_time),
+        }
+    })) as Array<{ raw: Channel; formatted: StatsMetricsFormatted }>;
+}
+
+/**
+ * 获取普通渠道列表 Hook (UseOAuth=false)
+ * 
+ * @example
+ * const { data: channels } = useChannelListRegular();
+ */
+export function useChannelListRegular() {
+    return useQuery({
+        queryKey: ['channels', 'list', 'regular'],
+        queryFn: async () => {
+            return apiClient.get<ChannelServer[]>('/api/v1/channel/list?use_oauth=false');
+        },
+        select: transformChannelData,
+        refetchInterval: 30000,
+        refetchOnMount: 'always',
+    });
+}
+
+/**
+ * 获取OAuth渠道列表 Hook (UseOAuth=true)
+ * 
+ * @example
+ * const { data: channels } = useChannelListOAuth();
+ */
+export function useChannelListOAuth() {
+    return useQuery({
+        queryKey: ['channels', 'list', 'oauth'],
+        queryFn: async () => {
+            return apiClient.get<ChannelServer[]>('/api/v1/channel/list?use_oauth=true');
+        },
+        select: transformChannelData,
         refetchInterval: 30000,
         refetchOnMount: 'always',
     });

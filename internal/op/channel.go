@@ -25,6 +25,27 @@ func ChannelList(ctx context.Context) ([]model.Channel, error) {
 	return channels, nil
 }
 
+// ChannelListByOAuthType 根据UseOAuth筛选渠道列表
+func ChannelListByOAuthType(ctx context.Context, useOAuth bool) ([]model.Channel, error) {
+	channels := make([]model.Channel, 0)
+	for _, channel := range channelCache.GetAll() {
+		if channel.UseOAuth == useOAuth {
+			channels = append(channels, channel)
+		}
+	}
+	return channels, nil
+}
+
+// ChannelListRegular 获取普通渠道列表 (UseOAuth=false)
+func ChannelListRegular(ctx context.Context) ([]model.Channel, error) {
+	return ChannelListByOAuthType(ctx, false)
+}
+
+// ChannelListOAuth 获取OAuth渠道列表 (UseOAuth=true)
+func ChannelListOAuth(ctx context.Context) ([]model.Channel, error) {
+	return ChannelListByOAuthType(ctx, true)
+}
+
 func ChannelCreate(channel *model.Channel, ctx context.Context) error {
 	if err := db.GetDB().WithContext(ctx).Create(channel).Error; err != nil {
 		return err

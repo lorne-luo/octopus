@@ -5,6 +5,7 @@ import { Trash2, X, Pencil } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { type Group, useDeleteGroup, useUpdateGroup } from '@/api/endpoints/group';
 import { useModelChannelList } from '@/api/endpoints/model';
+import { useOAuthProviderChannelList } from '@/api/endpoints/oauthProvider';
 import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import { toast } from '@/components/common/Toast';
@@ -73,6 +74,7 @@ export function GroupCard({ group }: { group: Group }) {
     const updateGroup = useUpdateGroup();
     const deleteGroup = useDeleteGroup();
     const { data: modelChannels = [] } = useModelChannelList();
+    const { data: oauthProviderChannels = [] } = useOAuthProviderChannelList();
 
     const [confirmDelete, setConfirmDelete] = useState(false);
     const [members, setMembers] = useState<SelectedMember[]>([]);
@@ -80,14 +82,17 @@ export function GroupCard({ group }: { group: Group }) {
     const weightTimerRef = useRef<NodeJS.Timeout | null>(null);
     const membersRef = useRef<SelectedMember[]>([]);
 
-    const channelNameByKey = useMemo(() => buildChannelNameByModelKey(modelChannels), [modelChannels]);
+    // Combine model channels and OAuth provider channels
+    const allChannels = useMemo(() => [...modelChannels, ...oauthProviderChannels], [modelChannels, oauthProviderChannels]);
+
+    const channelNameByKey = useMemo(() => buildChannelNameByModelKey(allChannels), [allChannels]);
     const enabledByKey = useMemo(() => {
         const map = new Map<string, boolean>();
-        modelChannels.forEach((mc) => {
+        allChannels.forEach((mc) => {
             map.set(modelChannelKey(mc.channel_id, mc.name), mc.enabled);
         });
         return map;
-    }, [modelChannels]);
+    }, [allChannels]);
 
     const displayMembers = useMemo((): SelectedMember[] =>
         [...(group.items || [])]
