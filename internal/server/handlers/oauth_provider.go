@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/bestruirui/octopus/internal/helper"
 	"github.com/bestruirui/octopus/internal/model"
@@ -45,10 +44,6 @@ func init() {
 		AddRoute(
 			router.NewRoute("/fetch-model", http.MethodPost).
 				Handle(fetchOAuthProviderModels),
-		).
-		AddRoute(
-			router.NewRoute("/channel-list", http.MethodGet).
-				Handle(listOAuthProviderChannels),
 		)
 }
 
@@ -62,13 +57,14 @@ func listOAuthProvider(c *gin.Context) {
 }
 
 type CreateOAuthProviderRequest struct {
-	Name         string `json:"name" binding:"required"`
-	ProviderType string `json:"provider_type" binding:"required"`
-	Cookie       string `json:"cookie" binding:"required"`
-	APIKey       string `json:"api_key"`
-	Status       int    `json:"status"`
-	Model        string `json:"model"`
-	CustomModel  string `json:"custom_model"`
+	Name         string  `json:"name" binding:"required"`
+	ProviderType string  `json:"provider_type" binding:"required"`
+	Cookie       string  `json:"cookie" binding:"required"`
+	APIKey       string  `json:"api_key"`
+	Status       int     `json:"status"`
+	Model        string  `json:"model"`
+	CustomModel  string  `json:"custom_model"`
+	MatchRegex   *string `json:"match_regex"`
 }
 
 func createOAuthProvider(c *gin.Context) {
@@ -95,11 +91,16 @@ func createOAuthProvider(c *gin.Context) {
 		Cookie:       cookie,
 		APIKey:       req.APIKey,
 		Status:       req.Status,
-		Model:        req.Model,
-		CustomModel:  req.CustomModel,
 	}
 
-	if err := op.OAuthProviderCreate(provider, c.Request.Context()); err != nil {
+	createReq := &op.OAuthProviderCreateRequest{
+		Provider:    provider,
+		Model:       req.Model,
+		CustomModel: req.CustomModel,
+		MatchRegex:  req.MatchRegex,
+	}
+
+	if err := op.OAuthProviderCreate(createReq, c.Request.Context()); err != nil {
 		resp.Error(c, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -228,60 +229,4 @@ func fetchOAuthProviderModels(c *gin.Context) {
 	}
 
 	resp.Success(c, models)
-}
-
-func listOAuthProviderChannels(c *gin.Context) {
-	providers, err := op.OAuthProviderList(c.Request.Context())
-	if err != nil {
-		resp.Error(c, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	var result []model.LLMChannel
-	for _, provider := range providers {
-		// Only return active providers with API key
-		if provider.Status != 1 || provider.APIKey == "" {
-			continue
-		}
-
-		models := parseModels(provider.Model, provider.CustomModel)
-		for _, modelName := range models {
-			result = append(result, model.LLMChannel{
-				Name:        modelName,
-				Enabled:     true,
-				ChannelID:   -provider.ID, // Negative ID indicates OAuth Provider
-				ChannelName: provider.Name,
-			})
-		}
-	}
-
-	resp.Success(c, result)
-}
-
-// parseModels parses comma-separated model strings and returns unique model names
-func parseModels(model, customModel string) []string {
-	seen := make(map[string]struct{})
-	var result []string
-
-	for _, m := range strings.Split(model, ",") {
-		m = strings.TrimSpace(m)
-		if m != "" {
-			if _, exists := seen[m]; !exists {
-				seen[m] = struct{}{}
-				result = append(result, m)
-			}
-		}
-	}
-
-	for _, m := range strings.Split(customModel, ",") {
-		m = strings.TrimSpace(m)
-		if m != "" {
-			if _, exists := seen[m]; !exists {
-				seen[m] = struct{}{}
-				result = append(result, m)
-			}
-		}
-	}
-
-	return result
 }

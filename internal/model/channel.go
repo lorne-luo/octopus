@@ -79,8 +79,8 @@ type ChannelUpdateRequest struct {
 	KeysToAdd       []ChannelKeyAddRequest    `json:"keys_to_add,omitempty"`
 	KeysToUpdate    []ChannelKeyUpdateRequest `json:"keys_to_update,omitempty"`
 	KeysToDelete    []int                     `json:"keys_to_delete,omitempty"`
-	UseOAuth        *bool                     `json:"use_oauth,omitempty"`
-	OAuthProviderID *int                      `json:"oauth_provider_id,omitempty"`
+	UseOAuth        *bool                     `json:"use_oauth,omitempty"`         // use_oauth in json, use_o_auth in db
+	OAuthProviderID *int                      `json:"oauth_provider_id,omitempty"` // oauth_provider_id in json, o_auth_provider_id in db
 }
 
 type ChannelKeyAddRequest struct {
@@ -128,7 +128,19 @@ func (c *Channel) GetBaseUrl() string {
 }
 
 func (c *Channel) GetChannelKey() ChannelKey {
-	if c == nil || len(c.Keys) == 0 {
+	if c == nil {
+		return ChannelKey{}
+	}
+
+	// For OAuth channels, return the API key from the linked OAuth provider
+	if c.UseOAuth && c.OAuthProvider != nil && c.OAuthProvider.APIKey != "" {
+		return ChannelKey{
+			Enabled:    true,
+			ChannelKey: c.OAuthProvider.APIKey,
+		}
+	}
+
+	if len(c.Keys) == 0 {
 		return ChannelKey{}
 	}
 

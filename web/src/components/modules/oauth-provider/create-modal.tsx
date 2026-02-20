@@ -17,6 +17,12 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
+import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+} from "@/components/ui/accordion"
 import { useForm } from "react-hook-form"
 import { useEffect, useState, useRef } from "react"
 import { useCreateOAuthProvider, useUpdateOAuthProvider, useFetchOAuthModel, OAuthProvider } from "@/api/endpoints/oauthProvider"
@@ -37,6 +43,7 @@ interface FormData {
     status: string
     model: string
     custom_model: string
+    match_regex: string
 }
 
 export function CreateEditOAuthProviderModal({
@@ -48,6 +55,7 @@ export function CreateEditOAuthProviderModal({
     const updateMutation = useUpdateOAuthProvider()
     const fetchModel = useFetchOAuthModel()
     const t = useTranslations("oauthProvider")
+    const tChannel = useTranslations("channel.form")
 
     const { register, handleSubmit, reset, setValue, watch } = useForm<FormData>({
         defaultValues: {
@@ -57,6 +65,7 @@ export function CreateEditOAuthProviderModal({
             status: "1",
             model: "",
             custom_model: "",
+            match_regex: "",
         },
     })
 
@@ -66,6 +75,7 @@ export function CreateEditOAuthProviderModal({
     const customModels = watch("custom_model")
         ? watch("custom_model").split(',').map((m) => m.trim()).filter(Boolean)
         : [];
+    const matchRegex = watch("match_regex") || "";
     const [inputValue, setInputValue] = useState('')
     const inputRef = useRef<HTMLInputElement>(null)
 
@@ -76,6 +86,16 @@ export function CreateEditOAuthProviderModal({
         setValue("custom_model", custom_model)
     }
 
+    const filterModelsByRegex = (models: string[]): string[] => {
+        if (!matchRegex.trim()) return models
+        try {
+            const regex = new RegExp(matchRegex, 'i')
+            return models.filter(m => regex.test(m))
+        } catch {
+            return models
+        }
+    }
+
     const handleRefreshModels = async () => {
         if (!provider?.id) {
             toast.warning(t("modelRefreshNoProvider"))
@@ -84,9 +104,14 @@ export function CreateEditOAuthProviderModal({
         fetchModel.mutate(provider.id, {
             onSuccess: (data) => {
                 if (data && data.length > 0) {
-                    const nextAuto = Array.from(new Set([...autoModels, ...data].map((m) => m.trim()).filter(Boolean)))
-                    updateModels(nextAuto, customModels)
-                    toast.success(t("modelRefreshSuccess"))
+                    const filtered = filterModelsByRegex(data)
+                    if (filtered.length > 0) {
+                        const nextAuto = Array.from(new Set([...autoModels, ...filtered].map((m) => m.trim()).filter(Boolean)))
+                        updateModels(nextAuto, customModels)
+                        toast.success(t("modelRefreshSuccess"))
+                    } else {
+                        toast.warning(t("modelRefreshEmpty"))
+                    }
                 } else {
                     toast.warning(t("modelRefreshEmpty"))
                 }
@@ -128,8 +153,9 @@ export function CreateEditOAuthProviderModal({
                 setValue("provider_type", provider.provider_type)
                 setValue("cookie", "")
                 setValue("status", String(provider.status))
-                setValue("model", provider.model || "")
-                setValue("custom_model", provider.custom_model || "")
+                setValue("model", provider.channel?.model || "")
+                setValue("custom_model", provider.channel?.custom_model || "")
+                setValue("match_regex", provider.channel?.match_regex || "")
             } else {
                 reset({
                     name: "",
@@ -138,6 +164,7 @@ export function CreateEditOAuthProviderModal({
                     status: "1",
                     model: "",
                     custom_model: "",
+                    match_regex: "",
                 })
             }
         }
@@ -155,6 +182,7 @@ export function CreateEditOAuthProviderModal({
                     status: status,
                     model: data.model || undefined,
                     custom_model: data.custom_model || undefined,
+                    match_regex: data.match_regex || undefined,
                 },
                 {
                     onSuccess: () => {
@@ -172,6 +200,7 @@ export function CreateEditOAuthProviderModal({
                     status: status,
                     model: data.model,
                     custom_model: data.custom_model,
+                    match_regex: data.match_regex || undefined,
                 },
                 {
                     onSuccess: () => {
@@ -220,9 +249,11 @@ export function CreateEditOAuthProviderModal({
                             className="min-h-[100px]"
                         />
                     </div>
+
+                    {/* Model management section */}
                     <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                            <Label>{t("model")}</Label>
+                            <Label>{tChannel("model")}</Label>
                             <Button
                                 type="button"
                                 variant="ghost"
@@ -232,7 +263,7 @@ export function CreateEditOAuthProviderModal({
                                 className="h-6 px-2 text-xs text-muted-foreground/50 hover:text-muted-foreground hover:bg-transparent"
                             >
                                 <RefreshCw className={`h-3 w-3 mr-1 ${fetchModel.isPending ? 'animate-spin' : ''}`} />
-                                {t("modelRefresh")}
+                                {tChannel("modelRefresh")}
                             </Button>
                         </div>
                         <input type="hidden" {...register("model")} />
@@ -245,7 +276,7 @@ export function CreateEditOAuthProviderModal({
                                 value={inputValue}
                                 onChange={(e) => setInputValue(e.target.value)}
                                 onKeyDown={handleInputKeyDown}
-                                placeholder={t("modelCustomPlaceholder")}
+                                placeholder={tChannel("modelCustomPlaceholder")}
                                 className="pr-10 rounded-xl"
                             />
                             {inputValue.trim() && !customModels.includes(inputValue.trim()) && !autoModels.includes(inputValue.trim()) && (
@@ -255,7 +286,7 @@ export function CreateEditOAuthProviderModal({
                                     size="sm"
                                     onClick={() => handleAddModel(inputValue)}
                                     className="absolute rounded-lg right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-                                    title={t("modelAdd")}
+                                    title={tChannel("modelAdd")}
                                 >
                                     <Plus className="size-4" />
                                 </Button>
@@ -265,7 +296,7 @@ export function CreateEditOAuthProviderModal({
                         <div className="space-y-2">
                             <div className="flex items-center justify-between">
                                 <label className="text-xs font-medium text-card-foreground">
-                                    {t("modelSelected")} {(autoModels.length + customModels.length) > 0 && `(${autoModels.length + customModels.length})`}
+                                    {tChannel("modelSelected")} {(autoModels.length + customModels.length) > 0 && `(${autoModels.length + customModels.length})`}
                                 </label>
                                 {(autoModels.length + customModels.length) > 0 && (
                                     <Button
@@ -277,7 +308,7 @@ export function CreateEditOAuthProviderModal({
                                         }}
                                         className="h-6 px-2 text-xs text-muted-foreground/50 hover:text-muted-foreground hover:bg-transparent"
                                     >
-                                        {t("modelClearAll")}
+                                        {tChannel("modelClearAll")}
                                     </Button>
                                 )}
                             </div>
@@ -311,12 +342,34 @@ export function CreateEditOAuthProviderModal({
                                     </div>
                                 ) : (
                                     <div className="flex items-center justify-center h-8 text-xs text-muted-foreground">
-                                        {t("modelNoSelected")}
+                                        {tChannel("modelNoSelected")}
                                     </div>
                                 )}
                             </div>
                         </div>
                     </div>
+
+                    {/* Advanced section */}
+                    <Accordion type="single" collapsible className="w-full border rounded-xl bg-card">
+                        <AccordionItem value="advanced" className="border-none">
+                            <AccordionTrigger className="text-sm font-medium text-card-foreground py-3 px-4 hover:no-underline hover:bg-muted/30 rounded-xl transition-colors">
+                                {t("advanced")}
+                            </AccordionTrigger>
+                            <AccordionContent className="pt-4 px-4 pb-4 space-y-4 border-t">
+                                <div className="space-y-2">
+                                    <Label htmlFor="match_regex">{tChannel("matchRegex")}</Label>
+                                    <Input
+                                        id="match_regex"
+                                        type="text"
+                                        {...register("match_regex")}
+                                        placeholder={tChannel("matchRegexPlaceholder")}
+                                        className="rounded-xl"
+                                    />
+                                </div>
+                            </AccordionContent>
+                        </AccordionItem>
+                    </Accordion>
+
                     <div className="space-y-2">
                          <Label htmlFor="status">{t("status")}</Label>
                         <Select

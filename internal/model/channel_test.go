@@ -94,6 +94,41 @@ func TestChannel_GetChannelKey(t *testing.T) {
 			wantKey: "sk-test2",
 			wantOk:  true,
 		},
+		{
+			name: "OAuth channel returns provider API key",
+			channel: &Channel{
+				UseOAuth: true,
+				OAuthProvider: &OAuthProvider{
+					ID:       1,
+					APIKey:   "oauth-api-key",
+					Status:   1,
+				},
+			},
+			wantKey: "oauth-api-key",
+			wantOk:  true,
+		},
+		{
+			name: "OAuth channel without provider returns empty",
+			channel: &Channel{
+				UseOAuth:      true,
+				OAuthProvider: nil,
+			},
+			wantKey: "",
+			wantOk:  false,
+		},
+		{
+			name: "OAuth channel with empty API key returns empty",
+			channel: &Channel{
+				UseOAuth: true,
+				OAuthProvider: &OAuthProvider{
+					ID:     1,
+					APIKey: "",
+					Status: 1,
+				},
+			},
+			wantKey: "",
+			wantOk:  false,
+		},
 	}
 
 	for _, tt := range tests {
