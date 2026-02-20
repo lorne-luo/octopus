@@ -331,7 +331,8 @@ export function GroupEditor({
   const handleAddMember = useCallback((channel: LLMChannel) => {
     const key = memberKey(channel);
     setSelectedMembers((prev) => {
-      if (prev.some((m) => m.id === key)) return prev;
+      // Check using memberKey (channel_id + model_name) for deduplication
+      if (prev.some((m) => memberKey(m) === key)) return prev;
       return [...prev, { ...channel, id: key, weight: 1 }];
     });
   }, []);
@@ -343,14 +344,14 @@ export function GroupEditor({
       matchedModelChannels.length === 0
     )
       return true;
-    const existing = new Set(selectedMembers.map((m) => m.id));
+    const existing = new Set(selectedMembers.map((m) => memberKey(m)));
     return matchedModelChannels.every((mc) => existing.has(memberKey(mc)));
   }, [groupKey, regexKey, regexError, matchedModelChannels, selectedMembers]);
 
   const handleAutoAdd = useCallback(() => {
     if (matchedModelChannels.length === 0) return;
     setSelectedMembers((prev) => {
-      const existing = new Set(prev.map((m) => m.id));
+      const existing = new Set(prev.map((m) => memberKey(m)));
       const toAdd = matchedModelChannels
         .filter((mc) => !existing.has(memberKey(mc)))
         .map((mc) => ({ ...mc, id: memberKey(mc), weight: 1 }));
