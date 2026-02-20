@@ -3,6 +3,7 @@ package op
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/bestruirui/octopus/internal/db"
@@ -356,6 +357,13 @@ func ChannelDel(id int, ctx context.Context) error {
 func ChannelLLMList(ctx context.Context) ([]model.LLMChannel, error) {
 	models := []model.LLMChannel{}
 	for _, channel := range channelCache.GetAll() {
+		// For OAuth channels, check if the linked OAuth provider has an API key
+		if channel.UseOAuth {
+			if channel.OAuthProvider == nil || channel.OAuthProvider.APIKey == "" {
+				continue
+			}
+		}
+
 		modelNames := xstrings.SplitTrimCompact(",", channel.Model, channel.CustomModel)
 		for _, modelName := range modelNames {
 			if modelName == "" {
@@ -378,6 +386,48 @@ func ChannelGet(id int, ctx context.Context) (*model.Channel, error) {
 		return nil, fmt.Errorf("channel not found")
 	}
 	return &channel, nil
+}
+
+// ChannelGetByOAuthProviderID returns a channel by its OAuthProviderID
+func ChannelGetByOAuthProviderID(oauthProviderID int, ctx context.Context) (*model.Channel, error) {
+	var channel model.Channel
+	if err := db.GetDB().WithContext(ctx).
+		Where("o_auth_provider_id = ?", oauthProviderID).
+		Preload("Keys").
+		Preload("OAuthProvider").
+		First(&channel).Error; err != nil {
+		return nil, err
+	}
+	return &channel, nil
+}
+
+// ChannelGetOAuthByModel finds an OAuth channel that supports the given model name.
+// This is used for backward compatibility when group items have channel_id = 0.
+func ChannelGetOAuthByModel(modelName string, ctx context.Context) (*model.Channel, error) {
+	// Search through cached channels for an OAuth channel that supports this model
+	for _, channel := range channelCache.GetAll() {
+		if !channel.UseOAuth || !channel.Enabled {
+			continue
+		}
+		// Check if the model is supported by this channel
+		if channel.Model != "" {
+			models := strings.Split(channel.Model, ",")
+			for _, m := range models {
+				if strings.TrimSpace(m) == modelName {
+					return &channel, nil
+				}
+			}
+		}
+		if channel.CustomModel != "" {
+			models := strings.Split(channel.CustomModel, ",")
+			for _, m := range models {
+				if strings.TrimSpace(m) == modelName {
+					return &channel, nil
+				}
+			}
+		}
+	}
+	return nil, fmt.Errorf("no oauth channel found for model %s", modelName)
 }
 
 func channelRefreshCache(ctx context.Context) error {

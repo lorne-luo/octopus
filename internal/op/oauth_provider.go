@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/bestruirui/octopus/internal/db"
+	log "github.com/bestruirui/octopus/internal/utils/log"
 	"github.com/bestruirui/octopus/internal/model"
 	"github.com/bestruirui/octopus/internal/transformer/outbound"
 )
@@ -14,10 +15,39 @@ func OAuthProviderList(ctx context.Context) ([]model.OAuthProvider, error) {
 	if err := db.GetDB().WithContext(ctx).Find(&providers).Error; err != nil {
 		return nil, err
 	}
+
+	// Populate channel data for each provider
+	for i := range providers {
+		channel, err := ChannelGetByOAuthProviderID(providers[i].ID, ctx)
+		if err != nil {
+			log.Warnf("OAuthProviderList: Channel not found for provider %d: %v", providers[i].ID, err)
+			continue
+		}
+		if channel != nil {
+			providers[i].Channel = &model.OAuthProviderChannel{
+				ID:          channel.ID,
+				Model:       channel.Model,
+				CustomModel: channel.CustomModel,
+				MatchRegex:  channel.MatchRegex,
+				Enabled:     channel.Enabled,
+			}
+			log.Infof("OAuthProviderList: Provider %d has channel %d with Model=%s, CustomModel=%s",
+				providers[i].ID, channel.ID, channel.Model, channel.CustomModel)
+		}
+	}
+
 	return providers, nil
 }
 
-func OAuthProviderCreate(provider *model.OAuthProvider, ctx context.Context) error {
+// OAuthProviderCreateRequest contains all data needed to create an OAuth provider with channel
+type OAuthProviderCreateRequest struct {
+	Provider    *model.OAuthProvider
+	Model       string
+	CustomModel string
+	MatchRegex  *string
+}
+
+func OAuthProviderCreate(req *OAuthProviderCreateRequest, ctx context.Context) error {
 	// Start a transaction to ensure both OAuth Provider and Channel are created together
 	tx := db.GetDB().WithContext(ctx).Begin()
 	if tx.Error != nil {
@@ -30,27 +60,31 @@ func OAuthProviderCreate(provider *model.OAuthProvider, ctx context.Context) err
 	}()
 
 	// Create the OAuth Provider
-	if err := tx.Create(provider).Error; err != nil {
+	if err := tx.Create(req.Provider).Error; err != nil {
 		tx.Rollback()
 		return err
 	}
 
 	// Create a corresponding Channel with UseOAuth=true
 	channel := &model.Channel{
-		Name:            fmt.Sprintf("OAuth-%s", provider.Name),
+		Name:            fmt.Sprintf("OAuth-%s", req.Provider.Name),
 		Type:            outbound.OutboundTypeOpenAIChat, // Default to OpenAI Chat type
-		Enabled:         provider.Status == 1,            // Enable if provider is active
-		BaseUrls:        []model.BaseUrl{{URL: provider.GetBaseURL(), Delay: 0}},
+		Enabled:         req.Provider.Status == 1,        // Enable if provider is active
+		BaseUrls:        []model.BaseUrl{{URL: req.Provider.GetBaseURL(), Delay: 0}},
 		Keys:            []model.ChannelKey{}, // OAuth channels don't use keys directly
-		Model:           provider.Model,
-		CustomModel:     provider.CustomModel,
+		Model:           req.Model,
+		CustomModel:     req.CustomModel,
+		MatchRegex:      req.MatchRegex,
 		Proxy:           false,
 		AutoSync:        false,
 		AutoGroup:       model.AutoGroupTypeNone,
 		CustomHeader:    []model.CustomHeader{},
 		UseOAuth:        true,
-		OAuthProviderID: provider.ID,
+		OAuthProviderID: req.Provider.ID,
 	}
+
+	log.Infof("OAuthProviderCreate: Creating channel for provider %d with Model=%s, CustomModel=%s",
+		req.Provider.ID, req.Model, req.CustomModel)
 
 	if err := tx.Create(channel).Error; err != nil {
 		tx.Rollback()
@@ -64,6 +98,15 @@ func OAuthProviderCreate(provider *model.OAuthProvider, ctx context.Context) err
 
 	// Update cache
 	channelCache.Set(channel.ID, *channel)
+
+	// Populate channel data in provider for response
+	req.Provider.Channel = &model.OAuthProviderChannel{
+		ID:          channel.ID,
+		Model:       channel.Model,
+		CustomModel: channel.CustomModel,
+		MatchRegex:  channel.MatchRegex,
+		Enabled:     channel.Enabled,
+	}
 
 	return nil
 }
@@ -99,12 +142,6 @@ func OAuthProviderUpdate(req *model.OAuthProviderUpdateRequest, ctx context.Cont
 	if req.Status != nil {
 		updates["status"] = *req.Status
 	}
-	if req.Model != nil {
-		updates["model"] = *req.Model
-	}
-	if req.CustomModel != nil {
-		updates["custom_model"] = *req.CustomModel
-	}
 	if req.BaseURL != nil {
 		updates["base_url"] = *req.BaseURL
 	}
@@ -118,9 +155,20 @@ func OAuthProviderUpdate(req *model.OAuthProviderUpdateRequest, ctx context.Cont
 
 	// Update the corresponding Channel
 	var channel model.Channel
-	if err := tx.Where("use_oauth = ? AND oauth_provider_id = ?", true, provider.ID).First(&channel).Error; err == nil {
+	err := tx.Where("use_o_auth = ? AND o_auth_provider_id = ?", true, provider.ID).First(&channel).Error
+	if err != nil {
+		// Log the error but don't fail - this is for debugging
+		// Channel might not exist for providers created before this feature
+		log.Warnf("OAuthProviderUpdate: Channel not found for provider %d: %v", provider.ID, err)
+	}
+	if err == nil {
 		// Channel exists, update it
 		channelUpdates := map[string]interface{}{}
+		log.Infof("OAuthProviderUpdate: Found channel %d for provider %d, Model=%s, CustomModel=%s, MatchRegex=%v",
+			channel.ID, provider.ID,
+			func() string { if req.Model != nil { return *req.Model }; return "(nil)" }(),
+			func() string { if req.CustomModel != nil { return *req.CustomModel }; return "(nil)" }(),
+			req.MatchRegex)
 
 		if req.Name != nil {
 			channelUpdates["name"] = fmt.Sprintf("OAuth-%s", *req.Name)
@@ -128,14 +176,17 @@ func OAuthProviderUpdate(req *model.OAuthProviderUpdateRequest, ctx context.Cont
 		if req.Status != nil {
 			channelUpdates["enabled"] = (*req.Status == 1)
 		}
+		if req.BaseURL != nil {
+			channelUpdates["base_urls"] = []model.BaseUrl{{URL: *req.BaseURL, Delay: 0}}
+		}
 		if req.Model != nil {
 			channelUpdates["model"] = *req.Model
 		}
 		if req.CustomModel != nil {
 			channelUpdates["custom_model"] = *req.CustomModel
 		}
-		if req.BaseURL != nil {
-			channelUpdates["base_urls"] = []model.BaseUrl{{URL: *req.BaseURL, Delay: 0}}
+		if req.MatchRegex != nil {
+			channelUpdates["match_regex"] = *req.MatchRegex
 		}
 
 		if len(channelUpdates) > 0 {
@@ -151,6 +202,18 @@ func OAuthProviderUpdate(req *model.OAuthProviderUpdateRequest, ctx context.Cont
 	// Commit the transaction
 	if err := tx.Commit().Error; err != nil {
 		return nil, err
+	}
+
+	// Populate channel data for response
+	ch, err := ChannelGetByOAuthProviderID(provider.ID, ctx)
+	if err == nil && ch != nil {
+		provider.Channel = &model.OAuthProviderChannel{
+			ID:          ch.ID,
+			Model:       ch.Model,
+			CustomModel: ch.CustomModel,
+			MatchRegex:  ch.MatchRegex,
+			Enabled:     ch.Enabled,
+		}
 	}
 
 	return &provider, nil
@@ -170,8 +233,12 @@ func OAuthProviderDelete(id int, ctx context.Context) error {
 
 	// Delete the corresponding Channel first (if exists)
 	var channel model.Channel
-	if err := tx.Where("use_oauth = ? AND oauth_provider_id = ?", true, id).First(&channel).Error; err == nil {
+	err := tx.Where("use_o_auth = ? AND o_auth_provider_id = ?", true, id).First(&channel).Error
+	if err != nil {
+		log.Warnf("OAuthProviderDelete: Channel not found for provider %d: %v", id, err)
+	} else {
 		// Channel exists, delete it
+		log.Infof("OAuthProviderDelete: Deleting channel %d for provider %d", channel.ID, id)
 		if err := tx.Delete(&channel).Error; err != nil {
 			tx.Rollback()
 			return err
@@ -181,6 +248,7 @@ func OAuthProviderDelete(id int, ctx context.Context) error {
 	}
 
 	// Delete the OAuth Provider
+	log.Infof("OAuthProviderDelete: Deleting provider %d", id)
 	if err := tx.Delete(&model.OAuthProvider{}, id).Error; err != nil {
 		tx.Rollback()
 		return err
@@ -191,6 +259,7 @@ func OAuthProviderDelete(id int, ctx context.Context) error {
 		return err
 	}
 
+	log.Infof("OAuthProviderDelete: Successfully deleted provider %d", id)
 	return nil
 }
 
@@ -199,5 +268,18 @@ func OAuthProviderGet(id int, ctx context.Context) (*model.OAuthProvider, error)
 	if err := db.GetDB().WithContext(ctx).First(&provider, id).Error; err != nil {
 		return nil, err
 	}
+
+	// Populate channel data
+	channel, err := ChannelGetByOAuthProviderID(provider.ID, ctx)
+	if err == nil && channel != nil {
+		provider.Channel = &model.OAuthProviderChannel{
+			ID:          channel.ID,
+			Model:       channel.Model,
+			CustomModel: channel.CustomModel,
+			MatchRegex:  channel.MatchRegex,
+			Enabled:     channel.Enabled,
+		}
+	}
+
 	return &provider, nil
 }

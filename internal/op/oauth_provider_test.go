@@ -25,17 +25,21 @@ func TestOAuthProviderCreateWithChannel(t *testing.T) {
 		ProviderType: "iflow",
 		Cookie:       "test-cookie",
 		Status:       1,
-		Model:        "gpt-4,gpt-3.5-turbo",
-		CustomModel:  "custom-model",
 	}
 
-	err := OAuthProviderCreate(provider, ctx)
+	createReq := &OAuthProviderCreateRequest{
+		Provider:    provider,
+		Model:       "gpt-4,gpt-3.5-turbo",
+		CustomModel: "custom-model",
+	}
+
+	err := OAuthProviderCreate(createReq, ctx)
 	require.NoError(t, err)
 	require.NotZero(t, provider.ID)
 
 	// Verify that a channel was created
 	var channel model.Channel
-	err = db.GetDB().Where("use_oauth = ? AND oauth_provider_id = ?", true, provider.ID).
+	err = db.GetDB().Where("use_o_auth = ? AND o_auth_provider_id = ?", true, provider.ID).
 		First(&channel).Error
 	require.NoError(t, err)
 
@@ -44,8 +48,8 @@ func TestOAuthProviderCreateWithChannel(t *testing.T) {
 	assert.True(t, channel.UseOAuth)
 	assert.Equal(t, provider.ID, channel.OAuthProviderID)
 	assert.True(t, channel.Enabled)
-	assert.Equal(t, provider.Model, channel.Model)
-	assert.Equal(t, provider.CustomModel, channel.CustomModel)
+	assert.Equal(t, "gpt-4,gpt-3.5-turbo", channel.Model)
+	assert.Equal(t, "custom-model", channel.CustomModel)
 
 	// Cleanup
 	_ = OAuthProviderDelete(provider.ID, ctx)
@@ -64,10 +68,15 @@ func TestOAuthProviderUpdateWithChannel(t *testing.T) {
 		ProviderType: "iflow",
 		Cookie:       "test-cookie",
 		Status:       1,
-		Model:        "gpt-4",
 	}
 
-	err := OAuthProviderCreate(provider, ctx)
+	createReq := &OAuthProviderCreateRequest{
+		Provider:    provider,
+		Model:       "gpt-4",
+		CustomModel: "",
+	}
+
+	err := OAuthProviderCreate(createReq, ctx)
 	require.NoError(t, err)
 
 	// Update the provider
@@ -88,7 +97,7 @@ func TestOAuthProviderUpdateWithChannel(t *testing.T) {
 
 	// Verify that the channel was also updated
 	var channel model.Channel
-	err = db.GetDB().Where("use_oauth = ? AND oauth_provider_id = ?", true, provider.ID).
+	err = db.GetDB().Where("use_o_auth = ? AND o_auth_provider_id = ?", true, provider.ID).
 		First(&channel).Error
 	require.NoError(t, err)
 
@@ -115,14 +124,18 @@ func TestOAuthProviderDeleteWithChannel(t *testing.T) {
 		Status:       1,
 	}
 
-	err := OAuthProviderCreate(provider, ctx)
+	createReq := &OAuthProviderCreateRequest{
+		Provider: provider,
+	}
+
+	err := OAuthProviderCreate(createReq, ctx)
 	require.NoError(t, err)
 
 	providerID := provider.ID
 
 	// Verify channel exists
 	var channel model.Channel
-	err = db.GetDB().Where("use_oauth = ? AND oauth_provider_id = ?", true, providerID).
+	err = db.GetDB().Where("use_o_auth = ? AND o_auth_provider_id = ?", true, providerID).
 		First(&channel).Error
 	require.NoError(t, err)
 
@@ -131,7 +144,7 @@ func TestOAuthProviderDeleteWithChannel(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify that the channel was also deleted
-	err = db.GetDB().Where("use_oauth = ? AND oauth_provider_id = ?", true, providerID).
+	err = db.GetDB().Where("use_o_auth = ? AND o_auth_provider_id = ?", true, providerID).
 		First(&channel).Error
 	assert.Error(t, err) // Should not find the channel
 }

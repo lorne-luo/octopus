@@ -82,9 +82,9 @@ func (ra *relayAttempt) forwardPassthrough(passthrough model.PassthroughOutbound
 		if err != nil {
 			return 0, fmt.Errorf("failed to read response body: %w", err)
 		}
-		// 检查是否是 OAuth Provider 的 Invalid apiKey 错误
-		if ra.channelID < 0 && isInvalidAPIKeyError(respBody) {
-			return 0, fmt.Errorf("OAuth Provider '%s' returned Invalid apiKey. Please update the cookie in OAuth Provider settings. Response: %s", ra.channelName, string(respBody))
+		// 检查是否是 OAuth channel 的 Invalid apiKey 错误
+		if ra.channel != nil && ra.channel.UseOAuth && isInvalidAPIKeyError(respBody) {
+			return 0, fmt.Errorf("OAuth channel '%s' returned Invalid apiKey. Please update the credential in OAuth Provider settings. Response: %s", ra.channelName, string(respBody))
 		}
 		return 0, fmt.Errorf("upstream error: %d: %s", response.StatusCode, string(respBody))
 	}

@@ -13,9 +13,17 @@ type OAuthProvider struct {
 	RefreshFailCount int    `json:"refresh_fail_count"`
 	CreatedAt        int64  `json:"created_at"`
 	UpdatedAt        int64  `json:"updated_at"`
-	Model            string `gorm:"type:text" json:"model"`           // Auto-fetched models, comma-separated
-	CustomModel      string `gorm:"type:text" json:"custom_model"`    // Manually added models, comma-separated
 	BaseURL          string `gorm:"size:255" json:"base_url"`
+	Channel          *OAuthProviderChannel `gorm:"-" json:"channel,omitempty"` // Not a DB field, populated on demand
+}
+
+// OAuthProviderChannel contains channel data for OAuth provider response
+type OAuthProviderChannel struct {
+	ID          int     `json:"id"`
+	Model       string  `json:"model"`
+	CustomModel string  `json:"custom_model"`
+	MatchRegex  *string `json:"match_regex,omitempty"`
+	Enabled     bool    `json:"enabled"`
 }
 
 type OAuthProviderUpdateRequest struct {
@@ -24,9 +32,10 @@ type OAuthProviderUpdateRequest struct {
 	ProviderType *string `json:"provider_type,omitempty"`
 	Cookie       *string `json:"cookie,omitempty"`
 	Status       *int    `json:"status,omitempty"`
+	BaseURL      *string `json:"base_url,omitempty"`
 	Model        *string `json:"model,omitempty"`
 	CustomModel  *string `json:"custom_model,omitempty"`
-	BaseURL      *string `json:"base_url,omitempty"`
+	MatchRegex   *string `json:"match_regex,omitempty"`
 }
 
 // GetBaseURL returns the base URL for the OAuth Provider

@@ -15,7 +15,6 @@ import (
 	"github.com/bestruirui/octopus/internal/client"
 	"github.com/bestruirui/octopus/internal/helper"
 	dbmodel "github.com/bestruirui/octopus/internal/model"
-	"github.com/bestruirui/octopus/internal/oauth"
 	"github.com/bestruirui/octopus/internal/op"
 	"github.com/bestruirui/octopus/internal/relay/balancer"
 	"github.com/bestruirui/octopus/internal/server/resp"
@@ -92,87 +91,50 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 
 		item := iter.Item()
 
-		// 获取通道或 OAuth Provider
+		// 获取通道
 		var channel *dbmodel.Channel
-		var oauthProvider *dbmodel.OAuthProvider
 		var channelType int
 		var channelName string
 		var baseUrl string
 
-		if item.ChannelID > 0 {
-			// 现有 Channel 逻辑
-			var err error
-			channel, err = op.ChannelGet(item.ChannelID, c.Request.Context())
-			if err != nil {
-				log.Warnf("failed to get channel %d: %v", item.ChannelID, err)
-				iter.Skip(item.ChannelID, 0, fmt.Sprintf("channel_%d", item.ChannelID), 0, "", fmt.Sprintf("channel not found: %v", err))
-				lastErr = err
-				continue
-			}
-			if !channel.Enabled {
-				iter.Skip(channel.ID, 0, channel.Name, int(channel.Type), "", "channel disabled")
-				continue
-			}
-			channelType = int(channel.Type)
-			channelName = channel.Name
-			baseUrl = channel.GetBaseUrl()
-		} else if item.ChannelID < 0 {
-			// OAuth Provider 逻辑
-			var err error
-			oauthProvider, err = op.OAuthProviderGet(-item.ChannelID, c.Request.Context())
-			if err != nil {
-				log.Warnf("failed to get oauth provider %d: %v", -item.ChannelID, err)
-				iter.Skip(item.ChannelID, 0, "", 0, "", fmt.Sprintf("oauth provider not found: %v", err))
-				lastErr = err
-				continue
-			}
-			if oauthProvider.Status != 1 {
-				iter.Skip(item.ChannelID, 0, oauthProvider.Name, 0, "", "oauth provider disabled")
-				continue
-			}
-			if oauthProvider.APIKey == "" {
-				iter.Skip(item.ChannelID, 0, oauthProvider.Name, 0, "", "oauth provider has no api key")
-				continue
-			}
-			channelType = int(outbound.OutboundTypeOpenAIChat)
-			channelName = oauthProvider.Name
-			baseUrl = oauthProvider.GetBaseURL()
-		} else {
-			// channel_id = 0 is invalid
-			iter.Skip(item.ChannelID, 0, "", 0, "", "invalid channel_id: 0")
+		if item.ChannelID <= 0 {
+			log.Warnf("invalid channel id %d", item.ChannelID)
+			iter.Skip(item.ChannelID, 0, "", 0, "", fmt.Sprintf("invalid channel id: %d", item.ChannelID))
+			lastErr = fmt.Errorf("invalid channel id: %d", item.ChannelID)
 			continue
 		}
 
+		// 获取通道
+		var err error
+		channel, err = op.ChannelGet(item.ChannelID, c.Request.Context())
+		if err != nil {
+			log.Warnf("failed to get channel %d: %v", item.ChannelID, err)
+			iter.Skip(item.ChannelID, 0, fmt.Sprintf("channel_%d", item.ChannelID), 0, "", fmt.Sprintf("channel not found: %v", err))
+			lastErr = err
+			continue
+		}
+		if !channel.Enabled {
+			iter.Skip(channel.ID, 0, channel.Name, int(channel.Type), "", "channel disabled")
+			continue
+		}
+		channelType = int(channel.Type)
+		channelName = channel.Name
+		baseUrl = channel.GetBaseUrl()
+
 		var usedKey dbmodel.ChannelKey
-		if item.ChannelID > 0 {
-			if channel.UseOAuth {
-				apiKey, err := GetChannelKey(c.Request.Context(), channel)
-				if err != nil {
-					iter.Skip(channel.ID, 0, channel.Name, int(channel.Type), "", "oauth failed: "+err.Error())
-					continue
-				}
-				usedKey = dbmodel.ChannelKey{
-					ChannelID:  channel.ID,
-					ChannelKey: apiKey,
-					Enabled:    true,
-				}
-			} else {
-				usedKey = channel.GetChannelKey()
-			}
-		} else if item.ChannelID < 0 {
-			// OAuth Provider: 检查是否需要刷新 API Key
-			manager := oauth.GetManager()
-			if manager.ShouldRefresh(oauthProvider) {
-				if err := manager.RefreshAPIKey(c.Request.Context(), oauthProvider); err != nil {
-					errMsg := fmt.Sprintf("OAuth Provider '%s' API Key refresh failed: %s. Please update the cookie in OAuth Provider settings.", oauthProvider.Name, err.Error())
-					iter.Skip(item.ChannelID, 0, oauthProvider.Name, 0, "", errMsg)
-					continue
-				}
+		if channel.UseOAuth {
+			apiKey, err := GetChannelKey(c.Request.Context(), channel)
+			if err != nil {
+				iter.Skip(channel.ID, 0, channel.Name, int(channel.Type), "", "oauth failed: "+err.Error())
+				continue
 			}
 			usedKey = dbmodel.ChannelKey{
-				ChannelKey: oauthProvider.APIKey,
+				ChannelID:  channel.ID,
+				ChannelKey: apiKey,
 				Enabled:    true,
 			}
+		} else {
+			usedKey = channel.GetChannelKey()
 		}
 		if usedKey.ChannelKey == "" {
 			iter.Skip(item.ChannelID, 0, channelName, channelType, "", "no available key")
@@ -227,7 +189,6 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 			relayRequest:         req,
 			outAdapter:           outAdapter,
 			channel:              channel,
-			oauthProvider:        oauthProvider,
 			channelID:            item.ChannelID,
 			channelName:          channelName,
 			channelType:          channelType,
