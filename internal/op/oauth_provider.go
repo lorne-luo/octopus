@@ -136,8 +136,8 @@ func OAuthProviderUpdate(req *model.OAuthProviderUpdateRequest, ctx context.Cont
 	if req.ProviderType != nil {
 		updates["provider_type"] = *req.ProviderType
 	}
-	if req.Cookie != nil {
-		updates["cookie"] = *req.Cookie
+	if req.AuthJSON != nil {
+		updates["auth_json"] = *req.AuthJSON
 	}
 	if req.Status != nil {
 		updates["status"] = *req.Status

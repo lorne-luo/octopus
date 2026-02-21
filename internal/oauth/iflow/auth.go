@@ -18,10 +18,10 @@ type apiKeyRequest struct {
 	Name string `json:"name"`
 }
 
-// FetchAPIKeyInfo retrieves API key information using GET request with cookie
-func FetchAPIKeyInfo(ctx context.Context, cookie string) (*IFlowAPIKeyResponse, error) {
-	if strings.TrimSpace(cookie) == "" {
-		return nil, fmt.Errorf("iflow: cookie is empty")
+// FetchAPIKeyInfo retrieves API key information using GET request with BXAuth cookie
+func FetchAPIKeyInfo(ctx context.Context, bxAuth string) (*IFlowAPIKeyResponse, error) {
+	if strings.TrimSpace(bxAuth) == "" {
+		return nil, fmt.Errorf("iflow: bxAuth is empty")
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, IFlowAPIKeyEndpoint, nil)
@@ -29,7 +29,7 @@ func FetchAPIKeyInfo(ctx context.Context, cookie string) (*IFlowAPIKeyResponse, 
 		return nil, fmt.Errorf("iflow: create GET request failed: %w", err)
 	}
 
-	setBrowserHeaders(req, cookie)
+	setBrowserHeaders(req, bxAuth)
 
 	client := &http.Client{
 		Timeout: 30 * time.Second,
@@ -68,10 +68,10 @@ func FetchAPIKeyInfo(ctx context.Context, cookie string) (*IFlowAPIKeyResponse, 
 	return &parsedResp, nil
 }
 
-// RefreshAPIKey refreshes the API key using POST request
-func RefreshAPIKey(ctx context.Context, cookie, keyName string) (*IFlowAPIKeyResponse, error) {
-	if strings.TrimSpace(cookie) == "" {
-		return nil, fmt.Errorf("iflow: cookie is empty")
+// RefreshAPIKey refreshes the API key using POST request with BXAuth cookie
+func RefreshAPIKey(ctx context.Context, bxAuth, keyName string) (*IFlowAPIKeyResponse, error) {
+	if strings.TrimSpace(bxAuth) == "" {
+		return nil, fmt.Errorf("iflow: bxAuth is empty")
 	}
 	if strings.TrimSpace(keyName) == "" {
 		return nil, fmt.Errorf("iflow: key name is empty")
@@ -87,7 +87,7 @@ func RefreshAPIKey(ctx context.Context, cookie, keyName string) (*IFlowAPIKeyRes
 		return nil, fmt.Errorf("iflow: create POST request failed: %w", err)
 	}
 
-	setBrowserHeaders(req, cookie)
+	setBrowserHeaders(req, bxAuth)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Origin", "https://platform.iflow.cn")
 	req.Header.Set("Referer", "https://platform.iflow.cn/")
@@ -124,8 +124,8 @@ func RefreshAPIKey(ctx context.Context, cookie, keyName string) (*IFlowAPIKeyRes
 }
 
 // setBrowserHeaders sets headers to mimic browser behavior
-func setBrowserHeaders(req *http.Request, cookie string) {
-	req.Header.Set("Cookie", cookie)
+func setBrowserHeaders(req *http.Request, bxAuth string) {
+	req.Header.Set("Cookie", bxAuth)
 	req.Header.Set("Accept", "application/json, text/plain, */*")
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
 	req.Header.Set("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")

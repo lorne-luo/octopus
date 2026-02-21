@@ -2,6 +2,7 @@ package op
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/bestruirui/octopus/internal/db"
@@ -19,11 +20,14 @@ func TestOAuthProviderCreateWithChannel(t *testing.T) {
 
 	ctx := context.Background()
 
+	// Create auth_json with BXAuth
+	authJSON, _ := json.Marshal(map[string]string{"BXAuth": "test-cookie"})
+
 	// Create a test OAuth provider
 	provider := &model.OAuthProvider{
 		Name:         "Test Provider",
-		ProviderType: "iflow",
-		Cookie:       "test-cookie",
+		ProviderType: model.OAuthProviderTypeIFlow,
+		AuthJSON:     string(authJSON),
 		Status:       1,
 	}
 
@@ -62,11 +66,14 @@ func TestOAuthProviderUpdateWithChannel(t *testing.T) {
 
 	ctx := context.Background()
 
+	// Create auth_json with BXAuth
+	authJSON, _ := json.Marshal(map[string]string{"BXAuth": "test-cookie"})
+
 	// Create a test OAuth provider
 	provider := &model.OAuthProvider{
 		Name:         "Test Provider",
-		ProviderType: "iflow",
-		Cookie:       "test-cookie",
+		ProviderType: model.OAuthProviderTypeIFlow,
+		AuthJSON:     string(authJSON),
 		Status:       1,
 	}
 
@@ -116,11 +123,14 @@ func TestOAuthProviderDeleteWithChannel(t *testing.T) {
 
 	ctx := context.Background()
 
+	// Create auth_json with BXAuth
+	authJSON, _ := json.Marshal(map[string]string{"BXAuth": "test-cookie"})
+
 	// Create a test OAuth provider
 	provider := &model.OAuthProvider{
 		Name:         "Test Provider",
-		ProviderType: "iflow",
-		Cookie:       "test-cookie",
+		ProviderType: model.OAuthProviderTypeIFlow,
+		AuthJSON:     string(authJSON),
 		Status:       1,
 	}
 

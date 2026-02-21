@@ -210,7 +210,7 @@ func TestOAuthProvider_GetBaseURL(t *testing.T) {
 		{
 			name: "custom base url",
 			provider: &OAuthProvider{
-				ProviderType: "iflow",
+				ProviderType: OAuthProviderTypeIFlow,
 				BaseURL:      "https://custom.api.com/v1",
 			},
 			want: "https://custom.api.com/v1",
@@ -218,14 +218,14 @@ func TestOAuthProvider_GetBaseURL(t *testing.T) {
 		{
 			name: "iflow default",
 			provider: &OAuthProvider{
-				ProviderType: "iflow",
+				ProviderType: OAuthProviderTypeIFlow,
 			},
 			want: "https://apis.iflow.cn/v1",
 		},
 		{
 			name: "unknown provider type",
 			provider: &OAuthProvider{
-				ProviderType: "unknown",
+				ProviderType: 0,
 			},
 			want: "",
 		},
@@ -247,11 +247,11 @@ func TestChannel_UseOAuth(t *testing.T) {
 		UseOAuth: true,
 		OAuthProviderID: 1,
 		OAuthProvider: &OAuthProvider{
-			ID:       1,
-			Name:     "test-provider",
-			ProviderType: "iflow",
-			APIKey:   "test-api-key",
-			Status:   1,
+			ID:           1,
+			Name:         "test-provider",
+			ProviderType: OAuthProviderTypeIFlow,
+			APIKey:       "test-api-key",
+			Status:       1,
 		},
 	}
 

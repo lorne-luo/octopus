@@ -74,10 +74,13 @@ func TestManager_RefreshAPIKey(t *testing.T) {
 
 	manager := GetManager()
 
+	// Create auth_json with BXAuth
+	authJSON, _ := json.Marshal(map[string]string{"BXAuth": "test-cookie"})
+
 	provider := &model.OAuthProvider{
 		Name:         "test-provider",
-		ProviderType: "iflow",
-		Cookie:       "test-cookie",
+		ProviderType: model.OAuthProviderTypeIFlow,
+		AuthJSON:     string(authJSON),
 		Status:       1,
 	}
 	db.GetDB().Create(provider)
@@ -104,6 +107,27 @@ func TestManager_RefreshAPIKey(t *testing.T) {
 	}
 	if updatedProvider.KeyName != "test-key-name" {
 		t.Errorf("expected db key name 'test-key-name', got %s", updatedProvider.KeyName)
+	}
+}
+
+func TestManager_RefreshAPIKey_MissingBXAuth(t *testing.T) {
+	setupTestDB()
+
+	manager := GetManager()
+
+	// Create provider without BXAuth in auth_json
+	provider := &model.OAuthProvider{
+		Name:         "test-provider",
+		ProviderType: model.OAuthProviderTypeIFlow,
+		AuthJSON:     `{"other_field": "value"}`,
+		Status:       1,
+	}
+	db.GetDB().Create(provider)
+
+	ctx := context.Background()
+	err := manager.RefreshAPIKey(ctx, provider)
+	if err == nil {
+		t.Fatal("expected error for missing BXAuth")
 	}
 }
 
