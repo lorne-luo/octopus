@@ -28,7 +28,7 @@ export type OAuthProvider = {
 export type CreateOAuthProviderRequest = {
   name: string;
   provider_type: string;
-  cookie: string;
+  auth_json: string;
   api_key?: string;
   status?: number;
   model?: string;
@@ -40,7 +40,7 @@ export type UpdateOAuthProviderRequest = {
   id: number;
   name?: string;
   provider_type?: string;
-  cookie?: string;
+  auth_json?: string;
   status?: number;
   model?: string;
   custom_model?: string;

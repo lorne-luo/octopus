@@ -108,17 +108,17 @@ func TestRefreshAPIKey(t *testing.T) {
 	}
 }
 
-func TestFetchAPIKeyInfo_EmptyCookie(t *testing.T) {
+func TestFetchAPIKeyInfo_EmptyBXAuth(t *testing.T) {
 	_, err := FetchAPIKeyInfo(context.Background(), "")
 	if err == nil {
-		t.Error("expected error for empty cookie")
+		t.Error("expected error for empty bxAuth")
 	}
 }
 
-func TestRefreshAPIKey_EmptyCookie(t *testing.T) {
+func TestRefreshAPIKey_EmptyBXAuth(t *testing.T) {
 	_, err := RefreshAPIKey(context.Background(), "", "test-key")
 	if err == nil {
-		t.Error("expected error for empty cookie")
+		t.Error("expected error for empty bxAuth")
 	}
 }
 

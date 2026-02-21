@@ -39,11 +39,17 @@ interface CreateEditOAuthProviderModalProps {
 interface FormData {
     name: string
     provider_type: string
-    cookie: string
+    auth_json: string
     status: string
     model: string
     custom_model: string
     match_regex: string
+}
+
+// Auth JSON placeholders for different provider types
+const authJsonPlaceholders: Record<string, string> = {
+    iflow: '{"BXAuth": "your_bxauth_cookie_value"}',
+    kiro: '{"refreshToken": "your_refresh_token", "region": "us-east-1"}',
 }
 
 export function CreateEditOAuthProviderModal({
@@ -61,7 +67,7 @@ export function CreateEditOAuthProviderModal({
         defaultValues: {
             name: "",
             provider_type: "iflow",
-            cookie: "",
+            auth_json: "",
             status: "1",
             model: "",
             custom_model: "",
@@ -76,6 +82,7 @@ export function CreateEditOAuthProviderModal({
         ? watch("custom_model").split(',').map((m) => m.trim()).filter(Boolean)
         : [];
     const matchRegex = watch("match_regex") || "";
+    const providerType = watch("provider_type") || "iflow";
     const [inputValue, setInputValue] = useState('')
     const inputRef = useRef<HTMLInputElement>(null)
 
@@ -151,7 +158,7 @@ export function CreateEditOAuthProviderModal({
             if (provider) {
                 setValue("name", provider.name)
                 setValue("provider_type", provider.provider_type)
-                setValue("cookie", "")
+                setValue("auth_json", "")
                 setValue("status", String(provider.status))
                 setValue("model", provider.channel?.model || "")
                 setValue("custom_model", provider.channel?.custom_model || "")
@@ -160,7 +167,7 @@ export function CreateEditOAuthProviderModal({
                 reset({
                     name: "",
                     provider_type: "iflow",
-                    cookie: "",
+                    auth_json: "",
                     status: "1",
                     model: "",
                     custom_model: "",
@@ -178,7 +185,7 @@ export function CreateEditOAuthProviderModal({
                     id: provider.id,
                     name: data.name,
                     provider_type: data.provider_type,
-                    cookie: data.cookie || undefined,
+                    auth_json: data.auth_json || undefined,
                     status: status,
                     model: data.model || undefined,
                     custom_model: data.custom_model || undefined,
@@ -196,7 +203,7 @@ export function CreateEditOAuthProviderModal({
                 {
                     name: data.name,
                     provider_type: data.provider_type,
-                    cookie: data.cookie,
+                    auth_json: data.auth_json,
                     status: status,
                     model: data.model,
                     custom_model: data.custom_model,
@@ -236,17 +243,17 @@ export function CreateEditOAuthProviderModal({
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="iflow">IFlow</SelectItem>
-                                {/* Add more types here if needed */}
+                                <SelectItem value="kiro">Kiro</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="cookie">{t("cookie")}</Label>
+                        <Label htmlFor="auth_json">{t("authJson")}</Label>
                         <Textarea
-                            id="cookie"
-                            {...register("cookie", { required: !provider })}
-                            placeholder={provider ? t("cookiePlaceholderEdit") : t("cookiePlaceholder")}
-                            className="min-h-[100px]"
+                            id="auth_json"
+                            {...register("auth_json", { required: !provider })}
+                            placeholder={provider ? t("authJsonPlaceholderEdit") : authJsonPlaceholders[providerType] || t("authJsonPlaceholder")}
+                            className="min-h-[100px] font-mono text-sm"
                         />
                     </div>
 
