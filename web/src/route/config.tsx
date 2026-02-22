@@ -1,7 +1,7 @@
 import { lazyWithPreload } from './lazy-with-preload';
 import { lazy, ComponentType } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { Home, Radio, Sparkles, FolderTree, Settings, Logs, ShieldCheck } from 'lucide-react';
+import { Home, Radio, Sparkles, FolderTree, Settings, Logs, Key } from 'lucide-react';
 
 export type LazyComponent = ReturnType<typeof lazy> & {
     preload: () => Promise<{ default: ComponentType<Record<string, never>> }>
@@ -25,9 +25,9 @@ const OAuthProvider_Module = lazyWithPreload(() => import('@/components/modules/
 export const ROUTES: RouteConfig[] = [
     { id: 'home', label: 'Home', icon: Home, component: Home_Module },
     { id: 'channel', label: 'Channel', icon: Radio, component: Channel_Module },
+    { id: 'oauth', label: 'OAuth', icon: Key, component: OAuthProvider_Module },
     { id: 'group', label: 'Group', icon: FolderTree, component: Group_Module },
     { id: 'model', label: 'Model', icon: Sparkles, component: Model_Module },
-    { id: 'oauth', label: 'OAuth', icon: ShieldCheck, component: OAuthProvider_Module },
     { id: 'log', label: 'Log', icon: Logs, component: Log_Module },
     { id: 'setting', label: 'Setting', icon: Settings, component: Setting_Module },
 ];

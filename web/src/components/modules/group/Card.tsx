@@ -108,6 +108,13 @@ export function GroupCard({ group }: { group: Group }) {
     });
     return map;
   }, [modelChannels]);
+  const useOAuthByKey = useMemo(() => {
+    const map = new Map<string, boolean>();
+    modelChannels.forEach((mc) => {
+      map.set(modelChannelKey(mc.channel_id, mc.name), mc.use_oauth ?? false);
+    });
+    return map;
+  }, [modelChannels]);
 
   const displayMembers = useMemo(
     (): SelectedMember[] =>
@@ -127,10 +134,14 @@ export function GroupCard({ group }: { group: Group }) {
             channelNameByKey.get(
               modelChannelKey(item.channel_id, item.model_name),
             ) ?? `Channel ${item.channel_id}`,
+          use_oauth:
+            useOAuthByKey.get(
+              modelChannelKey(item.channel_id, item.model_name),
+            ) ?? false,
           item_id: item.id,
           weight: item.weight,
         })),
-    [group.items, channelNameByKey, enabledByKey],
+    [group.items, channelNameByKey, enabledByKey, useOAuthByKey],
   );
 
   useEffect(() => {

@@ -517,6 +517,7 @@
         "namePlaceholder": "输入渠道名称",
         "type": "类型",
         "status": "状态",
+        "enabled": "启用",
         "active": "活跃",
         "inactive": "无效",
         "disabled": "禁用",

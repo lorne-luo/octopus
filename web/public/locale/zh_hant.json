@@ -517,6 +517,7 @@
         "namePlaceholder": "請輸入供應商名稱",
         "type": "類型",
         "status": "狀態",
+        "enabled": "啟用",
         "active": "啟用",
         "inactive": "未啟用",
         "disabled": "停用",

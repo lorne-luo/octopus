@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useId, useRef, useState } from 'react';
-import { Layers, GripVertical, X, Trash2 } from 'lucide-react';
+import { Layers, GripVertical, X, Trash2, Key } from 'lucide-react';
 import {
     DragDropContext,
     Draggable,
@@ -117,7 +117,10 @@ function MemberItem({
                         </TooltipTrigger>
                         <TooltipContent key={member.name}>{member.name}</TooltipContent>
                     </Tooltip>
-                    <span className="text-[10px] text-muted-foreground truncate leading-tight">{member.channel_name}</span>
+                    <span className="text-[10px] text-muted-foreground truncate leading-tight flex items-center gap-1">
+                        {member.use_oauth && <Key className="size-3 shrink-0" />}
+                        {member.channel_name}
+                    </span>
                 </div>
 
                 {showWeight && (

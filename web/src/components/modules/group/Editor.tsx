@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState, type FormEvent } from "react";
-import { Check, ChevronDownIcon, Plus, Sparkles, Trash2 } from "lucide-react";
+import { Check, ChevronDownIcon, Plus, Sparkles, Trash2, Key } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { useModelChannelList, type LLMChannel } from "@/api/endpoints/model";
@@ -68,7 +68,7 @@ function ModelPickerSection({
 
     const byId = new Map<
       number,
-      { id: number; name: string; models: LLMChannel[] }
+      { id: number; name: string; use_oauth: boolean; models: LLMChannel[] }
     >();
     modelChannels.forEach((mc) => {
       if (
@@ -85,6 +85,7 @@ function ModelPickerSection({
         byId.set(mc.channel_id, {
           id: mc.channel_id,
           name: mc.channel_name,
+          use_oauth: mc.use_oauth ?? false,
           models: [mc],
         });
     });
@@ -138,7 +139,12 @@ function ModelPickerSection({
               <AccordionItem key={channel.id} value={`channel-${channel.id}`}>
                 <AccordionPrimitive.Header className="rounded-lg bg-muted sticky top-0 z-10 flex px-2 overflow-hidden">
                   <AccordionPrimitive.Trigger className="flex flex-1 min-w-0 items-center gap-4 py-4 text-left text-sm transition-all outline-none focus-visible:ring-[3px] disabled:pointer-events-none disabled:opacity-50 [&[data-state=open]>svg]:rotate-180">
-                    <span className="truncate">{channel.name}</span>
+                    <span className="truncate flex items-center gap-1.5">
+                      {channel.use_oauth && (
+                        <Key className="size-3.5 text-primary shrink-0" />
+                      )}
+                      {channel.name}
+                    </span>
                     <span className="text-xs text-muted-foreground shrink-0">
                       {available}/{total}
                     </span>

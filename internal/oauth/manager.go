@@ -9,6 +9,7 @@ import (
 	"github.com/bestruirui/octopus/internal/db"
 	"github.com/bestruirui/octopus/internal/model"
 	"github.com/bestruirui/octopus/internal/oauth/iflow"
+	"github.com/bestruirui/octopus/internal/utils/log"
 )
 
 type Manager struct{}
@@ -38,8 +39,15 @@ func (m *Manager) RefreshAPIKey(ctx context.Context, provider *model.OAuthProvid
 
 // refreshIFlowAPIKey handles iFlow-specific token refresh
 func (m *Manager) refreshIFlowAPIKey(ctx context.Context, provider *model.OAuthProvider) error {
-	// Extract BXAuth from AuthJSON
-	bxAuth := provider.GetBXAuth()
+	// Get active AuthJson
+	authJson := provider.GetActiveAuthJson()
+	if authJson == nil {
+		m.recordFailure(provider)
+		return fmt.Errorf("no active auth_json found")
+	}
+
+	// Extract BXAuth from AuthJson
+	bxAuth := authJson.GetBXAuth()
 	if bxAuth == "" {
 		m.recordFailure(provider)
 		return fmt.Errorf("BXAuth not found in auth_json")
@@ -49,6 +57,7 @@ func (m *Manager) refreshIFlowAPIKey(ctx context.Context, provider *model.OAuthP
 	keyInfo, err := iflow.FetchAPIKeyInfo(ctx, bxAuth)
 	if err != nil {
 		m.recordFailure(provider)
+		m.recordAuthJsonFailure(authJson)
 		return fmt.Errorf("fetch api key info: %w", err)
 	}
 
@@ -61,6 +70,7 @@ func (m *Manager) refreshIFlowAPIKey(ctx context.Context, provider *model.OAuthP
 	// Validate key name is not empty
 	if keyName == "" {
 		m.recordFailure(provider)
+		m.recordAuthJsonFailure(authJson)
 		return fmt.Errorf("no valid key name found (stored key name is empty and GET response name is empty)")
 	}
 
@@ -68,12 +78,14 @@ func (m *Manager) refreshIFlowAPIKey(ctx context.Context, provider *model.OAuthP
 	resp, err := iflow.RefreshAPIKey(ctx, bxAuth, keyName)
 	if err != nil {
 		m.recordFailure(provider)
+		m.recordAuthJsonFailure(authJson)
 		return fmt.Errorf("refresh api key with name '%s': %w", keyName, err)
 	}
 
 	// Validate response has API key
 	if resp.Data.APIKey == "" {
 		m.recordFailure(provider)
+		m.recordAuthJsonFailure(authJson)
 		return fmt.Errorf("refresh response missing api key")
 	}
 
@@ -86,7 +98,7 @@ func (m *Manager) refreshIFlowAPIKey(ctx context.Context, provider *model.OAuthP
 	expireTime, err := time.Parse("2006-01-02 15:04", resp.Data.ExpireTime)
 	if err != nil {
 		// Log error but proceed - we got a valid key
-		fmt.Printf("warning: failed to parse expire time: %v\n", err)
+		log.Warnf("failed to parse expire time: %v", err)
 	} else {
 		provider.APIKeyExpireAt = expireTime.Unix()
 	}
@@ -95,7 +107,21 @@ func (m *Manager) refreshIFlowAPIKey(ctx context.Context, provider *model.OAuthP
 	provider.RefreshFailCount = 0
 	provider.Status = 1
 
-	return db.GetDB().Save(provider).Error
+	// Update AuthJson status
+	authJson.StatusCode = 200
+	authJson.LastUseTimeStamp = time.Now().Unix()
+
+	// Save both provider and authJson
+	tx := db.GetDB().Begin()
+	if err := tx.Save(provider).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	if err := tx.Save(authJson).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	return tx.Commit().Error
 }
 
 func (m *Manager) ShouldRefresh(provider *model.OAuthProvider) bool {
@@ -116,4 +142,9 @@ func (m *Manager) recordFailure(provider *model.OAuthProvider) {
 		provider.Status = 2 // Error/Expired
 	}
 	db.GetDB().Save(provider)
+}
+
+func (m *Manager) recordAuthJsonFailure(authJson *model.AuthJson) {
+	authJson.StatusCode = 500
+	db.GetDB().Save(authJson)
 }

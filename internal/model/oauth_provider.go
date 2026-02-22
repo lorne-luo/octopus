@@ -3,6 +3,8 @@ package model
 import (
 	"encoding/json"
 	"fmt"
+	"math/rand"
+	"time"
 )
 
 // OAuthProviderType represents the type of OAuth provider
@@ -61,21 +63,57 @@ func (OAuthProviderType) GormDataType() string {
 	return "integer"
 }
 
+// AuthJson represents a single auth credential for an OAuth provider
+type AuthJson struct {
+	ID               int    `gorm:"primaryKey" json:"id"`
+	OAuthProviderID  int    `gorm:"not null;index" json:"oauth_provider_id"`
+	Content          string `gorm:"type:text;not null" json:"content"`          // JSON auth credentials
+	Enabled          bool   `gorm:"default:true" json:"enabled"`
+	StatusCode       int    `gorm:"default:0" json:"status_code"`              // 200=success, 429=rate limited, etc.
+	LastUseTimeStamp int64  `json:"last_use_time_stamp"`
+	TotalToken       int64  `json:"total_token"`
+	Remark           string `gorm:"size:255" json:"remark"`
+}
+
+// TableName specifies the table name for AuthJson
+func (AuthJson) TableName() string {
+	return "auth_jsons"
+}
+
+// GetBXAuth extracts BXAuth from Content for iFlow provider
+func (aj *AuthJson) GetBXAuth() string {
+	if aj.Content == "" {
+		return ""
+	}
+	var data struct {
+		BXAuth string `json:"BXAuth"`
+	}
+	if err := json.Unmarshal([]byte(aj.Content), &data); err != nil {
+		return ""
+	}
+	return data.BXAuth
+}
+
 type OAuthProvider struct {
-	ID               int               `gorm:"primaryKey" json:"id"`
-	Name             string            `gorm:"size:255;not null" json:"name"`
-	ProviderType     OAuthProviderType `gorm:"not null" json:"provider_type"`
-	AuthJSON         string            `gorm:"type:text" json:"-"`                    // JSON-formatted auth credentials
-	KeyName          string            `gorm:"size:255" json:"-"`                     // iFlow key name for refresh
-	APIKey           string            `gorm:"size:255" json:"api_key"`
-	APIKeyExpireAt   int64             `json:"api_key_expire_at"`
-	Status           int               `gorm:"default:1" json:"status"` // 1: Active, 2: Expired, 0: Disabled
-	LastRefreshAt    int64             `json:"last_refresh_at"`
-	RefreshFailCount int               `json:"refresh_fail_count"`
-	CreatedAt        int64             `json:"created_at"`
-	UpdatedAt        int64             `json:"updated_at"`
-	BaseURL          string            `gorm:"size:255" json:"base_url"`
-	Channel          *OAuthProviderChannel `gorm:"-" json:"channel,omitempty"` // Not a DB field, populated on demand
+	ID               int                    `gorm:"primaryKey" json:"id"`
+	Name             string                 `gorm:"size:255;not null" json:"name"`
+	ProviderType     OAuthProviderType      `gorm:"not null" json:"provider_type"`
+	AuthJsons        []AuthJson             `gorm:"foreignKey:OAuthProviderID" json:"auth_jsons,omitempty"`
+	KeyName          string                 `gorm:"size:255" json:"-"`                          // iFlow key name for refresh
+	APIKey           string                 `gorm:"size:255" json:"api_key"`
+	APIKeyExpireAt   int64                  `json:"api_key_expire_at"`
+	Status           int                    `gorm:"default:1" json:"status"` // 1: Active, 2: Expired, 0: Disabled
+	LastRefreshAt    int64                  `json:"last_refresh_at"`
+	RefreshFailCount int                    `json:"refresh_fail_count"`
+	CreatedAt        int64                  `json:"created_at"`
+	UpdatedAt        int64                  `json:"updated_at"`
+	BaseURL          string                 `gorm:"size:255" json:"base_url"`
+	Channel          *OAuthProviderChannel  `gorm:"-" json:"channel,omitempty"` // Not a DB field, populated on demand
+}
+
+// TableName specifies the table name for OAuthProvider
+func (OAuthProvider) TableName() string {
+	return "o_auth_providers"
 }
 
 // OAuthProviderChannel contains channel data for OAuth provider response
@@ -87,41 +125,81 @@ type OAuthProviderChannel struct {
 	Enabled     bool    `json:"enabled"`
 }
 
+// AuthJsonAddRequest represents a request to add a new AuthJson
+type AuthJsonAddRequest struct {
+	Enabled bool   `json:"enabled"`
+	Content string `json:"content" binding:"required"`
+	Remark  string `json:"remark"`
+}
+
+// AuthJsonUpdateRequest represents a request to update an AuthJson
+type AuthJsonUpdateRequest struct {
+	ID      int     `json:"id" binding:"required"`
+	Enabled *bool   `json:"enabled,omitempty"`
+	Content *string `json:"content,omitempty"`
+	Remark  *string `json:"remark,omitempty"`
+}
+
 type OAuthProviderUpdateRequest struct {
-	ID           int                `json:"id" binding:"required"`
-	Name         *string            `json:"name,omitempty"`
-	ProviderType *OAuthProviderType `json:"provider_type,omitempty"`
-	AuthJSON     *string            `json:"auth_json,omitempty"`
-	Status       *int               `json:"status,omitempty"`
-	BaseURL      *string            `json:"base_url,omitempty"`
-	Model        *string            `json:"model,omitempty"`
-	CustomModel  *string            `json:"custom_model,omitempty"`
-	MatchRegex   *string            `json:"match_regex,omitempty"`
+	ID              int                     `json:"id" binding:"required"`
+	Name            *string                 `json:"name,omitempty"`
+	ProviderType    *OAuthProviderType      `json:"provider_type,omitempty"`
+	Status          *int                    `json:"status,omitempty"`
+	BaseURL         *string                 `json:"base_url,omitempty"`
+	Model           *string                 `json:"model,omitempty"`
+	CustomModel     *string                 `json:"custom_model,omitempty"`
+	MatchRegex      *string                 `json:"match_regex,omitempty"`
+
+	AuthJsonsToAdd    []AuthJsonAddRequest    `json:"auth_jsons_to_add,omitempty"`
+	AuthJsonsToUpdate []AuthJsonUpdateRequest `json:"auth_jsons_to_update,omitempty"`
+	AuthJsonsToDelete []int                   `json:"auth_jsons_to_delete,omitempty"`
 }
 
-// GetBXAuth extracts BXAuth from AuthJSON for iFlow provider
-func (p *OAuthProvider) GetBXAuth() string {
-	if p.AuthJSON == "" {
-		return ""
+// GetActiveAuthJson selects the best AuthJson for API access
+// Strategy: Prefer StatusCode=200 with most recent LastUseTimeStamp
+// If no StatusCode=200, randomly select from enabled AuthJsons
+func (p *OAuthProvider) GetActiveAuthJson() *AuthJson {
+	if len(p.AuthJsons) == 0 {
+		return nil
 	}
-	var data struct {
-		BXAuth string `json:"BXAuth"`
-	}
-	if err := json.Unmarshal([]byte(p.AuthJSON), &data); err != nil {
-		return ""
-	}
-	return data.BXAuth
-}
 
-// SetBXAuth sets BXAuth in AuthJSON for iFlow provider
-func (p *OAuthProvider) SetBXAuth(bxAuth string) error {
-	data := map[string]string{"BXAuth": bxAuth}
-	jsonData, err := json.Marshal(data)
-	if err != nil {
-		return err
+	var candidates []*AuthJson
+	var successCandidates []*AuthJson
+
+	for i := range p.AuthJsons {
+		aj := &p.AuthJsons[i]
+		if !aj.Enabled || aj.Content == "" {
+			continue
+		}
+		// Skip rate-limited (429) for 5 minutes
+		if aj.StatusCode == 429 && aj.LastUseTimeStamp > 0 {
+			if time.Now().Unix()-aj.LastUseTimeStamp < 300 {
+				continue
+			}
+		}
+		candidates = append(candidates, aj)
+		if aj.StatusCode == 200 {
+			successCandidates = append(successCandidates, aj)
+		}
 	}
-	p.AuthJSON = string(jsonData)
-	return nil
+
+	if len(successCandidates) > 0 {
+		// Select the one with most recent LastUseTimeStamp
+		best := successCandidates[0]
+		for _, aj := range successCandidates[1:] {
+			if aj.LastUseTimeStamp > best.LastUseTimeStamp {
+				best = aj
+			}
+		}
+		return best
+	}
+
+	if len(candidates) == 0 {
+		return nil
+	}
+
+	// Random selection from remaining candidates
+	return candidates[rand.Intn(len(candidates))]
 }
 
 // GetBaseURL returns the base URL for the OAuth Provider

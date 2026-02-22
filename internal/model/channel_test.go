@@ -240,6 +240,51 @@ func TestOAuthProvider_GetBaseURL(t *testing.T) {
 	}
 }
 
+func TestAuthJson_GetBXAuth(t *testing.T) {
+	tests := []struct {
+		name    string
+		authJson *AuthJson
+		want    string
+	}{
+		{
+			name: "valid BXAuth",
+			authJson: &AuthJson{
+				Content: `{"BXAuth":"test-cookie-value"}`,
+			},
+			want: "test-cookie-value",
+		},
+		{
+			name: "empty content",
+			authJson: &AuthJson{
+				Content: "",
+			},
+			want: "",
+		},
+		{
+			name: "invalid JSON",
+			authJson: &AuthJson{
+				Content: "not valid json",
+			},
+			want: "",
+		},
+		{
+			name: "missing BXAuth field",
+			authJson: &AuthJson{
+				Content: `{"otherField":"value"}`,
+			},
+			want: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.authJson.GetBXAuth(); got != tt.want {
+				t.Errorf("GetBXAuth() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestChannel_UseOAuth(t *testing.T) {
 	channel := &Channel{
 		Name:     "test-oauth-channel",

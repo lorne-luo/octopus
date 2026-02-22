@@ -10,24 +10,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select"
-import {
-    Accordion,
-    AccordionContent,
-    AccordionItem,
-    AccordionTrigger,
-} from "@/components/ui/accordion"
+import { Switch } from "@/components/ui/switch"
 import { useForm } from "react-hook-form"
 import { useEffect, useState, useRef } from "react"
-import { useCreateOAuthProvider, useUpdateOAuthProvider, useFetchOAuthModel, OAuthProvider } from "@/api/endpoints/oauthProvider"
+import { useCreateOAuthProvider, useUpdateOAuthProvider, useFetchOAuthModel, OAuthProvider, type AuthJsonAddRequest } from "@/api/endpoints/oauthProvider"
 import { useTranslations } from "next-intl"
 import { RefreshCw, X, Plus } from "lucide-react"
+import { cn } from "@/lib/utils"
 import { toast } from "@/components/common/Toast"
 
 interface CreateEditOAuthProviderModalProps {
@@ -36,14 +25,22 @@ interface CreateEditOAuthProviderModalProps {
     provider: OAuthProvider | null
 }
 
+interface AuthJsonFormItem {
+    id?: number
+    enabled: boolean
+    content: string
+    remark: string
+    isNew?: boolean
+}
+
 interface FormData {
     name: string
     provider_type: string
-    auth_json: string
     status: string
     model: string
     custom_model: string
     match_regex: string
+    auth_jsons: AuthJsonFormItem[]
 }
 
 // Auth JSON placeholders for different provider types
@@ -67,11 +64,11 @@ export function CreateEditOAuthProviderModal({
         defaultValues: {
             name: "",
             provider_type: "iflow",
-            auth_json: "",
             status: "1",
             model: "",
             custom_model: "",
             match_regex: "",
+            auth_jsons: [{ enabled: true, content: "", remark: "", isNew: true }],
         },
     })
 
@@ -83,6 +80,7 @@ export function CreateEditOAuthProviderModal({
         : [];
     const matchRegex = watch("match_regex") || "";
     const providerType = watch("provider_type") || "iflow";
+    const authJsons = watch("auth_jsons") || [];
     const [inputValue, setInputValue] = useState('')
     const inputRef = useRef<HTMLInputElement>(null)
 
@@ -153,25 +151,54 @@ export function CreateEditOAuthProviderModal({
         }
     }
 
+    // AuthJson management functions (similar to ChannelKey pattern)
+    const handleAddAuthJson = () => {
+        const current = watch("auth_jsons") || []
+        setValue("auth_jsons", [...current, { enabled: true, content: "", remark: "", isNew: true }])
+    }
+
+    const handleUpdateAuthJson = (idx: number, patch: Partial<AuthJsonFormItem>) => {
+        const current = watch("auth_jsons") || []
+        const next = current.map((aj, i) => (i === idx ? { ...aj, ...patch } : aj))
+        setValue("auth_jsons", next)
+    }
+
+    const handleRemoveAuthJson = (idx: number) => {
+        const current = watch("auth_jsons") || []
+        if (current.length <= 1) return
+        setValue("auth_jsons", current.filter((_, i) => i !== idx))
+    }
+
     useEffect(() => {
         if (open) {
             if (provider) {
                 setValue("name", provider.name)
                 setValue("provider_type", provider.provider_type)
-                setValue("auth_json", "")
                 setValue("status", String(provider.status))
                 setValue("model", provider.channel?.model || "")
                 setValue("custom_model", provider.channel?.custom_model || "")
                 setValue("match_regex", provider.channel?.match_regex || "")
+                // Load existing auth_jsons or empty one
+                if (provider.auth_jsons && provider.auth_jsons.length > 0) {
+                    setValue("auth_jsons", provider.auth_jsons.map(aj => ({
+                        id: aj.id,
+                        enabled: aj.enabled,
+                        content: aj.content,
+                        remark: aj.remark || "",
+                        isNew: false,
+                    })))
+                } else {
+                    setValue("auth_jsons", [{ enabled: true, content: "", remark: "", isNew: true }])
+                }
             } else {
                 reset({
                     name: "",
                     provider_type: "iflow",
-                    auth_json: "",
                     status: "1",
                     model: "",
                     custom_model: "",
                     match_regex: "",
+                    auth_jsons: [{ enabled: true, content: "", remark: "", isNew: true }],
                 })
             }
         }
@@ -179,17 +206,56 @@ export function CreateEditOAuthProviderModal({
 
     const onSubmit = (data: FormData) => {
         const status = parseInt(data.status)
+
+        // Filter out empty auth_jsons for create
+        const validAuthJsons = data.auth_jsons.filter(aj => aj.content.trim() !== "")
+
         if (provider) {
+            // Build update request
+            const authJsonsToAdd: AuthJsonAddRequest[] = []
+            const authJsonsToUpdate: { id: number; enabled?: boolean; content?: string; remark?: string }[] = []
+            const authJsonsToDelete: number[] = []
+
+            // Track which existing auth_jsons should be updated
+            const existingIds = new Set(provider.auth_jsons?.map(aj => aj.id) || [])
+            const formIds = new Set(data.auth_jsons.filter(aj => aj.id).map(aj => aj.id!))
+
+            // Find deleted auth_jsons
+            for (const existingId of existingIds) {
+                if (!formIds.has(existingId)) {
+                    authJsonsToDelete.push(existingId)
+                }
+            }
+
+            // Process form auth_jsons
+            for (const aj of validAuthJsons) {
+                if (aj.isNew || !aj.id) {
+                    authJsonsToAdd.push({
+                        enabled: aj.enabled,
+                        content: aj.content,
+                        remark: aj.remark || undefined,
+                    })
+                } else {
+                    authJsonsToUpdate.push({
+                        id: aj.id,
+                        enabled: aj.enabled,
+                        content: aj.content,
+                        remark: aj.remark || undefined,
+                    })
+                }
+            }
+
             updateMutation.mutate(
                 {
                     id: provider.id,
                     name: data.name,
-                    provider_type: data.provider_type,
-                    auth_json: data.auth_json || undefined,
                     status: status,
                     model: data.model || undefined,
                     custom_model: data.custom_model || undefined,
                     match_regex: data.match_regex || undefined,
+                    auth_jsons_to_add: authJsonsToAdd.length > 0 ? authJsonsToAdd : undefined,
+                    auth_jsons_to_update: authJsonsToUpdate.length > 0 ? authJsonsToUpdate : undefined,
+                    auth_jsons_to_delete: authJsonsToDelete.length > 0 ? authJsonsToDelete : undefined,
                 },
                 {
                     onSuccess: () => {
@@ -199,15 +265,20 @@ export function CreateEditOAuthProviderModal({
                 }
             )
         } else {
+            // Create new provider
             createMutation.mutate(
                 {
                     name: data.name,
                     provider_type: data.provider_type,
-                    auth_json: data.auth_json,
                     status: status,
                     model: data.model,
                     custom_model: data.custom_model,
                     match_regex: data.match_regex || undefined,
+                    auth_jsons: validAuthJsons.map(aj => ({
+                        enabled: aj.enabled,
+                        content: aj.content,
+                        remark: aj.remark || undefined,
+                    })),
                 },
                 {
                     onSuccess: () => {
@@ -233,28 +304,81 @@ export function CreateEditOAuthProviderModal({
                         <Input id="name" {...register("name", { required: true })} placeholder={t("namePlaceholder")} />
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="provider_type">{t("type")}</Label>
-                        <Select
-                            onValueChange={(value) => setValue("provider_type", value)}
-                            defaultValue={watch("provider_type")}
-                        >
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select type" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="iflow">IFlow</SelectItem>
-                                <SelectItem value="kiro">Kiro</SelectItem>
-                            </SelectContent>
-                        </Select>
+                        <Label>{t("type")}</Label>
+                        <div className="flex gap-1">
+                            {(["iflow", "kiro"] as const).map((type) => (
+                                <button
+                                    key={type}
+                                    type="button"
+                                    onClick={() => setValue("provider_type", type)}
+                                    className={cn(
+                                        "flex-1 py-1.5 text-sm rounded-lg transition-colors",
+                                        providerType === type
+                                            ? "bg-primary text-primary-foreground"
+                                            : "bg-muted hover:bg-muted/80"
+                                    )}
+                                >
+                                    {type === "iflow" ? "iFlow" : "Kiro"}
+                                </button>
+                            ))}
+                        </div>
                     </div>
+
+                    {/* Auth JSON management section (similar to ChannelKey pattern) */}
                     <div className="space-y-2">
-                        <Label htmlFor="auth_json">{t("authJson")}</Label>
-                        <Textarea
-                            id="auth_json"
-                            {...register("auth_json", { required: !provider })}
-                            placeholder={provider ? t("authJsonPlaceholderEdit") : authJsonPlaceholders[providerType] || t("authJsonPlaceholder")}
-                            className="min-h-[100px] font-mono text-sm"
-                        />
+                        <div className="flex items-center justify-between">
+                            <Label>{t("authJson")} {authJsons.length > 0 ? `(${authJsons.length})` : ''}</Label>
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={handleAddAuthJson}
+                                className="h-6 px-2 text-xs text-muted-foreground/70 hover:text-muted-foreground hover:bg-transparent"
+                            >
+                                <Plus className="h-3 w-3 mr-1" />
+                                {tChannel("add")}
+                            </Button>
+                        </div>
+                        <div className="space-y-2">
+                            {authJsons.map((aj, idx) => (
+                                <div key={aj.id ?? `new-${idx}`} className="flex flex-col gap-2 p-3 border rounded-xl bg-muted/20">
+                                    <div className="flex items-center gap-2">
+                                        <Textarea
+                                            value={aj.content}
+                                            onChange={(e) => handleUpdateAuthJson(idx, { content: e.target.value })}
+                                            placeholder={authJsonPlaceholders[providerType] || t("authJsonPlaceholder")}
+                                            className="min-h-[60px] font-mono text-sm flex-1"
+                                        />
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <Input
+                                            type="text"
+                                            value={aj.remark}
+                                            onChange={(e) => handleUpdateAuthJson(idx, { remark: e.target.value })}
+                                            placeholder={tChannel("remark")}
+                                            className="rounded-xl flex-1"
+                                        />
+                                        <div className="flex items-center gap-2">
+                                            <Switch
+                                                checked={aj.enabled}
+                                                onCheckedChange={(checked) => handleUpdateAuthJson(idx, { enabled: checked })}
+                                            />
+                                        </div>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => handleRemoveAuthJson(idx)}
+                                            disabled={authJsons.length <= 1}
+                                            className="h-8 w-8 p-0 rounded-xl text-muted-foreground hover:text-destructive hover:bg-transparent disabled:opacity-40"
+                                            title="Remove"
+                                        >
+                                            <X className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
 
                     {/* Model management section */}
@@ -356,41 +480,26 @@ export function CreateEditOAuthProviderModal({
                         </div>
                     </div>
 
-                    {/* Advanced section */}
-                    <Accordion type="single" collapsible className="w-full border rounded-xl bg-card">
-                        <AccordionItem value="advanced" className="border-none">
-                            <AccordionTrigger className="text-sm font-medium text-card-foreground py-3 px-4 hover:no-underline hover:bg-muted/30 rounded-xl transition-colors">
-                                {t("advanced")}
-                            </AccordionTrigger>
-                            <AccordionContent className="pt-4 px-4 pb-4 space-y-4 border-t">
-                                <div className="space-y-2">
-                                    <Label htmlFor="match_regex">{tChannel("matchRegex")}</Label>
-                                    <Input
-                                        id="match_regex"
-                                        type="text"
-                                        {...register("match_regex")}
-                                        placeholder={tChannel("matchRegexPlaceholder")}
-                                        className="rounded-xl"
-                                    />
-                                </div>
-                            </AccordionContent>
-                        </AccordionItem>
-                    </Accordion>
-
+                    {/* Match Regex - directly visible */}
                     <div className="space-y-2">
-                         <Label htmlFor="status">{t("status")}</Label>
-                        <Select
-                            onValueChange={(value) => setValue("status", value)}
-                            defaultValue={watch("status")}
-                        >
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select status" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="1">{t("active")}</SelectItem>
-                                <SelectItem value="0">{t("disabled")}</SelectItem>
-                            </SelectContent>
-                        </Select>
+                        <Label htmlFor="match_regex">{tChannel("matchRegex")}</Label>
+                        <Input
+                            id="match_regex"
+                            type="text"
+                            {...register("match_regex")}
+                            placeholder={tChannel("matchRegexPlaceholder")}
+                            className="rounded-xl"
+                        />
+                    </div>
+
+                    {/* Enabled toggle */}
+                    <div className="flex items-center justify-between">
+                        <Label htmlFor="enabled">{t("enabled")}</Label>
+                        <Switch
+                            id="enabled"
+                            checked={watch("status") === "1"}
+                            onCheckedChange={(checked) => setValue("status", checked ? "1" : "0")}
+                        />
                     </div>
                     <DialogFooter>
                         <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

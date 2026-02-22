@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware'
 
 export type NavItem = 'home' | 'channel' | 'group' | 'model' | 'oauth' | 'log' | 'setting'
 
-const NAV_ORDER: NavItem[] = ['home', 'channel', 'group', 'model', 'oauth', 'log', 'setting']
+const NAV_ORDER: NavItem[] = ['home', 'channel', 'oauth', 'group', 'model', 'log', 'setting']
 
 interface NavState {
     activeItem: NavItem
