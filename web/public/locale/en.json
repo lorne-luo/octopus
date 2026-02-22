@@ -517,6 +517,7 @@
         "namePlaceholder": "Enter provider name",
         "type": "Type",
         "status": "Status",
+        "enabled": "Enabled",
         "active": "Active",
         "inactive": "Inactive",
         "disabled": "Disabled",

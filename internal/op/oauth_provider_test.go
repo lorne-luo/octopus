@@ -20,14 +20,13 @@ func TestOAuthProviderCreateWithChannel(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Create auth_json with BXAuth
-	authJSON, _ := json.Marshal(map[string]string{"BXAuth": "test-cookie"})
+	// Create auth_json content with BXAuth
+	authJSONContent, _ := json.Marshal(map[string]string{"BXAuth": "test-cookie"})
 
 	// Create a test OAuth provider
 	provider := &model.OAuthProvider{
 		Name:         "Test Provider",
 		ProviderType: model.OAuthProviderTypeIFlow,
-		AuthJSON:     string(authJSON),
 		Status:       1,
 	}
 
@@ -35,6 +34,9 @@ func TestOAuthProviderCreateWithChannel(t *testing.T) {
 		Provider:    provider,
 		Model:       "gpt-4,gpt-3.5-turbo",
 		CustomModel: "custom-model",
+		AuthJsons: []model.AuthJsonAddRequest{
+			{Enabled: true, Content: string(authJSONContent), Remark: "test credential"},
+		},
 	}
 
 	err := OAuthProviderCreate(createReq, ctx)
@@ -55,6 +57,14 @@ func TestOAuthProviderCreateWithChannel(t *testing.T) {
 	assert.Equal(t, "gpt-4,gpt-3.5-turbo", channel.Model)
 	assert.Equal(t, "custom-model", channel.CustomModel)
 
+	// Verify AuthJsons were created
+	var authJsons []model.AuthJson
+	err = db.GetDB().Where("oauth_provider_id = ?", provider.ID).Find(&authJsons).Error
+	require.NoError(t, err)
+	assert.Len(t, authJsons, 1)
+	assert.Equal(t, string(authJSONContent), authJsons[0].Content)
+	assert.True(t, authJsons[0].Enabled)
+
 	// Cleanup
 	_ = OAuthProviderDelete(provider.ID, ctx)
 }
@@ -66,14 +76,13 @@ func TestOAuthProviderUpdateWithChannel(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Create auth_json with BXAuth
-	authJSON, _ := json.Marshal(map[string]string{"BXAuth": "test-cookie"})
+	// Create auth_json content with BXAuth
+	authJSONContent, _ := json.Marshal(map[string]string{"BXAuth": "test-cookie"})
 
 	// Create a test OAuth provider
 	provider := &model.OAuthProvider{
 		Name:         "Test Provider",
 		ProviderType: model.OAuthProviderTypeIFlow,
-		AuthJSON:     string(authJSON),
 		Status:       1,
 	}
 
@@ -81,6 +90,9 @@ func TestOAuthProviderUpdateWithChannel(t *testing.T) {
 		Provider:    provider,
 		Model:       "gpt-4",
 		CustomModel: "",
+		AuthJsons: []model.AuthJsonAddRequest{
+			{Enabled: true, Content: string(authJSONContent)},
+		},
 	}
 
 	err := OAuthProviderCreate(createReq, ctx)
@@ -91,11 +103,17 @@ func TestOAuthProviderUpdateWithChannel(t *testing.T) {
 	newStatus := 0
 	newModel := "gpt-4,gpt-3.5-turbo"
 
+	// Add a new auth_json
+	newAuthJSONContent, _ := json.Marshal(map[string]string{"BXAuth": "test-cookie-2"})
+
 	updateReq := &model.OAuthProviderUpdateRequest{
 		ID:     provider.ID,
 		Name:   &newName,
 		Status: &newStatus,
 		Model:  &newModel,
+		AuthJsonsToAdd: []model.AuthJsonAddRequest{
+			{Enabled: true, Content: string(newAuthJSONContent), Remark: "second credential"},
+		},
 	}
 
 	updatedProvider, err := OAuthProviderUpdate(updateReq, ctx)
@@ -112,6 +130,12 @@ func TestOAuthProviderUpdateWithChannel(t *testing.T) {
 	assert.False(t, channel.Enabled) // Status 0 means disabled
 	assert.Equal(t, newModel, channel.Model)
 
+	// Verify AuthJsons were added
+	var authJsons []model.AuthJson
+	err = db.GetDB().Where("oauth_provider_id = ?", provider.ID).Find(&authJsons).Error
+	require.NoError(t, err)
+	assert.Len(t, authJsons, 2)
+
 	// Cleanup
 	_ = OAuthProviderDelete(provider.ID, ctx)
 }
@@ -123,19 +147,21 @@ func TestOAuthProviderDeleteWithChannel(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Create auth_json with BXAuth
-	authJSON, _ := json.Marshal(map[string]string{"BXAuth": "test-cookie"})
+	// Create auth_json content with BXAuth
+	authJSONContent, _ := json.Marshal(map[string]string{"BXAuth": "test-cookie"})
 
 	// Create a test OAuth provider
 	provider := &model.OAuthProvider{
 		Name:         "Test Provider",
 		ProviderType: model.OAuthProviderTypeIFlow,
-		AuthJSON:     string(authJSON),
 		Status:       1,
 	}
 
 	createReq := &OAuthProviderCreateRequest{
 		Provider: provider,
+		AuthJsons: []model.AuthJsonAddRequest{
+			{Enabled: true, Content: string(authJSONContent)},
+		},
 	}
 
 	err := OAuthProviderCreate(createReq, ctx)
@@ -149,6 +175,12 @@ func TestOAuthProviderDeleteWithChannel(t *testing.T) {
 		First(&channel).Error
 	require.NoError(t, err)
 
+	// Verify auth_jsons exist
+	var authJsons []model.AuthJson
+	err = db.GetDB().Where("oauth_provider_id = ?", providerID).Find(&authJsons).Error
+	require.NoError(t, err)
+	assert.Len(t, authJsons, 1)
+
 	// Delete the provider
 	err = OAuthProviderDelete(providerID, ctx)
 	require.NoError(t, err)
@@ -157,4 +189,9 @@ func TestOAuthProviderDeleteWithChannel(t *testing.T) {
 	err = db.GetDB().Where("use_o_auth = ? AND o_auth_provider_id = ?", true, providerID).
 		First(&channel).Error
 	assert.Error(t, err) // Should not find the channel
+
+	// Verify that auth_jsons were also deleted
+	err = db.GetDB().Where("oauth_provider_id = ?", providerID).Find(&authJsons).Error
+	require.NoError(t, err)
+	assert.Len(t, authJsons, 0)
 }

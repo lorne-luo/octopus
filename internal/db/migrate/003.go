@@ -4,267 +4,136 @@ import (
 	"fmt"
 
 	"github.com/bestruirui/octopus/internal/model"
-	"github.com/bestruirui/octopus/internal/transformer/outbound"
 	"github.com/bestruirui/octopus/internal/utils/log"
 	"gorm.io/gorm"
 )
 
 func init() {
-	RegisterAfterAutoMigration(Migration{
+	RegisterBeforeAutoMigration(Migration{
 		Version: 3,
-		Up:      migrateOAuthProviders,
+		Up:      migrateAuthJsonToSeparateTable,
 	})
 }
 
-// oauthProviderData holds raw data from oauth_providers table for migration
-type oauthProviderData struct {
-	ID           int
-	Name         string
-	ProviderType string
-	Status       int
-	BaseURL      string
-	Model        string // Read from old column for migration
-	CustomModel  string // Read from old column for migration
+// oauthProviderAuthData holds data needed for migration
+type oauthProviderAuthData struct {
+	ID       int
+	AuthJSON string
 }
 
-// getBaseURL returns the base URL for the provider
-func (p *oauthProviderData) getBaseURL() string {
-	if p.BaseURL != "" {
-		return p.BaseURL
-	}
-	switch p.ProviderType {
-	case "iflow":
-		return "https://apis.iflow.cn/v1"
-	default:
-		return ""
-	}
-}
-
-// migrateOAuthProviders handles all OAuth-related migrations:
-// 1. Create Channel records for existing OAuth Providers
-// 2. Set UseOAuth=true for channels with OAuthProviderID > 0
-// 3. Migrate group_items with negative channel_id to positive IDs
-// 4. Drop model and custom_model columns from oauth_providers
-func migrateOAuthProviders(db *gorm.DB) error {
+// migrateAuthJsonToSeparateTable handles migration from single auth_json to auth_jsons table
+// This migration:
+// 1. Creates auth_jsons table if it doesn't exist
+// 2. Migrates existing auth_json data from oauth_providers to auth_jsons table
+// 3. Drops auth_json column from oauth_providers
+func migrateAuthJsonToSeparateTable(db *gorm.DB) error {
 	if db == nil {
 		return fmt.Errorf("db is nil")
 	}
 
-	log.Infof("Starting migration 003: OAuth providers migration")
+	log.Infof("Starting migration 003: AuthJson separate table migration")
 
-	// Step 1: Create channels for OAuth providers
-	if err := createChannelsForOAuthProviders(db); err != nil {
-		return err
+	dialect := db.Dialector.Name()
+
+	// Check if oauth_providers table exists
+	if !db.Migrator().HasTable("o_auth_providers") && !db.Migrator().HasTable("oauth_providers") {
+		log.Infof("Migration 003: oauth_providers table does not exist, skipping")
+		return nil
 	}
 
-	// Step 2: Set UseOAuth for existing channels
-	if err := setUseOAuthField(db); err != nil {
-		return err
+	// Determine the actual table name (GORM converts OAuthProvider to o_auth_providers)
+	tableName := "o_auth_providers"
+	if !db.Migrator().HasTable(tableName) {
+		tableName = "oauth_providers"
 	}
 
-	// Step 3: Migrate negative channel IDs in group_items
-	if err := migrateNegativeChannelIDs(db); err != nil {
-		return err
+	// Check if auth_jsons table already exists
+	if db.Migrator().HasTable("auth_jsons") {
+		log.Infof("Migration 003: auth_jsons table already exists, skipping")
+		return nil
 	}
 
-	// Step 4: Drop old columns from oauth_providers
-	if err := dropOAuthProviderModelColumns(db); err != nil {
-		return err
+	// Step 1: Create auth_jsons table
+	if err := db.AutoMigrate(&model.AuthJson{}); err != nil {
+		return fmt.Errorf("failed to create auth_jsons table: %w", err)
+	}
+	log.Infof("Migration 003: Created auth_jsons table")
+
+	// Step 2: Check if auth_json column exists
+	hasAuthJSONCol := hasColumnHelper(db, dialect, tableName, "auth_json")
+	if !hasAuthJSONCol {
+		log.Infof("Migration 003: auth_json column does not exist, skipping data migration")
+		return nil
+	}
+
+	// Step 3: Migrate existing auth_json data from oauth_providers
+	var providers []oauthProviderAuthData
+	if err := db.Table(tableName).Where("auth_json IS NOT NULL AND auth_json != ''").Find(&providers).Error; err != nil {
+		log.Warnf("Migration 003: Failed to query providers with auth_json: %v", err)
+		// Not critical, continue
+	} else {
+		migrated := 0
+		for _, p := range providers {
+			authJson := &model.AuthJson{
+				OAuthProviderID: p.ID,
+				Content:         p.AuthJSON,
+				Enabled:         true,
+				StatusCode:      0,
+			}
+			if err := db.Create(authJson).Error; err != nil {
+				log.Warnf("Migration 003: Failed to migrate auth_json for provider %d: %v", p.ID, err)
+			} else {
+				migrated++
+			}
+		}
+		log.Infof("Migration 003: Migrated %d auth_json records to auth_jsons table", migrated)
+	}
+
+	// Step 4: Drop auth_json column from oauth_providers
+	if err := dropColumnHelper(db, dialect, tableName, "auth_json"); err != nil {
+		log.Warnf("Migration 003: Failed to drop auth_json column: %v", err)
+		// Not critical for functionality
+	} else {
+		log.Infof("Migration 003: Dropped auth_json column from %s", tableName)
 	}
 
 	log.Infof("Migration 003 completed successfully")
 	return nil
 }
 
-// createChannelsForOAuthProviders creates Channel records for OAuth providers that don't have one
-func createChannelsForOAuthProviders(db *gorm.DB) error {
-	// Check if oauth_providers table exists
-	if !db.Migrator().HasTable("oauth_providers") {
-		log.Infof("Migration 003: oauth_providers table does not exist, skipping channel creation")
-		return nil
+// hasColumnHelper checks if a column exists in a table across different databases
+func hasColumnHelper(db *gorm.DB, dialect, table, column string) bool {
+	switch dialect {
+	case "sqlite":
+		var name string
+		db.Raw("SELECT name FROM pragma_table_info(?) WHERE name = ? LIMIT 1", table, column).Scan(&name)
+		return name == column
+	case "mysql":
+		var count int64
+		db.Raw("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?", table, column).Scan(&count)
+		return count > 0
+	case "postgres":
+		var count int64
+		db.Raw("SELECT COUNT(*) FROM information_schema.columns WHERE table_name = ? AND column_name = ?", table, column).Scan(&count)
+		return count > 0
+	default:
+		return db.Migrator().HasColumn(table, column)
 	}
-
-	// Get all OAuth providers using raw SQL to read model/custom_model columns
-	var providers []oauthProviderData
-	if err := db.Table("oauth_providers").Find(&providers).Error; err != nil {
-		return fmt.Errorf("failed to fetch OAuth providers: %w", err)
-	}
-
-	if len(providers) == 0 {
-		log.Infof("Migration 003: No OAuth providers found")
-		return nil
-	}
-
-	log.Infof("Migration 003: Found %d OAuth providers", len(providers))
-
-	created := 0
-	skipped := 0
-
-	for _, provider := range providers {
-		// Check if a channel already exists for this OAuth provider
-		var existingChannel model.Channel
-		err := db.Where("use_oauth = ? AND oauth_provider_id = ?", true, provider.ID).
-			First(&existingChannel).Error
-
-		if err == nil {
-			skipped++
-			continue
-		}
-
-		if err != gorm.ErrRecordNotFound {
-			log.Warnf("Migration 003: Error checking for existing channel for provider %d: %v",
-				provider.ID, err)
-			continue
-		}
-
-		// Create a new channel for this OAuth provider
-		channel := model.Channel{
-			Name:            fmt.Sprintf("OAuth-%s", provider.Name),
-			Type:            outbound.OutboundTypeOpenAIChat,
-			Enabled:         provider.Status == 1,
-			BaseUrls:        []model.BaseUrl{{URL: provider.getBaseURL(), Delay: 0}},
-			Keys:            []model.ChannelKey{},
-			Model:           provider.Model,
-			CustomModel:     provider.CustomModel,
-			Proxy:           false,
-			AutoSync:        false,
-			AutoGroup:       model.AutoGroupTypeNone,
-			CustomHeader:    []model.CustomHeader{},
-			UseOAuth:        true,
-			OAuthProviderID: provider.ID,
-		}
-
-		if err := db.Create(&channel).Error; err != nil {
-			log.Warnf("Migration 003: Failed to create channel for OAuth provider %d (%s): %v",
-				provider.ID, provider.Name, err)
-			continue
-		}
-
-		created++
-		log.Infof("Migration 003: Created channel %d for OAuth provider %d (%s)",
-			channel.ID, provider.ID, provider.Name)
-	}
-
-	log.Infof("Migration 003: Created %d channels, skipped %d existing channels", created, skipped)
-	return nil
 }
 
-// setUseOAuthField sets UseOAuth=true for channels that have OAuthProviderID > 0
-func setUseOAuthField(db *gorm.DB) error {
-	// Count channels that need migration
-	var count int64
-	if err := db.Table("channels").
-		Where("use_o_auth = ? AND oauth_provider_id > ?", false, 0).
-		Count(&count).Error; err != nil {
-		return fmt.Errorf("failed to count channels to migrate: %w", err)
+// dropColumnHelper drops a column from a table across different databases
+func dropColumnHelper(db *gorm.DB, dialect, table, column string) error {
+	var sql string
+	switch dialect {
+	case "sqlite":
+		// SQLite 3.35.0+
+		sql = fmt.Sprintf("ALTER TABLE %s DROP COLUMN %s", table, column)
+	case "mysql":
+		sql = fmt.Sprintf("ALTER TABLE `%s` DROP COLUMN `%s`", table, column)
+	case "postgres":
+		sql = fmt.Sprintf("ALTER TABLE %s DROP COLUMN IF EXISTS %s", table, column)
+	default:
+		sql = fmt.Sprintf("ALTER TABLE %s DROP COLUMN %s", table, column)
 	}
-
-	if count == 0 {
-		return nil
-	}
-
-	log.Infof("Migration 003: Found %d channels to set UseOAuth", count)
-
-	// Update channels
-	result := db.Table("channels").
-		Where("use_o_auth = ? AND o_auth_provider_id > ?", false, 0).
-		Update("use_o_auth", true)
-
-	if result.Error != nil {
-		return fmt.Errorf("failed to update channels: %w", result.Error)
-	}
-
-	log.Infof("Migration 003: Updated %d channels with UseOAuth=true", result.RowsAffected)
-	return nil
-}
-
-// migrateNegativeChannelIDs migrates group_items with negative channel_id to positive IDs
-func migrateNegativeChannelIDs(db *gorm.DB) error {
-	// Check if group_items table exists
-	if !db.Migrator().HasTable("group_items") {
-		return nil
-	}
-
-	// Find all group_items with negative channel_id
-	type GroupItem struct {
-		ID        int `gorm:"primaryKey"`
-		ChannelID int
-	}
-	var negativeItems []GroupItem
-	if err := db.Table("group_items").Where("channel_id < 0").Find(&negativeItems).Error; err != nil {
-		log.Warnf("Migration 003: Failed to query negative channel_id items: %v", err)
-		return nil // Not a critical error
-	}
-
-	if len(negativeItems) == 0 {
-		return nil
-	}
-
-	log.Infof("Migration 003: Found %d group_items with negative channel_id", len(negativeItems))
-
-	migrated := 0
-	deleted := 0
-
-	for _, item := range negativeItems {
-		// The old pattern: channel_id = -oauth_provider_id
-		oauthProviderID := -item.ChannelID
-
-		// Find the corresponding channel
-		var channel struct {
-			ID int `gorm:"primaryKey"`
-		}
-		err := db.Table("channels").
-			Where("use_o_auth = ? AND oauth_provider_id = ?", true, oauthProviderID).
-			First(&channel).Error
-
-		if err != nil {
-			// No corresponding channel found, delete the group_item
-			log.Warnf("Migration 003: No channel found for oauth_provider_id %d, deleting group_item %d",
-				oauthProviderID, item.ID)
-			if err := db.Table("group_items").Where("id = ?", item.ID).Delete(nil).Error; err != nil {
-				log.Warnf("Migration 003: Failed to delete group_item %d: %v", item.ID, err)
-			} else {
-				deleted++
-			}
-			continue
-		}
-
-		// Update the group_item to use the positive channel ID
-		if err := db.Table("group_items").Where("id = ?", item.ID).Update("channel_id", channel.ID).Error; err != nil {
-			log.Warnf("Migration 003: Failed to update group_item %d: %v", item.ID, err)
-			continue
-		}
-		migrated++
-	}
-
-	log.Infof("Migration 003: Migrated %d group_items, deleted %d items", migrated, deleted)
-	return nil
-}
-
-// dropOAuthProviderModelColumns drops model and custom_model columns from oauth_providers
-func dropOAuthProviderModelColumns(db *gorm.DB) error {
-	// Check if the table exists
-	if !db.Migrator().HasTable("oauth_providers") {
-		return nil
-	}
-
-	// Drop model column if exists
-	if db.Migrator().HasColumn("oauth_providers", "model") {
-		if err := db.Migrator().DropColumn("oauth_providers", "model"); err != nil {
-			log.Warnf("Migration 003: Failed to drop model column: %v", err)
-			return err
-		}
-		log.Infof("Migration 003: Dropped model column from oauth_providers")
-	}
-
-	// Drop custom_model column if exists
-	if db.Migrator().HasColumn("oauth_providers", "custom_model") {
-		if err := db.Migrator().DropColumn("oauth_providers", "custom_model"); err != nil {
-			log.Warnf("Migration 003: Failed to drop custom_model column: %v", err)
-			return err
-		}
-		log.Infof("Migration 003: Dropped custom_model column from oauth_providers")
-	}
-
-	return nil
+	return db.Exec(sql).Error
 }

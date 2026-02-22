@@ -8,14 +8,9 @@ import {
     TableRow,
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { MoreHorizontal, Plus, RefreshCw, Pencil, Trash } from "lucide-react"
-import { useOAuthProviderList, useDeleteOAuthProvider, useRefreshOAuthProvider, OAuthProvider } from "@/api/endpoints/oauthProvider"
+import { Switch } from "@/components/ui/switch"
+import { Plus, RefreshCw, Pencil, Trash } from "lucide-react"
+import { useOAuthProviderList, useDeleteOAuthProvider, useRefreshOAuthProvider, useUpdateOAuthProvider, OAuthProvider } from "@/api/endpoints/oauthProvider"
 import { formatDateTime } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { useState } from "react"
@@ -26,6 +21,7 @@ export function OAuthProviderList() {
     const { data: providers, isLoading } = useOAuthProviderList()
     const deleteMutation = useDeleteOAuthProvider()
     const refreshMutation = useRefreshOAuthProvider()
+    const updateMutation = useUpdateOAuthProvider()
     const [isCreateOpen, setIsCreateOpen] = useState(false)
     const [editingProvider, setEditingProvider] = useState<OAuthProvider | null>(null)
     const t = useTranslations("oauthProvider")
@@ -49,6 +45,13 @@ export function OAuthProviderList() {
         setIsCreateOpen(true)
     }
 
+    const handleToggleStatus = (provider: OAuthProvider) => {
+        updateMutation.mutate({
+            id: provider.id,
+            status: provider.status === 1 ? 0 : 1,
+        })
+    }
+
     return (
         <div className="space-y-4">
             <div className="flex justify-between items-center">
@@ -66,9 +69,9 @@ export function OAuthProviderList() {
                             <TableHead>ID</TableHead>
                             <TableHead>{t("name")}</TableHead>
                             <TableHead>{t("type")}</TableHead>
-                            <TableHead>{t("status")}</TableHead>
                             <TableHead>{t("lastRefresh")}</TableHead>
                             <TableHead>{t("createdAt")}</TableHead>
+                            <TableHead>{t("enabled")}</TableHead>
                             <TableHead className="text-right">{t("actions")}</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -80,39 +83,40 @@ export function OAuthProviderList() {
                                 <TableCell>
                                     <Badge variant="outline">{provider.provider_type}</Badge>
                                 </TableCell>
-                                <TableCell>
-                                    <Badge variant={provider.status === 1 ? "default" : "secondary"}>
-                                        {provider.status === 1 ? t("active") : t("inactive")}
-                                    </Badge>
-                                </TableCell>
                                 <TableCell>{formatDateTime(provider.last_refresh_at)}</TableCell>
                                 <TableCell>{formatDateTime(provider.created_at)}</TableCell>
+                                <TableCell>
+                                    <Switch
+                                        checked={provider.status === 1}
+                                        onCheckedChange={() => handleToggleStatus(provider)}
+                                    />
+                                </TableCell>
                                 <TableCell className="text-right">
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <Button variant="ghost" className="h-8 w-8 p-0">
-                                                <span className="sr-only">Open menu</span>
-                                                <MoreHorizontal className="h-4 w-4" />
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end">
-                                            <DropdownMenuItem onClick={() => handleRefresh(provider.id)}>
-                                                <RefreshCw className="mr-2 h-4 w-4" />
-                                                {t("refresh")}
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => handleEdit(provider)}>
-                                                <Pencil className="mr-2 h-4 w-4" />
-                                                {t("edit")}
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                                onClick={() => handleDelete(provider.id)}
-                                                className="text-red-600 focus:text-red-600"
-                                            >
-                                                <Trash className="mr-2 h-4 w-4" />
-                                                {t("delete")}
-                                            </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
+                                    <div className="flex items-center justify-end gap-1">
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => handleRefresh(provider.id)}
+                                            disabled={refreshMutation.isPending}
+                                        >
+                                            <RefreshCw className={`h-4 w-4 ${refreshMutation.isPending ? 'animate-spin' : ''}`} />
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => handleEdit(provider)}
+                                        >
+                                            <Pencil className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => handleDelete(provider.id)}
+                                            className="text-destructive hover:text-destructive"
+                                        >
+                                            <Trash className="h-4 w-4" />
+                                        </Button>
+                                    </div>
                                 </TableCell>
                             </TableRow>
                         ))}

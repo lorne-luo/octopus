@@ -11,10 +11,22 @@ export type OAuthProviderChannel = {
   enabled: boolean;
 };
 
+export type AuthJson = {
+  id: number;
+  oauth_provider_id: number;
+  content: string;
+  enabled: boolean;
+  status_code: number;
+  last_use_time_stamp: number;
+  total_token: number;
+  remark: string;
+};
+
 export type OAuthProvider = {
   id: number;
   name: string;
   provider_type: string;
+  auth_jsons?: AuthJson[];
   api_key: string;
   status: number;
   last_refresh_at: number;
@@ -25,26 +37,42 @@ export type OAuthProvider = {
   channel?: OAuthProviderChannel;
 };
 
+export type AuthJsonAddRequest = {
+  enabled: boolean;
+  content: string;
+  remark?: string;
+};
+
+export type AuthJsonUpdateRequest = {
+  id: number;
+  enabled?: boolean;
+  content?: string;
+  remark?: string;
+};
+
 export type CreateOAuthProviderRequest = {
   name: string;
   provider_type: string;
-  auth_json: string;
   api_key?: string;
   status?: number;
   model?: string;
   custom_model?: string;
   match_regex?: string;
+  auth_jsons?: AuthJsonAddRequest[];
 };
 
 export type UpdateOAuthProviderRequest = {
   id: number;
   name?: string;
   provider_type?: string;
-  auth_json?: string;
   status?: number;
   model?: string;
   custom_model?: string;
   match_regex?: string;
+  base_url?: string;
+  auth_jsons_to_add?: AuthJsonAddRequest[];
+  auth_jsons_to_update?: AuthJsonUpdateRequest[];
+  auth_jsons_to_delete?: number[];
 };
 
 export function useOAuthProviderList() {

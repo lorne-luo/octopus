@@ -7,7 +7,7 @@ It is built with Go (Backend) and React/Next.js (Frontend).
 ## Tech Stack
 - **Backend**: Go, Gin, GORM
 - **Frontend**: React, Next.js, Tailwind CSS
-- **Database**: SQLite, MySQL, PostgreSQL
+- **Database**: SQLite, MySQL, PostgreSQL, remember OAuthProvider model's table name is o_auth_providers, Channel.OAuthProvider column name is o_auth_provider_id
 - **Container**: Docker
 
 ## Development Commands

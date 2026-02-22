@@ -357,11 +357,40 @@ func ChannelDel(id int, ctx context.Context) error {
 func ChannelLLMList(ctx context.Context) ([]model.LLMChannel, error) {
 	models := []model.LLMChannel{}
 	for _, channel := range channelCache.GetAll() {
-		// For OAuth channels, check if the linked OAuth provider has an API key
+		// Skip channels without valid credentials
 		if channel.UseOAuth {
-			if channel.OAuthProvider == nil || channel.OAuthProvider.APIKey == "" {
+			// For OAuth channels, skip if OAuthProvider has no enabled AuthJsons with content
+			if channel.OAuthProvider == nil || len(channel.OAuthProvider.AuthJsons) == 0 {
 				continue
 			}
+			hasValidAuthJson := false
+			for _, aj := range channel.OAuthProvider.AuthJsons {
+				if aj.Enabled && aj.Content != "" {
+					hasValidAuthJson = true
+					break
+				}
+			}
+			if !hasValidAuthJson {
+				continue
+			}
+		} else {
+			// For regular channels, skip if no enabled keys with valid channel_key
+			hasValidKey := false
+			for _, key := range channel.Keys {
+				if key.Enabled && key.ChannelKey != "" {
+					hasValidKey = true
+					break
+				}
+			}
+			if !hasValidKey {
+				continue
+			}
+		}
+
+		// Get channel name, strip "OAuth-" prefix for OAuth channels
+		channelName := channel.Name
+		if channel.UseOAuth && strings.HasPrefix(channelName, "OAuth-") {
+			channelName = strings.TrimPrefix(channelName, "OAuth-")
 		}
 
 		modelNames := xstrings.SplitTrimCompact(",", channel.Model, channel.CustomModel)
@@ -373,7 +402,8 @@ func ChannelLLMList(ctx context.Context) ([]model.LLMChannel, error) {
 				Name:        modelName,
 				Enabled:     channel.Enabled,
 				ChannelID:   channel.ID,
-				ChannelName: channel.Name,
+				ChannelName: channelName,
+				UseOAuth:    channel.UseOAuth,
 			})
 		}
 	}
@@ -435,7 +465,7 @@ func channelRefreshCache(ctx context.Context) error {
 	if err := db.GetDB().WithContext(ctx).
 		Preload("Keys").
 		Preload("Stats").
-		Preload("OAuthProvider").
+		Preload("OAuthProvider.AuthJsons").
 		Find(&channels).Error; err != nil {
 		log.Warnf("failed to get channels: %v", err)
 		return err
@@ -467,7 +497,7 @@ func channelRefreshCacheByID(id int, ctx context.Context) error {
 	if err := db.GetDB().WithContext(ctx).
 		Preload("Keys").
 		Preload("Stats").
-		Preload("OAuthProvider").
+		Preload("OAuthProvider.AuthJsons").
 		First(&channel, id).Error; err != nil {
 		return err
 	}

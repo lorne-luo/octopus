@@ -48,6 +48,40 @@ func init() {
 		)
 }
 
+// validateAndNormalizeAuthJsonContent validates and normalizes auth_json content for a given provider type.
+// Returns the normalized content or an error message.
+func validateAndNormalizeAuthJsonContent(content string, providerType model.OAuthProviderType) (string, string) {
+	// Validate JSON format
+	if !json.Valid([]byte(content)) {
+		return "", "auth_json content must be valid JSON"
+	}
+
+	// Provider-specific validation and normalization
+	if providerType == model.OAuthProviderTypeIFlow {
+		var data map[string]interface{}
+		if err := json.Unmarshal([]byte(content), &data); err != nil {
+			return "", "failed to parse auth_json content: " + err.Error()
+		}
+		bxAuthRaw, ok := data["BXAuth"]
+		if !ok {
+			return "", "auth_json must contain BXAuth field for iFlow provider"
+		}
+		bxAuth, ok := bxAuthRaw.(string)
+		if !ok {
+			return "", "BXAuth must be a string"
+		}
+		normalizedBXAuth, err := iflow.NormalizeCookie(bxAuth)
+		if err != nil {
+			return "", err.Error()
+		}
+		// Rebuild auth_json with normalized value
+		normalizedContent, _ := json.Marshal(map[string]string{"BXAuth": normalizedBXAuth})
+		return string(normalizedContent), ""
+	}
+
+	return content, ""
+}
+
 func listOAuthProvider(c *gin.Context) {
 	providers, err := op.OAuthProviderList(c.Request.Context())
 	if err != nil {
@@ -58,14 +92,14 @@ func listOAuthProvider(c *gin.Context) {
 }
 
 type CreateOAuthProviderRequest struct {
-	Name         string                `json:"name" binding:"required"`
-	ProviderType model.OAuthProviderType `json:"provider_type" binding:"required"`
-	AuthJSON     string                `json:"auth_json" binding:"required"`
-	APIKey       string                `json:"api_key"`
-	Status       int                   `json:"status"`
-	Model        string                `json:"model"`
-	CustomModel  string                `json:"custom_model"`
-	MatchRegex   *string               `json:"match_regex"`
+	Name         string                    `json:"name" binding:"required"`
+	ProviderType model.OAuthProviderType   `json:"provider_type" binding:"required"`
+	APIKey       string                    `json:"api_key"`
+	Status       int                       `json:"status"`
+	Model        string                    `json:"model"`
+	CustomModel  string                    `json:"custom_model"`
+	MatchRegex   *string                   `json:"match_regex"`
+	AuthJsons    []model.AuthJsonAddRequest `json:"auth_jsons"`
 }
 
 func createOAuthProvider(c *gin.Context) {
@@ -75,52 +109,25 @@ func createOAuthProvider(c *gin.Context) {
 		return
 	}
 
-	// Validate AuthJSON format
-	if req.AuthJSON == "" {
-		resp.Error(c, http.StatusBadRequest, "auth_json is required")
-		return
-	}
+	// Validate and normalize AuthJsons
+	authJsons := make([]model.AuthJsonAddRequest, 0, len(req.AuthJsons))
+	for _, aj := range req.AuthJsons {
+		content, errMsg := validateAndNormalizeAuthJsonContent(aj.Content, req.ProviderType)
+		if errMsg != "" {
+			resp.Error(c, http.StatusBadRequest, errMsg)
+			return
+		}
 
-	// Validate JSON format
-	if !json.Valid([]byte(req.AuthJSON)) {
-		resp.Error(c, http.StatusBadRequest, "auth_json must be valid JSON")
-		return
-	}
-
-	// Provider-specific validation
-	authJSON := req.AuthJSON
-	if req.ProviderType == model.OAuthProviderTypeIFlow {
-		// Extract and validate BXAuth for iFlow
-		var data map[string]interface{}
-		if err := json.Unmarshal([]byte(req.AuthJSON), &data); err != nil {
-			resp.Error(c, http.StatusBadRequest, "failed to parse auth_json: "+err.Error())
-			return
-		}
-		bxAuthRaw, ok := data["BXAuth"]
-		if !ok {
-			resp.Error(c, http.StatusBadRequest, "auth_json must contain BXAuth field for iFlow provider")
-			return
-		}
-		bxAuth, ok := bxAuthRaw.(string)
-		if !ok {
-			resp.Error(c, http.StatusBadRequest, "BXAuth must be a string")
-			return
-		}
-		// Normalize the BXAuth value
-		normalizedBXAuth, err := iflow.NormalizeCookie(bxAuth)
-		if err != nil {
-			resp.Error(c, http.StatusBadRequest, err.Error())
-			return
-		}
-		// Rebuild auth_json with normalized value
-		normalizedAuthJSON, _ := json.Marshal(map[string]string{"BXAuth": normalizedBXAuth})
-		authJSON = string(normalizedAuthJSON)
+		authJsons = append(authJsons, model.AuthJsonAddRequest{
+			Enabled: aj.Enabled,
+			Content: content,
+			Remark:  aj.Remark,
+		})
 	}
 
 	provider := &model.OAuthProvider{
 		Name:         req.Name,
 		ProviderType: req.ProviderType,
-		AuthJSON:     authJSON,
 		APIKey:       req.APIKey,
 		Status:       req.Status,
 	}
@@ -130,14 +137,16 @@ func createOAuthProvider(c *gin.Context) {
 		Model:       req.Model,
 		CustomModel: req.CustomModel,
 		MatchRegex:  req.MatchRegex,
+		AuthJsons:   authJsons,
 	}
 
 	if err := op.OAuthProviderCreate(createReq, c.Request.Context()); err != nil {
 		resp.Error(c, http.StatusInternalServerError, err.Error())
 		return
 	}
-	// Trigger immediate refresh to get API key if auth_json is provided
-	if provider.AuthJSON != "" && provider.APIKey == "" {
+
+	// Trigger immediate refresh to get API key if auth_jsons are provided
+	if len(provider.AuthJsons) > 0 && provider.APIKey == "" {
 		manager := oauth.GetManager()
 		go func() {
 			_ = manager.RefreshAPIKey(context.Background(), provider)
@@ -153,46 +162,32 @@ func updateOAuthProvider(c *gin.Context) {
 		return
 	}
 
-	// Validate auth_json format if provided
-	if req.AuthJSON != nil && *req.AuthJSON != "" {
-		if !json.Valid([]byte(*req.AuthJSON)) {
-			resp.Error(c, http.StatusBadRequest, "auth_json must be valid JSON")
+	// Get existing provider to check type
+	existingProvider, err := op.OAuthProviderGet(req.ID, c.Request.Context())
+	if err != nil {
+		resp.Error(c, http.StatusNotFound, "provider not found")
+		return
+	}
+
+	// Validate and normalize AuthJsons to add
+	for i, aj := range req.AuthJsonsToAdd {
+		content, errMsg := validateAndNormalizeAuthJsonContent(aj.Content, existingProvider.ProviderType)
+		if errMsg != "" {
+			resp.Error(c, http.StatusBadRequest, errMsg)
 			return
 		}
+		req.AuthJsonsToAdd[i].Content = content
+	}
 
-		// Get existing provider to check type
-		existingProvider, err := op.OAuthProviderGet(req.ID, c.Request.Context())
-		if err != nil {
-			resp.Error(c, http.StatusNotFound, "provider not found")
-			return
-		}
-
-		// Provider-specific validation
-		if existingProvider.ProviderType == model.OAuthProviderTypeIFlow {
-			var data map[string]interface{}
-			if err := json.Unmarshal([]byte(*req.AuthJSON), &data); err != nil {
-				resp.Error(c, http.StatusBadRequest, "failed to parse auth_json: "+err.Error())
+	// Validate and normalize AuthJsons to update
+	for _, aj := range req.AuthJsonsToUpdate {
+		if aj.Content != nil && *aj.Content != "" {
+			content, errMsg := validateAndNormalizeAuthJsonContent(*aj.Content, existingProvider.ProviderType)
+			if errMsg != "" {
+				resp.Error(c, http.StatusBadRequest, errMsg)
 				return
 			}
-			bxAuthRaw, ok := data["BXAuth"]
-			if !ok {
-				resp.Error(c, http.StatusBadRequest, "auth_json must contain BXAuth field for iFlow provider")
-				return
-			}
-			bxAuth, ok := bxAuthRaw.(string)
-			if !ok {
-				resp.Error(c, http.StatusBadRequest, "BXAuth must be a string")
-				return
-			}
-			// Normalize the BXAuth value
-			normalizedBXAuth, err := iflow.NormalizeCookie(bxAuth)
-			if err != nil {
-				resp.Error(c, http.StatusBadRequest, err.Error())
-				return
-			}
-			// Rebuild auth_json with normalized value
-			normalizedAuthJSON, _ := json.Marshal(map[string]string{"BXAuth": normalizedBXAuth})
-			*req.AuthJSON = string(normalizedAuthJSON)
+			*aj.Content = content
 		}
 	}
 
@@ -261,14 +256,12 @@ func fetchOAuthProviderModels(c *gin.Context) {
 	if provider.APIKey == "" {
 		manager := oauth.GetManager()
 		if err := manager.RefreshAPIKey(c.Request.Context(), provider); err != nil {
-
-			resp.Error(c, http.StatusBadRequest, "failed to refresh api key2: "+err.Error())
+			resp.Error(c, http.StatusBadRequest, "failed to refresh api key: "+err.Error())
 			return
 		}
 	}
 
 	// Build Channel-like request for FetchModels
-	// IFlow uses OpenAI-compatible API
 	channel := model.Channel{
 		Type:         outbound.OutboundTypeOpenAIChat,
 		BaseUrls:     []model.BaseUrl{{URL: provider.GetBaseURL()}},
