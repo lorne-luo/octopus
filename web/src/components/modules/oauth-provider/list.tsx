@@ -1,5 +1,11 @@
 
 import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/animate-ui/components/animate/tooltip"
+import {
     Table,
     TableBody,
     TableCell,
@@ -53,89 +59,106 @@ export function OAuthProviderList() {
     }
 
     return (
-        <div className="space-y-4">
-            <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-bold tracking-tight">{t("title")}</h2>
-                <Button onClick={() => { setEditingProvider(null); setIsCreateOpen(true) }}>
-                    <Plus className="mr-2 h-4 w-4" />
-                    {t("create")}
-                </Button>
-            </div>
+        <TooltipProvider>
+            <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                    <h2 className="text-2xl font-bold tracking-tight">{t("title")}</h2>
+                    <Button onClick={() => { setEditingProvider(null); setIsCreateOpen(true) }}>
+                        <Plus className="mr-2 h-4 w-4" />
+                        {t("create")}
+                    </Button>
+                </div>
 
-            <div className="rounded-md border">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>ID</TableHead>
-                            <TableHead>{t("name")}</TableHead>
-                            <TableHead>{t("type")}</TableHead>
-                            <TableHead>{t("lastRefresh")}</TableHead>
-                            <TableHead>{t("createdAt")}</TableHead>
-                            <TableHead>{t("enabled")}</TableHead>
-                            <TableHead className="text-right">{t("actions")}</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {providers?.map((provider) => (
-                            <TableRow key={provider.id}>
-                                <TableCell>{provider.id}</TableCell>
-                                <TableCell className="font-medium">{provider.name}</TableCell>
-                                <TableCell>
-                                    <Badge variant="outline">{provider.provider_type}</Badge>
-                                </TableCell>
-                                <TableCell>{formatDateTime(provider.last_refresh_at)}</TableCell>
-                                <TableCell>{formatDateTime(provider.created_at)}</TableCell>
-                                <TableCell>
-                                    <Switch
-                                        checked={provider.status === 1}
-                                        onCheckedChange={() => handleToggleStatus(provider)}
-                                    />
-                                </TableCell>
-                                <TableCell className="text-right">
-                                    <div className="flex items-center justify-end gap-1">
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => handleRefresh(provider.id)}
-                                            disabled={refreshMutation.isPending}
-                                        >
-                                            <RefreshCw className={`h-4 w-4 ${refreshMutation.isPending ? 'animate-spin' : ''}`} />
-                                        </Button>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => handleEdit(provider)}
-                                        >
-                                            <Pencil className="h-4 w-4" />
-                                        </Button>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => handleDelete(provider.id)}
-                                            className="text-destructive hover:text-destructive"
-                                        >
-                                            <Trash className="h-4 w-4" />
-                                        </Button>
-                                    </div>
-                                </TableCell>
-                            </TableRow>
-                        ))}
-                        {(!providers || providers.length === 0) && (
+                <div className="rounded-md border">
+                    <Table>
+                        <TableHeader>
                             <TableRow>
-                                <TableCell colSpan={7} className="text-center h-24 text-muted-foreground">
-                                    {t("noData")}
-                                </TableCell>
+                                <TableHead>ID</TableHead>
+                                <TableHead>{t("name")}</TableHead>
+                                <TableHead>{t("type")}</TableHead>
+                                <TableHead>{t("lastRefresh")}</TableHead>
+                                <TableHead>{t("createdAt")}</TableHead>
+                                <TableHead>{t("enabled")}</TableHead>
+                                <TableHead className="text-right">{t("actions")}</TableHead>
                             </TableRow>
-                        )}
-                    </TableBody>
-                </Table>
-            </div>
+                        </TableHeader>
+                        <TableBody>
+                            {providers?.map((provider) => (
+                                <TableRow key={provider.id}>
+                                    <TableCell>{provider.id}</TableCell>
+                                    <TableCell className="font-medium">{provider.name}</TableCell>
+                                    <TableCell>
+                                        <Badge variant="outline">{provider.provider_type}</Badge>
+                                    </TableCell>
+                                    <TableCell>{formatDateTime(provider.last_refresh_at)}</TableCell>
+                                    <TableCell>{formatDateTime(provider.created_at)}</TableCell>
+                                    <TableCell>
+                                        <Switch
+                                            checked={provider.status === 1}
+                                            onCheckedChange={() => handleToggleStatus(provider)}
+                                        />
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        <div className="flex items-center justify-end gap-1">
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => handleRefresh(provider.id)}
+                                                        disabled={refreshMutation.isPending}
+                                                    >
+                                                        <RefreshCw className={`h-4 w-4 ${refreshMutation.isPending ? 'animate-spin' : ''}`} />
+                                                    </Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>{t("refresh")}</TooltipContent>
+                                            </Tooltip>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => handleEdit(provider)}
+                                                    >
+                                                        <Pencil className="h-4 w-4" />
+                                                    </Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>{t("edit")}</TooltipContent>
+                                            </Tooltip>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => handleDelete(provider.id)}
+                                                        className="text-destructive hover:text-destructive"
+                                                    >
+                                                        <Trash className="h-4 w-4" />
+                                                    </Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>{t("delete")}</TooltipContent>
+                                            </Tooltip>
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                            {(!providers || providers.length === 0) && (
+                                <TableRow>
+                                    <TableCell colSpan={7} className="text-center h-24 text-muted-foreground">
+                                        {t("noData")}
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
 
-            <CreateEditOAuthProviderModal
-                open={isCreateOpen}
-                onOpenChange={setIsCreateOpen}
-                provider={editingProvider}
-            />
-        </div>
+                <CreateEditOAuthProviderModal
+                    open={isCreateOpen}
+                    onOpenChange={setIsCreateOpen}
+                    provider={editingProvider}
+                />
+            </div>
+        </TooltipProvider>
     )
 }
