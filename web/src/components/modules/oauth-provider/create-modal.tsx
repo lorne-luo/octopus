@@ -250,8 +250,8 @@ export function CreateEditOAuthProviderModal({
                     id: provider.id,
                     name: data.name,
                     status: status,
-                    model: data.model || undefined,
-                    custom_model: data.custom_model || undefined,
+                    model: data.model,                                                                       
+                    custom_model: data.custom_model,
                     match_regex: data.match_regex || undefined,
                     auth_jsons_to_add: authJsonsToAdd.length > 0 ? authJsonsToAdd : undefined,
                     auth_jsons_to_update: authJsonsToUpdate.length > 0 ? authJsonsToUpdate : undefined,
@@ -294,7 +294,7 @@ export function CreateEditOAuthProviderModal({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[500px]">
+            <DialogContent className="sm:max-w-[800px]">
                 <DialogHeader>
                     <DialogTitle>{provider ? t("editTitle") : t("createTitle")}</DialogTitle>
                 </DialogHeader>
