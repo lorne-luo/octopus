@@ -124,8 +124,9 @@ func RefreshAPIKey(ctx context.Context, bxAuth, keyName string) (*IFlowAPIKeyRes
 }
 
 // setBrowserHeaders sets headers to mimic browser behavior
+// bxAuth is the raw BXAuth value without the "BXAuth=" prefix
 func setBrowserHeaders(req *http.Request, bxAuth string) {
-	req.Header.Set("Cookie", bxAuth)
+	req.Header.Set("Cookie", "BXAuth="+bxAuth)
 	req.Header.Set("Accept", "application/json, text/plain, */*")
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
 	req.Header.Set("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")

@@ -6,21 +6,21 @@ import (
 )
 
 // NormalizeCookie normalizes raw cookie strings for iFlow authentication flows.
-// It validates that the cookie contains BXAuth field and returns only the BXAuth part.
-// This matches CLIProxyAPI behavior which only saves BXAuth=xxx;
+// It validates that the cookie contains BXAuth field and returns only the BXAuth value.
+// The returned value is just the raw value without "BXAuth=" prefix.
 func NormalizeCookie(raw string) (string, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
 		return "", fmt.Errorf("cookie cannot be empty")
 	}
 
-	// Extract only BXAuth field (same as CLIProxyAPI)
+	// Extract only BXAuth value
 	bxAuth := ExtractBXAuth(trimmed)
 	if bxAuth == "" {
 		return "", fmt.Errorf("cookie missing BXAuth field, please ensure cookie starts with BXAuth=")
 	}
 
-	return "BXAuth=" + bxAuth + ";", nil
+	return bxAuth, nil
 }
 
 // ExtractBXAuth extracts the BXAuth value from a cookie string.
