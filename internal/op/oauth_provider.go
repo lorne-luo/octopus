@@ -188,13 +188,17 @@ func OAuthProviderUpdate(req *model.OAuthProviderUpdateRequest, ctx context.Cont
 		}
 		if updateReq.Content != nil {
 			authJsonUpdates["content"] = *updateReq.Content
+			log.Infof("OAuthProviderUpdate: Updating auth_json %d content to: %s", updateReq.ID, *updateReq.Content)
 		}
 		if updateReq.Remark != nil {
 			authJsonUpdates["remark"] = *updateReq.Remark
 		}
+		log.Infof("OAuthProviderUpdate: auth_json %d updates: %+v", updateReq.ID, authJsonUpdates)
 		if len(authJsonUpdates) > 0 {
 			if err := tx.Model(&model.AuthJson{}).Where("id = ?", updateReq.ID).Updates(authJsonUpdates).Error; err != nil {
 				log.Warnf("OAuthProviderUpdate: Failed to update auth_json %d: %v", updateReq.ID, err)
+			} else {
+				log.Infof("OAuthProviderUpdate: Successfully updated auth_json %d", updateReq.ID)
 			}
 		}
 	}

@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/bestruirui/octopus/internal/helper"
+	log "github.com/bestruirui/octopus/internal/utils/log"
 	"github.com/bestruirui/octopus/internal/model"
 	"github.com/bestruirui/octopus/internal/oauth"
 	"github.com/bestruirui/octopus/internal/oauth/iflow"
@@ -162,6 +163,19 @@ func updateOAuthProvider(c *gin.Context) {
 		return
 	}
 
+	log.Infof("updateOAuthProvider: received request with ID=%d, AuthJsonsToAdd=%d, AuthJsonsToUpdate=%d, AuthJsonsToDelete=%d",
+		req.ID, len(req.AuthJsonsToAdd), len(req.AuthJsonsToUpdate), len(req.AuthJsonsToDelete))
+
+	// Log each AuthJson to update
+	for i, aj := range req.AuthJsonsToUpdate {
+		contentVal := "(nil)"
+		if aj.Content != nil {
+			contentVal = *aj.Content
+		}
+		log.Infof("updateOAuthProvider: AuthJsonsToUpdate[%d]: id=%d, content=%s, enabled=%v, remark=%v",
+			i, aj.ID, contentVal, aj.Enabled, aj.Remark)
+	}
+
 	// Get existing provider to check type
 	existingProvider, err := op.OAuthProviderGet(req.ID, c.Request.Context())
 	if err != nil {
@@ -180,14 +194,16 @@ func updateOAuthProvider(c *gin.Context) {
 	}
 
 	// Validate and normalize AuthJsons to update
-	for _, aj := range req.AuthJsonsToUpdate {
+	for i, aj := range req.AuthJsonsToUpdate {
 		if aj.Content != nil && *aj.Content != "" {
+			originalContent := *aj.Content
 			content, errMsg := validateAndNormalizeAuthJsonContent(*aj.Content, existingProvider.ProviderType)
 			if errMsg != "" {
 				resp.Error(c, http.StatusBadRequest, errMsg)
 				return
 			}
-			*aj.Content = content
+			*req.AuthJsonsToUpdate[i].Content = content
+			log.Infof("updateOAuthProvider: Normalized auth_json %d: original=%s -> normalized=%s", aj.ID, originalContent, content)
 		}
 	}
 

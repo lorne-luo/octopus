@@ -13,8 +13,8 @@ func TestFetchAPIKeyInfo(t *testing.T) {
 		if r.Method != "GET" {
 			t.Errorf("expected GET request, got %s", r.Method)
 		}
-		if r.Header.Get("Cookie") != "test-cookie" {
-			t.Errorf("expected Cookie header, got %s", r.Header.Get("Cookie"))
+		if r.Header.Get("Cookie") != "BXAuth=test-cookie" {
+			t.Errorf("expected Cookie header 'BXAuth=test-cookie', got %s", r.Header.Get("Cookie"))
 		}
 
 		resp := IFlowAPIKeyResponse{
@@ -59,8 +59,8 @@ func TestRefreshAPIKey(t *testing.T) {
 		if r.Method != "POST" {
 			t.Errorf("expected POST request, got %s", r.Method)
 		}
-		if r.Header.Get("Cookie") != "test-cookie" {
-			t.Errorf("expected Cookie header, got %s", r.Header.Get("Cookie"))
+		if r.Header.Get("Cookie") != "BXAuth=test-cookie" {
+			t.Errorf("expected Cookie header 'BXAuth=test-cookie', got %s", r.Header.Get("Cookie"))
 		}
 
 		var req apiKeyRequest
