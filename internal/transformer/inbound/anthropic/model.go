@@ -394,10 +394,10 @@ type AnthropicError struct {
 // Usage represents usage information in Anthropic format.
 type Usage struct {
 	// The number of input tokens which were used to bill.
-	InputTokens int64 `json:"input_tokens,omitempty"`
+	InputTokens int64 `json:"input_tokens"`
 
 	// The number of output tokens which were used.
-	OutputTokens int64 `json:"output_tokens,omitempty"`
+	OutputTokens int64 `json:"output_tokens"`
 
 	// The number of input tokens used to create the cache entry.
 	CacheCreationInputTokens int64 `json:"cache_creation_input_tokens,omitempty"`
