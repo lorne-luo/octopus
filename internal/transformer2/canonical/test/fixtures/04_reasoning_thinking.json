@@ -1,0 +1,297 @@
+[
+  {
+    "name": "openai_reasoning_effort",
+    "description": "OpenAI reasoning_effort parameter is preserved in internal format",
+    "inbound_format": "openai_chat",
+    "outbound_format": "openai_chat",
+    "client_request": {
+      "model": "o3-mini",
+      "messages": [{ "role": "user", "content": "Solve this math problem." }],
+      "reasoning_effort": "high"
+    },
+    "expected_internal_request": {
+      "model": "o3-mini",
+      "reasoning_effort": "high"
+    }
+  },
+
+  {
+    "name": "anthropic_thinking_enabled_to_reasoning_effort",
+    "description": "Anthropic thinking config converts to reasoning_effort and preserves budget",
+    "inbound_format": "anthropic",
+    "outbound_format": "openai_chat",
+    "client_request": {
+      "model": "claude-sonnet-4-20250514",
+      "max_tokens": 16384,
+      "thinking": {
+        "type": "enabled",
+        "budget_tokens": 10000
+      },
+      "messages": [{ "role": "user", "content": "Think about this." }]
+    },
+    "expected_internal_request": {
+      "reasoning_effort": "medium",
+      "reasoning_budget": 10000,
+      "notes": "budget_tokens maps to effort: low(<2048), medium(<16384), high(>=16384)"
+    }
+  },
+
+  {
+    "name": "anthropic_thinking_budget_levels",
+    "description": "Different budget_tokens values map to correct reasoning_effort levels",
+    "inbound_format": "anthropic",
+    "outbound_format": "openai_chat",
+    "variants": [
+      { "budget_tokens": 1024,  "expected_effort": "low" },
+      { "budget_tokens": 8192,  "expected_effort": "medium" },
+      { "budget_tokens": 32768, "expected_effort": "high" }
+    ]
+  },
+
+  {
+    "name": "reasoning_effort_to_anthropic_thinking",
+    "description": "Internal reasoning_effort converts back to Anthropic thinking config with budget",
+    "inbound_format": "openai_chat",
+    "outbound_format": "anthropic",
+    "client_request": {
+      "model": "claude-sonnet-4-20250514",
+      "messages": [{ "role": "user", "content": "Think." }],
+      "reasoning_effort": "high"
+    },
+    "expected_provider_request": {
+      "thinking": {
+        "type": "enabled",
+        "budget_tokens": 32768
+      }
+    },
+    "notes": "low→1024, medium→8192, high→32768 when no explicit budget"
+  },
+
+  {
+    "name": "reasoning_effort_to_gemini_thinking",
+    "description": "Internal reasoning_effort converts to Gemini thinkingConfig with budget",
+    "inbound_format": "openai_chat",
+    "outbound_format": "gemini",
+    "client_request": {
+      "model": "gemini-2.5-pro",
+      "messages": [{ "role": "user", "content": "Think." }],
+      "reasoning_effort": "medium"
+    },
+    "expected_provider_request": {
+      "generationConfig": {
+        "thinkingConfig": {
+          "thinkingBudget": 4096,
+          "includeThoughts": true
+        }
+      }
+    },
+    "notes": "Gemini thinking budgets: low→1024, medium→4096, high→24576"
+  },
+
+  {
+    "name": "reasoning_content_in_response",
+    "description": "Response with reasoning_content field is preserved in internal format",
+    "inbound_format": "openai_chat",
+    "outbound_format": "openai_chat",
+    "provider_response": {
+      "id": "resp-reason",
+      "object": "chat.completion",
+      "model": "o3-mini",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "The answer is 42.",
+            "reasoning_content": "Let me think step by step...\nFirst, I consider..."
+          },
+          "finish_reason": "stop"
+        }
+      ]
+    },
+    "expected_internal_response": {
+      "choices": [
+        {
+          "message": {
+            "content": "The answer is 42.",
+            "reasoning_content": "Let me think step by step...\nFirst, I consider..."
+          }
+        }
+      ]
+    }
+  },
+
+  {
+    "name": "anthropic_thinking_in_assistant_content",
+    "description": "Anthropic assistant message with thinking block converts to internal reasoning_content",
+    "inbound_format": "anthropic",
+    "outbound_format": "openai_chat",
+    "client_request": {
+      "model": "claude-sonnet-4-20250514",
+      "max_tokens": 8192,
+      "thinking": { "type": "enabled", "budget_tokens": 5000 },
+      "messages": [
+        { "role": "user", "content": "What is 2+2?" },
+        {
+          "role": "assistant",
+          "content": [
+            { "type": "thinking", "thinking": "Let me calculate: 2+2=4", "signature": "sig_abc123" },
+            { "type": "text", "text": "The answer is 4." }
+          ]
+        },
+        { "role": "user", "content": "And 3+3?" }
+      ]
+    },
+    "expected_internal_request": {
+      "messages": [
+        { "role": "user", "content": "What is 2+2?" },
+        {
+          "role": "assistant",
+          "content": "The answer is 4.",
+          "reasoning_content": "Let me calculate: 2+2=4",
+          "reasoning_signature": "sig_abc123"
+        },
+        { "role": "user", "content": "And 3+3?" }
+      ]
+    }
+  },
+
+  {
+    "name": "internal_thinking_to_anthropic_response",
+    "description": "Internal response with reasoning_content converts to Anthropic thinking block with signature",
+    "inbound_format": "anthropic",
+    "outbound_format": "openai_chat",
+    "expected_internal_response": {
+      "id": "resp-think",
+      "model": "claude-sonnet-4-20250514",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "The answer is 4.",
+            "reasoning_content": "Step 1: 2+2=4",
+            "reasoning_signature": "sig_xyz"
+          },
+          "finish_reason": "stop"
+        }
+      ],
+      "usage": { "prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30 }
+    },
+    "expected_client_response": {
+      "content": [
+        { "type": "thinking", "thinking": "Step 1: 2+2=4", "signature": "sig_xyz" },
+        { "type": "text", "text": "The answer is 4." }
+      ],
+      "stop_reason": "end_turn"
+    }
+  },
+
+  {
+    "name": "internal_thinking_no_signature_gets_placeholder",
+    "description": "When reasoning_content exists but no signature, Anthropic response gets placeholder signature",
+    "inbound_format": "anthropic",
+    "outbound_format": "openai_chat",
+    "expected_internal_response": {
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "Answer.",
+            "reasoning_content": "Thinking...",
+            "reasoning_signature": null
+          },
+          "finish_reason": "stop"
+        }
+      ]
+    },
+    "expected_client_response": {
+      "content": [
+        {
+          "type": "thinking",
+          "thinking": "Thinking...",
+          "signature_is_placeholder": true
+        },
+        { "type": "text", "text": "Answer." }
+      ]
+    }
+  },
+
+  {
+    "name": "internal_to_anthropic_outbound_with_thinking",
+    "description": "Outbound to Anthropic preserves thinking blocks in assistant messages",
+    "inbound_format": "openai_chat",
+    "outbound_format": "anthropic",
+    "client_request": {
+      "model": "claude-sonnet-4-20250514",
+      "reasoning_effort": "high",
+      "messages": [
+        { "role": "user", "content": "First question" },
+        {
+          "role": "assistant",
+          "content": "First answer",
+          "reasoning_content": "My thinking process",
+          "reasoning_signature": "sig_round"
+        },
+        { "role": "user", "content": "Follow up" }
+      ]
+    },
+    "expected_provider_request": {
+      "messages": [
+        { "role": "user", "content": "First question" },
+        {
+          "role": "assistant",
+          "content": [
+            { "type": "thinking", "thinking": "My thinking process", "signature": "sig_round" },
+            { "type": "text", "text": "First answer" }
+          ]
+        },
+        { "role": "user", "content": "Follow up" }
+      ]
+    }
+  },
+
+  {
+    "name": "gemini_thought_response",
+    "description": "Gemini response with thought=true parts converts to internal reasoning_content",
+    "inbound_format": "openai_chat",
+    "outbound_format": "gemini",
+    "provider_response_gemini": {
+      "candidates": [
+        {
+          "content": {
+            "parts": [
+              { "text": "Let me think about this...", "thought": true },
+              { "text": "The answer is 42." }
+            ],
+            "role": "model"
+          },
+          "finishReason": "STOP"
+        }
+      ],
+      "usageMetadata": {
+        "promptTokenCount": 10,
+        "candidatesTokenCount": 15,
+        "totalTokenCount": 25,
+        "thoughtsTokenCount": 8
+      }
+    },
+    "expected_internal_response": {
+      "choices": [
+        {
+          "message": {
+            "role": "assistant",
+            "content": "The answer is 42.",
+            "reasoning_content": "Let me think about this..."
+          }
+        }
+      ],
+      "usage": {
+        "completion_tokens_details": {
+          "reasoning_tokens": 8
+        }
+      }
+    }
+  }
+]

@@ -1,0 +1,175 @@
+[
+  {
+    "name": "embedding_single_string_input",
+    "description": "Single string embedding input is preserved in internal format",
+    "inbound_format": "openai_embed",
+    "outbound_format": "openai_embed",
+    "client_request": {
+      "model": "text-embedding-3-small",
+      "input": "Hello world"
+    },
+    "expected_internal_request": {
+      "model": "text-embedding-3-small",
+      "embedding_input": { "single": "Hello world" },
+      "messages": [],
+      "is_embedding_request": true
+    }
+  },
+
+  {
+    "name": "embedding_array_input",
+    "description": "Array of strings embedding input is preserved in internal format",
+    "inbound_format": "openai_embed",
+    "outbound_format": "openai_embed",
+    "client_request": {
+      "model": "text-embedding-3-small",
+      "input": ["Hello", "World", "Test"]
+    },
+    "expected_internal_request": {
+      "model": "text-embedding-3-small",
+      "embedding_input": { "multiple": ["Hello", "World", "Test"] },
+      "is_embedding_request": true
+    }
+  },
+
+  {
+    "name": "embedding_with_dimensions",
+    "description": "Embedding request with dimensions parameter",
+    "inbound_format": "openai_embed",
+    "outbound_format": "openai_embed",
+    "client_request": {
+      "model": "text-embedding-3-large",
+      "input": "Test",
+      "dimensions": 512
+    },
+    "expected_internal_request": {
+      "model": "text-embedding-3-large",
+      "embedding_dimensions": 512
+    }
+  },
+
+  {
+    "name": "embedding_encoding_format_float",
+    "description": "Embedding with float encoding format",
+    "inbound_format": "openai_embed",
+    "outbound_format": "openai_embed",
+    "client_request": {
+      "model": "text-embedding-3-small",
+      "input": "Test",
+      "encoding_format": "float"
+    },
+    "expected_internal_request": {
+      "embedding_encoding_format": "float"
+    }
+  },
+
+  {
+    "name": "embedding_encoding_format_base64",
+    "description": "Embedding with base64 encoding format",
+    "inbound_format": "openai_embed",
+    "outbound_format": "openai_embed",
+    "client_request": {
+      "model": "text-embedding-3-small",
+      "input": "Test",
+      "encoding_format": "base64"
+    },
+    "expected_internal_request": {
+      "embedding_encoding_format": "base64"
+    }
+  },
+
+  {
+    "name": "embedding_response_float",
+    "description": "Embedding response with float arrays is preserved",
+    "inbound_format": "openai_embed",
+    "outbound_format": "openai_embed",
+    "provider_response": {
+      "object": "list",
+      "data": [
+        { "object": "embedding", "index": 0, "embedding": [0.1, 0.2, 0.3, 0.4] },
+        { "object": "embedding", "index": 1, "embedding": [0.5, 0.6, 0.7, 0.8] }
+      ],
+      "model": "text-embedding-3-small",
+      "usage": { "prompt_tokens": 5, "total_tokens": 5 }
+    },
+    "expected_internal_response": {
+      "object": "list",
+      "embedding_data": [
+        { "object": "embedding", "index": 0, "embedding_type": "float_array" },
+        { "object": "embedding", "index": 1, "embedding_type": "float_array" }
+      ],
+      "usage": { "prompt_tokens": 5, "completion_tokens": 0, "total_tokens": 5 }
+    }
+  },
+
+  {
+    "name": "embedding_response_base64",
+    "description": "Embedding response with base64 string is preserved",
+    "inbound_format": "openai_embed",
+    "outbound_format": "openai_embed",
+    "provider_response": {
+      "object": "list",
+      "data": [
+        { "object": "embedding", "index": 0, "embedding": "AAAgPwAAAEA=" }
+      ],
+      "model": "text-embedding-3-small",
+      "usage": { "prompt_tokens": 3, "total_tokens": 3 }
+    },
+    "expected_internal_response": {
+      "embedding_data": [
+        { "object": "embedding", "index": 0, "embedding_type": "base64_string" }
+      ]
+    }
+  },
+
+  {
+    "name": "embedding_validation_mutual_exclusion",
+    "description": "Request with both messages and embedding_input should fail validation",
+    "inbound_format": "openai_embed",
+    "outbound_format": "openai_embed",
+    "validation_test": true,
+    "internal_request": {
+      "model": "text-embedding-3-small",
+      "messages": [{ "role": "user", "content": "Hello" }],
+      "embedding_input": { "single": "Hello" }
+    },
+    "expected_validation_error": "cannot specify both messages and input"
+  },
+
+  {
+    "name": "embedding_validation_empty_input",
+    "description": "Request with empty embedding_input should fail validation",
+    "inbound_format": "openai_embed",
+    "outbound_format": "openai_embed",
+    "validation_test": true,
+    "internal_request": {
+      "model": "text-embedding-3-small",
+      "embedding_input": {}
+    },
+    "expected_validation_error": "input cannot be empty"
+  },
+
+  {
+    "name": "embedding_validation_no_model",
+    "description": "Request without model should fail validation",
+    "inbound_format": "openai_embed",
+    "outbound_format": "openai_embed",
+    "validation_test": true,
+    "internal_request": {
+      "embedding_input": { "single": "Hello" }
+    },
+    "expected_validation_error": "model is required"
+  },
+
+  {
+    "name": "embedding_channel_type_check",
+    "description": "Only OpenAI embedding outbound type supports embedding requests",
+    "outbound_format": "openai_embed",
+    "channel_type_tests": [
+      { "type": "openai_embed", "supports_embedding": true },
+      { "type": "openai_chat", "supports_embedding": false },
+      { "type": "anthropic", "supports_embedding": false },
+      { "type": "gemini", "supports_embedding": false }
+    ]
+  }
+]
