@@ -1,15 +1,18 @@
 package adapter
 
 import (
+	"github.com/bestruirui/octopus/internal/transformer2/adapter/anthropic"
+	"github.com/bestruirui/octopus/internal/transformer2/adapter/gemini"
 	"github.com/bestruirui/octopus/internal/transformer2/adapter/openai"
+	"github.com/bestruirui/octopus/internal/transformer2/adapter/volcengine"
 )
 
 // ClientType identifies the inbound client API format.
 type ClientType int
 
 const (
-	ClientOpenAIChat ClientType = iota
-	ClientOpenAIResponse // OpenAI Responses API (/v1/responses)
+	ClientOpenAIChat     ClientType = iota
+	ClientOpenAIResponse            // OpenAI Responses API (/v1/responses)
 	ClientOpenAIEmbedding
 	ClientAnthropic
 )
@@ -33,12 +36,11 @@ func GetClient(t ClientType) ClientAdapter {
 	case ClientOpenAIChat:
 		return openai.NewChatClientAdapter()
 	case ClientOpenAIResponse:
-		return openai.NewChatClientAdapter() // TODO: Add ResponsesClientAdapter
+		return openai.NewResponsesClientAdapter()
 	case ClientOpenAIEmbedding:
-		return openai.NewChatClientAdapter() // Embedding uses similar format
+		return openai.NewEmbeddingClientAdapter()
 	case ClientAnthropic:
-		// TODO: return anthropic.NewClientAdapter()
-		return nil
+		return anthropic.NewClientAdapter()
 	default:
 		return nil
 	}
@@ -50,18 +52,15 @@ func GetProvider(t ProviderType) ProviderAdapter {
 	case ProviderOpenAIChat:
 		return openai.NewChatProviderAdapter()
 	case ProviderOpenAIResponse:
-		return openai.NewChatProviderAdapter() // TODO: Add ResponsesProviderAdapter
+		return openai.NewResponsesProviderAdapter()
 	case ProviderAnthropic:
-		// TODO: return anthropic.NewProviderAdapter()
-		return nil
+		return anthropic.NewProviderAdapter()
 	case ProviderGemini:
-		// TODO: return gemini.NewProviderAdapter()
-		return nil
+		return gemini.NewProviderAdapter()
 	case ProviderVolcengine:
-		// TODO: return volcengine.NewProviderAdapter()
-		return nil
+		return volcengine.NewProviderAdapter()
 	case ProviderOpenAIEmbedding:
-		return openai.NewChatProviderAdapter() // Embedding uses similar format
+		return openai.NewEmbeddingProviderAdapter()
 	default:
 		return nil
 	}
