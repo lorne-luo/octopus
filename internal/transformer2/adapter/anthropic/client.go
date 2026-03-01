@@ -1,6 +1,7 @@
 package anthropic
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -114,19 +115,31 @@ func (a *ClientAdapter) ParseRequest(ctx context.Context, body []byte, header ht
 
 	// Handle system prompt
 	var systemMessages []canonical.Message
-	if req.System.Text != "" || len(req.System.Blocks) > 0 {
-		text, blocks, isArray := convertAnthropicSystemToCanonical(req.System)
-		sysMsg := canonical.Message{Role: canonical.RoleSystem}
-		if text != "" {
-			sysMsg.Content = []canonical.ContentBlock{{Type: canonical.ContentText, Text: text}}
-		} else if len(blocks) > 0 {
-			sysMsg.Content = blocks
+	if req.System.Text != "" {
+		// String format - single system message
+		systemMessages = append(systemMessages, canonical.Message{
+			Role:    canonical.RoleSystem,
+			Content: []canonical.ContentBlock{{Type: canonical.ContentText, Text: req.System.Text}},
+		})
+	} else if len(req.System.Blocks) > 0 {
+		// Array format - combine all blocks into a single system message
+		// This preserves cache_control per block
+		blocks := make([]canonical.ContentBlock, len(req.System.Blocks))
+		for i, block := range req.System.Blocks {
+			blocks[i] = canonical.ContentBlock{
+				Type: canonical.ContentText,
+				Text: block.Text,
+			}
+			if block.CacheControl != nil {
+				blocks[i].CacheControl = &canonical.CacheControl{Type: block.CacheControl.Type}
+			}
 		}
-		systemMessages = append(systemMessages, sysMsg)
+		systemMessages = append(systemMessages, canonical.Message{
+			Role:    canonical.RoleSystem,
+			Content: blocks,
+		})
 		// Track array format for round-trip
-		if isArray {
-			creq.Hints.AnthropicSystemArrayFormat = true
-		}
+		creq.Hints.AnthropicSystemArrayFormat = true
 	}
 
 	// Convert messages
@@ -201,7 +214,13 @@ func convertAnthropicMessageToCanonicalForClient(msg MessageParam) canonical.Mes
 					Name: block.Name,
 				}
 				if len(block.Input) > 0 {
-					tc.Arguments = string(block.Input)
+					// Compact the JSON to remove whitespace
+					var compacted bytes.Buffer
+					if err := json.Compact(&compacted, block.Input); err == nil {
+						tc.Arguments = compacted.String()
+					} else {
+						tc.Arguments = string(block.Input)
+					}
 				}
 				toolCalls = append(toolCalls, tc)
 
@@ -236,11 +255,9 @@ func convertAnthropicMessageToCanonicalForClient(msg MessageParam) canonical.Mes
 				}
 
 			case ContentTypeThinking:
-				cmsg.Content = append(cmsg.Content, canonical.ContentBlock{
-					Type:      canonical.ContentThinking,
-					Thinking: block.Thinking,
-					Signature: block.Signature,
-				})
+				// For assistant messages, set reasoning_content field instead of adding to Content
+				cmsg.Reasoning = &block.Thinking
+				cmsg.ReasoningSignature = &block.Signature
 			}
 		}
 

@@ -317,6 +317,17 @@ func convertAnthropicThinkingToCanonical(thinking *ThinkingConfig) *canonical.Re
 		}
 		if thinking.BudgetTokens > 0 {
 			rc.BudgetTokens = &thinking.BudgetTokens
+			// Map budget_tokens to effort level
+			// low (<2048), medium (<16384), high (>=16384)
+			var effort string
+			if thinking.BudgetTokens < 2048 {
+				effort = "low"
+			} else if thinking.BudgetTokens < 16384 {
+				effort = "medium"
+			} else {
+				effort = "high"
+			}
+			rc.Effort = &effort
 		}
 		return rc
 	case "disabled":

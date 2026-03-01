@@ -603,11 +603,20 @@ func canonicalRequestToMap(req *canonical.Request) map[string]interface{} {
 		if req.Stop.Single != "" {
 			result["stop"] = req.Stop.Single
 		} else if len(req.Stop.Multiple) > 0 {
-			result["stop"] = req.Stop.Multiple
+			// Convert to []interface{} for comparison
+			stopSlice := make([]interface{}, len(req.Stop.Multiple))
+			for i, s := range req.Stop.Multiple {
+				stopSlice[i] = s
+			}
+			result["stop"] = stopSlice
 		}
 	}
 	if len(req.Messages) > 0 {
 		result["messages"] = messagesToSlice(req.Messages)
+		result["messages_count"] = len(req.Messages)
+		if len(req.Messages) > 0 {
+			result["first_message_role"] = string(req.Messages[0].Role)
+		}
 	}
 	if len(req.Tools) > 0 {
 		result["tools"] = toolsToSlice(req.Tools)
@@ -620,6 +629,9 @@ func canonicalRequestToMap(req *canonical.Request) map[string]interface{} {
 	}
 	if req.Reasoning != nil && req.Reasoning.Effort != nil {
 		result["reasoning_effort"] = *req.Reasoning.Effort
+	}
+	if req.Reasoning != nil && req.Reasoning.BudgetTokens != nil {
+		result["reasoning_budget"] = *req.Reasoning.BudgetTokens
 	}
 	if req.Hints.AnthropicSystemArrayFormat {
 		if result["transformer_metadata"] == nil {
@@ -646,23 +658,35 @@ func messagesToSlice(messages []canonical.Message) []interface{} {
 			// Check if single text content
 			if len(msg.Content) == 1 && msg.Content[0].Type == canonical.ContentText {
 				m["content"] = msg.Content[0].Text
+				m["content_type"] = "string"
 			} else {
 				// Multimodal content: use content_parts and content_type
 				m["content_parts"] = contentBlocksToSlice(msg.Content)
 				m["content_type"] = "multiple"
+				m["content_parts_count"] = len(msg.Content)
 			}
+		} else if msg.Role == canonical.RoleAssistant && len(msg.ToolCalls) > 0 {
+			// Assistant with tool calls but no text content
+			m["content"] = nil
 		}
 		if msg.Name != nil {
 			m["name"] = *msg.Name
 		}
 		if len(msg.ToolCalls) > 0 {
 			m["tool_calls"] = toolCallsToSlice(msg.ToolCalls)
+			m["tool_calls_count"] = len(msg.ToolCalls)
 		}
 		if msg.ToolCallID != nil {
 			m["tool_call_id"] = *msg.ToolCallID
 		}
+		if msg.ToolCallIsError != nil && *msg.ToolCallIsError {
+			m["is_error"] = true
+		}
 		if msg.Reasoning != nil {
 			m["reasoning_content"] = *msg.Reasoning
+		}
+		if msg.ReasoningSignature != nil {
+			m["reasoning_signature"] = *msg.ReasoningSignature
 		}
 		result[i] = m
 	}
@@ -680,17 +704,14 @@ func contentBlocksToSlice(blocks []canonical.ContentBlock) []interface{} {
 		} else if block.Type == canonical.ContentImage && block.Media != nil {
 			// Use "image_url" type to match OpenAI format
 			b["type"] = "image_url"
+			// Build URL - prefer explicit URL, otherwise construct from base64
 			if block.Media.URL != "" {
 				b["url"] = block.Media.URL
+			} else if block.Media.Base64 != "" && block.Media.MimeType != "" {
+				b["url"] = "data:" + block.Media.MimeType + ";base64," + block.Media.Base64
 			}
 			if block.Media.Detail != nil {
 				b["detail"] = *block.Media.Detail
-			}
-			// For base64 data URLs, extract prefix
-			if block.Media.Base64 != "" {
-				if block.Media.MimeType != "" {
-					b["url_prefix"] = "data:" + block.Media.MimeType + ";base64,"
-				}
 			}
 		} else if block.Type == canonical.ContentAudio && block.Media != nil {
 			// Use "input_audio" type to match OpenAI format

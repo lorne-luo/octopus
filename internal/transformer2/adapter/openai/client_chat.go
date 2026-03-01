@@ -238,6 +238,9 @@ func (a *ChatClientAdapter) ParseRequest(ctx context.Context, body []byte, heade
 		creq.Messages[i] = convertOpenAIMessageToCanonical(msg)
 	}
 
+	// Second pass: backfill missing tool call IDs from tool messages
+	backfillToolCallIDs(creq.Messages)
+
 	// Convert tools
 	if len(req.Tools) > 0 {
 		creq.Tools = make([]canonical.Tool, len(req.Tools))
@@ -444,6 +447,50 @@ func convertOpenAIToolChoiceToCanonical(tc *ToolChoice) *canonical.ToolChoice {
 	return &canonical.ToolChoice{
 		Mode:     tc.Mode,
 		Function: tc.Function,
+	}
+}
+
+// backfillToolCallIDs fills in missing tool call IDs from subsequent tool messages.
+// When assistant messages have tool_calls with empty IDs, we look for the corresponding
+// tool messages and backfill the IDs.
+func backfillToolCallIDs(messages []canonical.Message) {
+	for i := 0; i < len(messages); i++ {
+		msg := messages[i]
+
+		// Look for assistant messages with tool_calls
+		if msg.Role != canonical.RoleAssistant || len(msg.ToolCalls) == 0 {
+			continue
+		}
+
+		// Check if any tool calls have missing IDs
+		hasMissingIDs := false
+		for _, tc := range msg.ToolCalls {
+			if tc.ID == "" {
+				hasMissingIDs = true
+				break
+			}
+		}
+		if !hasMissingIDs {
+			continue
+		}
+
+		// Collect tool_call_ids from subsequent tool messages
+		toolCallIDs := make([]string, 0)
+		for j := i + 1; j < len(messages); j++ {
+			if messages[j].Role != canonical.RoleTool {
+				break
+			}
+			if messages[j].ToolCallID != nil {
+				toolCallIDs = append(toolCallIDs, *messages[j].ToolCallID)
+			}
+		}
+
+		// Backfill IDs by index
+		for k := range msg.ToolCalls {
+			if msg.ToolCalls[k].ID == "" && k < len(toolCallIDs) {
+				msg.ToolCalls[k].ID = toolCallIDs[k]
+			}
+		}
 	}
 }
 
