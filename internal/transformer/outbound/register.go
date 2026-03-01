@@ -1,6 +1,7 @@
 package outbound
 
 import (
+	"github.com/bestruirui/octopus/internal/transformer/kiro"
 	"github.com/bestruirui/octopus/internal/transformer/model"
 	"github.com/bestruirui/octopus/internal/transformer/outbound/authropic"
 	"github.com/bestruirui/octopus/internal/transformer/outbound/gemini"
@@ -17,6 +18,7 @@ const (
 	OutboundTypeGemini
 	OutboundTypeVolcengine
 	OutboundTypeOpenAIEmbedding
+	OutboundTypeKiro
 )
 
 // EmbeddingChannelTypes 定义支持 embedding 请求的 channel 类型集合
@@ -31,6 +33,7 @@ var ChatChannelTypes = map[OutboundType]bool{
 	OutboundTypeAnthropic:      true,
 	OutboundTypeGemini:         true,
 	OutboundTypeVolcengine:     true,
+	OutboundTypeKiro:           true,
 }
 
 // IsEmbeddingChannelType 判断 channel 类型是否支持 embedding 请求
@@ -50,6 +53,7 @@ var outboundFactories = map[OutboundType]func() model.Outbound{
 	OutboundTypeAnthropic:       func() model.Outbound { return &authropic.MessageOutbound{} },
 	OutboundTypeGemini:          func() model.Outbound { return &gemini.MessagesOutbound{} },
 	OutboundTypeVolcengine:      func() model.Outbound { return &volcengine.ResponseOutbound{} },
+	OutboundTypeKiro:            func() model.Outbound { return kiro.NewOutbound() },
 }
 
 func Get(outboundType OutboundType) model.Outbound {

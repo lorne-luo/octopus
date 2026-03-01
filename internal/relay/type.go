@@ -79,6 +79,7 @@ type relayAttempt struct {
 	usedKey              dbmodel.ChannelKey
 	firstTokenTimeOutSec int
 	isPassthrough        bool // 是否为 passthrough 模式
+	isRawStream          bool // 是否为原始流模式（非SSE，如Kiro的AWS Event Stream）
 }
 
 // attemptResult 封装单次尝试的结果

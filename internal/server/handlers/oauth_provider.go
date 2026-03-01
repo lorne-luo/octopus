@@ -80,7 +80,64 @@ func validateAndNormalizeAuthJsonContent(content string, providerType model.OAut
 		return string(normalizedContent), ""
 	}
 
+	if providerType == model.OAuthProviderTypeKiro {
+		var data map[string]interface{}
+		if err := json.Unmarshal([]byte(content), &data); err != nil {
+			return "", "failed to parse auth_json content: " + err.Error()
+		}
+		refreshTokenRaw, ok := data["RefreshToken"]
+		if !ok {
+			return "", "auth_json must contain RefreshToken field for Kiro provider"
+		}
+		refreshToken, ok := refreshTokenRaw.(string)
+		if !ok {
+			return "", "RefreshToken must be a string"
+		}
+		if refreshToken == "" {
+			return "", "RefreshToken cannot be empty"
+		}
+		// Region is optional, defaults to us-east-1
+		// Validate Region format if provided
+		if regionRaw, ok := data["Region"]; ok {
+			region, ok := regionRaw.(string)
+			if !ok {
+				return "", "Region must be a string"
+			}
+			// Basic validation for AWS region format
+			if region != "" && !isValidAWSRegion(region) {
+				return "", "Region must be a valid AWS region (e.g., us-east-1, us-west-2)"
+			}
+		}
+		// Content is valid as-is
+		return content, ""
+	}
+
 	return content, ""
+}
+
+// isValidAWSRegion validates AWS region format
+func isValidAWSRegion(region string) bool {
+	// Common AWS regions
+	validRegions := map[string]bool{
+		"us-east-1":      true,
+		"us-east-2":      true,
+		"us-west-1":      true,
+		"us-west-2":      true,
+		"eu-west-1":      true,
+		"eu-west-2":      true,
+		"eu-west-3":      true,
+		"eu-central-1":   true,
+		"eu-central-2":   true,
+		"ap-northeast-1": true,
+		"ap-northeast-2": true,
+		"ap-northeast-3": true,
+		"ap-southeast-1": true,
+		"ap-southeast-2": true,
+		"ap-south-1":     true,
+		"sa-east-1":      true,
+		"ca-central-1":   true,
+	}
+	return validRegions[region]
 }
 
 func listOAuthProvider(c *gin.Context) {

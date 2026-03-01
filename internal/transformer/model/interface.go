@@ -42,6 +42,14 @@ type PassthroughOutbound interface {
 	BuildPassthroughRequest(ctx context.Context, rawBody []byte, stream bool, baseUrl, key string, query url.Values) (*http.Request, error)
 }
 
+// RawStreamOutbound 是 Outbound 的可选扩展接口。
+// 实现该接口的 outbound 表示其响应不是 SSE 格式，需要读取原始字节流。
+// 例如：Kiro 使用 AWS Event Stream 格式，而不是标准的 SSE 格式。
+type RawStreamOutbound interface {
+	// IsRawStream 返回 true 表示该 outbound 使用原始字节流而非 SSE
+	IsRawStream() bool
+}
+
 /*
 请求流程
 非流式

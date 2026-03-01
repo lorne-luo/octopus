@@ -295,3 +295,13 @@ func isInvalidAPIKeyError(body []byte) bool {
 	bodyStr := strings.ToLower(string(body))
 	return strings.Contains(bodyStr, "invalid apikey") || strings.Contains(bodyStr, "invalid api key")
 }
+
+// isKiroError checks if the response body indicates a Kiro-specific error
+// Returns true for UnauthorizedException, AccessDenied, or ThrottlingException
+func isKiroError(body []byte) bool {
+	bodyStr := strings.ToLower(string(body))
+	return strings.Contains(bodyStr, "unauthorizedexception") ||
+		strings.Contains(bodyStr, "accessdenied") ||
+		strings.Contains(bodyStr, "throttlingexception")
+}
+

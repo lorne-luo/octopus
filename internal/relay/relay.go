@@ -184,6 +184,15 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 			}
 		}
 
+		// 检测是否为原始流模式（非SSE）
+		isRawStream := false
+		if rawStreamer, ok := outAdapter.(model.RawStreamOutbound); ok {
+			isRawStream = rawStreamer.IsRawStream()
+			if isRawStream {
+				log.Infof("raw stream mode enabled for channel %s", channelName)
+			}
+		}
+
 		// 构造尝试级上下文
 		ra := &relayAttempt{
 			relayRequest:         req,
@@ -196,6 +205,7 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 			usedKey:              usedKey,
 			firstTokenTimeOutSec: group.FirstTokenTimeOut,
 			isPassthrough:        isPassthrough,
+			isRawStream:          isRawStream,
 		}
 
 		result := ra.attempt()
@@ -442,6 +452,11 @@ func (ra *relayAttempt) sendRequest(req *http.Request) (*http.Response, error) {
 
 // handleStreamResponse 处理流式响应
 func (ra *relayAttempt) handleStreamResponse(ctx context.Context, response *http.Response) error {
+	// 如果是原始流模式，使用不同的处理逻辑
+	if ra.isRawStream {
+		return ra.handleRawStreamResponse(ctx, response)
+	}
+
 	if ct := response.Header.Get("Content-Type"); ct != "" && !strings.Contains(strings.ToLower(ct), "text/event-stream") {
 		body, _ := io.ReadAll(io.LimitReader(response.Body, 16*1024))
 		ra.metrics.AppendRawResponse(string(body))
@@ -531,6 +546,90 @@ func (ra *relayAttempt) handleStreamResponse(ctx context.Context, response *http
 			ra.c.Writer.Write(data)
 			ra.c.Writer.Flush()
 		}
+	}
+}
+
+// handleRawStreamResponse 处理原始字节流响应（非SSE格式，如Kiro的AWS Event Stream）
+func (ra *relayAttempt) handleRawStreamResponse(ctx context.Context, response *http.Response) error {
+	// 设置 SSE 响应头（客户端仍期望SSE格式）
+	ra.c.Header("Content-Type", "text/event-stream")
+	ra.c.Header("Cache-Control", "no-cache")
+	ra.c.Header("Connection", "keep-alive")
+	ra.c.Header("X-Accel-Buffering", "no")
+
+	firstToken := true
+	buf := make([]byte, 4096) // 读取缓冲区
+
+	var firstTokenTimer *time.Timer
+	var firstTokenC <-chan time.Time
+	if firstToken && ra.firstTokenTimeOutSec > 0 {
+		firstTokenTimer = time.NewTimer(time.Duration(ra.firstTokenTimeOutSec) * time.Second)
+		firstTokenC = firstTokenTimer.C
+		defer func() {
+			if firstTokenTimer != nil {
+				firstTokenTimer.Stop()
+			}
+		}()
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			log.Infof("client disconnected, stopping raw stream")
+			return nil
+		case <-firstTokenC:
+			log.Warnf("first token timeout (%ds) in raw stream", ra.firstTokenTimeOutSec)
+			_ = response.Body.Close()
+			ra.captureFinalStreamResponse(ctx)
+			return fmt.Errorf("first token timeout (%ds)", ra.firstTokenTimeOutSec)
+		default:
+		}
+
+		n, err := response.Body.Read(buf)
+		if err != nil {
+			if err == io.EOF {
+				ra.captureFinalStreamResponse(ctx)
+				log.Infof("raw stream end")
+				return nil
+			}
+			log.Warnf("failed to read raw stream: %v", err)
+			return fmt.Errorf("failed to read raw stream: %w", err)
+		}
+
+		if n == 0 {
+			continue
+		}
+
+		// 复制数据（因为buf会被重用）
+		chunk := make([]byte, n)
+		copy(chunk, buf[:n])
+
+		// 记录原始流数据
+		ra.metrics.AppendRawResponse(string(chunk))
+
+		// 转换数据
+		data, err := ra.transformStreamData(ctx, string(chunk))
+		if err != nil || len(data) == 0 {
+			continue
+		}
+
+		if firstToken {
+			ra.metrics.SetFirstTokenTime(time.Now())
+			firstToken = false
+			if firstTokenTimer != nil {
+				if !firstTokenTimer.Stop() {
+					select {
+					case <-firstTokenTimer.C:
+					default:
+					}
+				}
+				firstTokenTimer = nil
+				firstTokenC = nil
+			}
+		}
+
+		ra.c.Writer.Write(data)
+		ra.c.Writer.Flush()
 	}
 }
 

@@ -94,6 +94,38 @@ func (aj *AuthJson) GetBXAuth() string {
 	return data.BXAuth
 }
 
+// GetRefreshToken extracts RefreshToken from Content for Kiro provider
+func (aj *AuthJson) GetRefreshToken() string {
+	if aj.Content == "" {
+		return ""
+	}
+	var data struct {
+		RefreshToken string `json:"RefreshToken"`
+	}
+	if err := json.Unmarshal([]byte(aj.Content), &data); err != nil {
+		return ""
+	}
+	return data.RefreshToken
+}
+
+// GetRegion extracts Region from Content for Kiro provider
+// Returns "us-east-1" as default if not specified
+func (aj *AuthJson) GetRegion() string {
+	if aj.Content == "" {
+		return "us-east-1"
+	}
+	var data struct {
+		Region string `json:"Region"`
+	}
+	if err := json.Unmarshal([]byte(aj.Content), &data); err != nil {
+		return "us-east-1"
+	}
+	if data.Region == "" {
+		return "us-east-1"
+	}
+	return data.Region
+}
+
 type OAuthProvider struct {
 	ID               int                    `gorm:"primaryKey" json:"id"`
 	Name             string                 `gorm:"size:255;not null" json:"name"`
@@ -212,8 +244,8 @@ func (p *OAuthProvider) GetBaseURL() string {
 	case OAuthProviderTypeIFlow:
 		return "https://apis.iflow.cn/v1"
 	case OAuthProviderTypeKiro:
-		// Kiro uses dynamic region-based URLs, return empty for now
-		return ""
+		// Default Kiro base URL, region-specific URLs can be set via BaseURL field
+		return "https://q.us-east-1.amazonaws.com"
 	default:
 		return ""
 	}
