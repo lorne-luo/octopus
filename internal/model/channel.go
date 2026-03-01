@@ -3,7 +3,7 @@ package model
 import (
 	"time"
 
-	"github.com/bestruirui/octopus/internal/transformer/outbound"
+	"github.com/bestruirui/octopus/internal/transformer2/adapter"
 )
 
 type AutoGroupType int
@@ -16,22 +16,22 @@ const (
 )
 
 type Channel struct {
-	ID            int                   `json:"id" gorm:"primaryKey"`
-	Name          string                `json:"name" gorm:"unique;not null"`
-	Type          outbound.OutboundType `json:"type"`
-	Enabled       bool                  `json:"enabled" gorm:"default:true"`
-	BaseUrls      []BaseUrl             `json:"base_urls" gorm:"serializer:json"`
-	Keys          []ChannelKey          `json:"keys" gorm:"foreignKey:ChannelID"`
-	Model         string                `json:"model"`
-	CustomModel   string                `json:"custom_model"`
-	Proxy         bool                  `json:"proxy" gorm:"default:false"`
-	AutoSync      bool                  `json:"auto_sync" gorm:"default:false"`
-	AutoGroup     AutoGroupType         `json:"auto_group" gorm:"default:0"`
-	CustomHeader  []CustomHeader        `json:"custom_header" gorm:"serializer:json"`
-	ParamOverride *string               `json:"param_override"`
-	ChannelProxy  *string               `json:"channel_proxy"`
-	Stats         *StatsChannel         `json:"stats,omitempty" gorm:"foreignKey:ChannelID"`
-	MatchRegex    *string               `json:"match_regex"`
+	ID            int                `json:"id" gorm:"primaryKey"`
+	Name          string             `json:"name" gorm:"unique;not null"`
+	Type          adapter.ProviderType `json:"type"`
+	Enabled       bool               `json:"enabled" gorm:"default:true"`
+	BaseUrls      []BaseUrl          `json:"base_urls" gorm:"serializer:json"`
+	Keys          []ChannelKey       `json:"keys" gorm:"foreignKey:ChannelID"`
+	Model         string             `json:"model"`
+	CustomModel   string             `json:"custom_model"`
+	Proxy         bool               `json:"proxy" gorm:"default:false"`
+	AutoSync      bool               `json:"auto_sync" gorm:"default:false"`
+	AutoGroup     AutoGroupType      `json:"auto_group" gorm:"default:0"`
+	CustomHeader  []CustomHeader     `json:"custom_header" gorm:"serializer:json"`
+	ParamOverride *string            `json:"param_override"`
+	ChannelProxy  *string            `json:"channel_proxy"`
+	Stats         *StatsChannel      `json:"stats,omitempty" gorm:"foreignKey:ChannelID"`
+	MatchRegex    *string            `json:"match_regex"`
 }
 
 type BaseUrl struct {
@@ -60,7 +60,7 @@ type ChannelKey struct {
 type ChannelUpdateRequest struct {
 	ID            int                    `json:"id" binding:"required"`
 	Name          *string                `json:"name,omitempty"`
-	Type          *outbound.OutboundType `json:"type,omitempty"`
+	Type          *adapter.ProviderType  `json:"type,omitempty"`
 	Enabled       *bool                  `json:"enabled,omitempty"`
 	BaseUrls      *[]BaseUrl             `json:"base_urls,omitempty"`
 	Model         *string                `json:"model,omitempty"`
@@ -93,10 +93,10 @@ type ChannelKeyUpdateRequest struct {
 
 // ChannelFetchModelRequest is used by /channel/fetch-model (not persisted).
 type ChannelFetchModelRequest struct {
-	Type    outbound.OutboundType `json:"type" binding:"required"`
-	BaseURL string                `json:"base_url" binding:"required"`
-	Key     string                `json:"key" binding:"required"`
-	Proxy   bool                  `json:"proxy"`
+	Type    adapter.ProviderType `json:"type" binding:"required"`
+	BaseURL string               `json:"base_url" binding:"required"`
+	Key     string               `json:"key" binding:"required"`
+	Proxy   bool                 `json:"proxy"`
 }
 
 func (c *Channel) GetBaseUrl() string {

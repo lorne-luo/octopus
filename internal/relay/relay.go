@@ -16,31 +16,30 @@ import (
 	"github.com/bestruirui/octopus/internal/op"
 	"github.com/bestruirui/octopus/internal/relay/balancer"
 	"github.com/bestruirui/octopus/internal/server/resp"
-	"github.com/bestruirui/octopus/internal/transformer/inbound"
-	"github.com/bestruirui/octopus/internal/transformer/model"
-	"github.com/bestruirui/octopus/internal/transformer/outbound"
+	"github.com/bestruirui/octopus/internal/transformer2/adapter"
+	"github.com/bestruirui/octopus/internal/transformer2/canonical"
 	"github.com/bestruirui/octopus/internal/utils/log"
 	"github.com/gin-gonic/gin"
 	"github.com/tmaxmax/go-sse"
 )
 
 // Handler 处理入站请求并转发到上游服务
-func Handler(inboundType inbound.InboundType, c *gin.Context) {
+func Handler(clientType adapter.ClientType, c *gin.Context) {
 	// 解析请求
-	internalRequest, inAdapter, body, err := parseRequest(inboundType, c)
+	canonicalReq, clientAdapter, body, err := parseRequest(clientType, c)
 	if err != nil {
 		return
 	}
 	supportedModels := c.GetString("supported_models")
 	if supportedModels != "" {
 		supportedModelsArray := strings.Split(supportedModels, ",")
-		if !slices.Contains(supportedModelsArray, internalRequest.Model) {
+		if !slices.Contains(supportedModelsArray, canonicalReq.Model) {
 			resp.Error(c, http.StatusBadRequest, "model not supported")
 			return
 		}
 	}
 
-	requestModel := internalRequest.Model
+	requestModel := canonicalReq.Model
 	apiKeyID := c.GetInt("api_key_id")
 
 	// 获取通道分组
@@ -58,18 +57,18 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 	}
 
 	// 初始化 Metrics
-	metrics := NewRelayMetrics(apiKeyID, requestModel, internalRequest)
+	metrics := NewRelayMetrics(apiKeyID, requestModel, canonicalReq)
 	metrics.SetRawRequest(string(body))
 
 	// 请求级上下文
 	req := &relayRequest{
-		c:               c,
-		inAdapter:       inAdapter,
-		internalRequest: internalRequest,
-		metrics:         metrics,
-		apiKeyID:        apiKeyID,
-		requestModel:    requestModel,
-		iter:            iter,
+		c:             c,
+		clientAdapter: clientAdapter,
+		canonicalReq:  canonicalReq,
+		metrics:       metrics,
+		apiKeyID:      apiKeyID,
+		requestModel:  requestModel,
+		iter:          iter,
 	}
 
 	var lastErr error
@@ -117,24 +116,24 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 		}
 
 		// 出站适配器
-		outAdapter := outbound.Get(channel.Type)
-		if outAdapter == nil {
+		providerAdapter := adapter.GetProvider(adapter.ProviderType(channel.Type))
+		if providerAdapter == nil {
 			iter.Skip(channel.ID, usedKey.ID, channel.Name, int(channel.Type), apiKeySuffix, fmt.Sprintf("unsupported channel type: %d", channel.Type))
 			continue
 		}
 
 		// 类型兼容性检查
-		if internalRequest.IsEmbeddingRequest() && !outbound.IsEmbeddingChannelType(channel.Type) {
+		if canonicalReq.Kind == canonical.KindEmbedding && !adapter.IsEmbeddingProvider(adapter.ProviderType(channel.Type)) {
 			iter.Skip(channel.ID, usedKey.ID, channel.Name, int(channel.Type), apiKeySuffix, "channel type not compatible with embedding request")
 			continue
 		}
-		if internalRequest.IsChatRequest() && !outbound.IsChatChannelType(channel.Type) {
+		if canonicalReq.Kind == canonical.KindChat && !adapter.IsChatProvider(adapter.ProviderType(channel.Type)) {
 			iter.Skip(channel.ID, usedKey.ID, channel.Name, int(channel.Type), apiKeySuffix, "channel type not compatible with chat request")
 			continue
 		}
 
 		// 设置实际模型
-		internalRequest.Model = item.ModelName
+		canonicalReq.Model = item.ModelName
 
 		log.Infof("request model %s, mode: %d, forwarding to channel: %s model: %s (attempt %d/%d, sticky=%t)",
 			requestModel, group.Mode, channel.Name, item.ModelName,
@@ -143,7 +142,7 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 		// 构造尝试级上下文 -- 只写变化的 4 个字段
 		ra := &relayAttempt{
 			relayRequest:         req,
-			outAdapter:           outAdapter,
+			providerAdapter:      providerAdapter,
 			channel:              channel,
 			usedKey:              usedKey,
 			firstTokenTimeOutSec: group.FirstTokenTimeOut,
@@ -202,7 +201,7 @@ func (ra *relayAttempt) attempt() attemptResult {
 		})
 
 		// 熔断器：记录成功
-		balancer.RecordSuccess(ra.channel.ID, ra.usedKey.ID, ra.internalRequest.Model)
+		balancer.RecordSuccess(ra.channel.ID, ra.usedKey.ID, ra.canonicalReq.Model)
 		// 会话保持：更新粘性记录
 		balancer.SetSticky(ra.apiKeyID, ra.requestModel, ra.channel.ID, ra.usedKey.ID)
 
@@ -232,7 +231,7 @@ func (ra *relayAttempt) attempt() attemptResult {
 	})
 
 	// 熔断器：记录失败
-	balancer.RecordFailure(ra.channel.ID, ra.usedKey.ID, ra.internalRequest.Model)
+	balancer.RecordFailure(ra.channel.ID, ra.usedKey.ID, ra.canonicalReq.Model)
 
 	written := ra.c.Writer.Written()
 	if written {
@@ -246,29 +245,29 @@ func (ra *relayAttempt) attempt() attemptResult {
 }
 
 // parseRequest 解析并验证入站请求
-func parseRequest(inboundType inbound.InboundType, c *gin.Context) (*model.InternalLLMRequest, model.Inbound, []byte, error) {
+func parseRequest(clientType adapter.ClientType, c *gin.Context) (*canonical.Request, adapter.ClientAdapter, []byte, error) {
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
 		resp.Error(c, http.StatusInternalServerError, err.Error())
 		return nil, nil, nil, err
 	}
 
-	inAdapter := inbound.Get(inboundType)
-	internalRequest, err := inAdapter.TransformRequest(c.Request.Context(), body)
-	if err != nil {
-		resp.Error(c, http.StatusInternalServerError, err.Error())
-		return nil, nil, nil, err
+	clientAdapter := adapter.GetClient(clientType)
+	if clientAdapter == nil {
+		resp.Error(c, http.StatusBadRequest, fmt.Sprintf("unsupported client type: %d", clientType))
+		return nil, nil, nil, fmt.Errorf("unsupported client type: %d", clientType)
 	}
 
-	// Pass through the original query parameters
-	internalRequest.Query = c.Request.URL.Query()
-
-	if err := internalRequest.Validate(); err != nil {
+	canonicalReq, err := clientAdapter.ParseRequest(c.Request.Context(), body, c.Request.Header)
+	if err != nil {
 		resp.Error(c, http.StatusBadRequest, err.Error())
 		return nil, nil, nil, err
 	}
 
-	return internalRequest, inAdapter, body, nil
+	// Pass through the original query parameters
+	canonicalReq.Query = c.Request.URL.Query()
+
+	return canonicalReq, clientAdapter, body, nil
 }
 
 // forward 转发请求到上游服务
@@ -276,9 +275,9 @@ func (ra *relayAttempt) forward() (int, error) {
 	ctx := ra.c.Request.Context()
 
 	// 构建出站请求
-	outboundRequest, err := ra.outAdapter.TransformRequest(
+	outboundRequest, err := ra.providerAdapter.BuildRequest(
 		ctx,
-		ra.internalRequest,
+		ra.canonicalReq,
 		ra.channel.GetBaseUrl(),
 		ra.usedKey.ChannelKey,
 	)
@@ -309,7 +308,7 @@ func (ra *relayAttempt) forward() (int, error) {
 	}
 
 	// 处理响应
-	if ra.internalRequest.Stream != nil && *ra.internalRequest.Stream {
+	if ra.canonicalReq.Stream {
 		if err := ra.handleStreamResponse(ctx, response); err != nil {
 			return 0, err
 		}
@@ -422,7 +421,7 @@ func (ra *relayAttempt) handleStreamResponse(ctx context.Context, response *http
 			// 记录原始流数据
 			ra.metrics.AppendRawResponse(r.data)
 
-			data, err := ra.transformStreamData(ctx, r.data)
+			data, err := ra.transformStreamData(ctx, []byte(r.data))
 			if err != nil || len(data) == 0 {
 				continue
 			}
@@ -448,23 +447,28 @@ func (ra *relayAttempt) handleStreamResponse(ctx context.Context, response *http
 }
 
 // transformStreamData 转换流式数据
-func (ra *relayAttempt) transformStreamData(ctx context.Context, data string) ([]byte, error) {
-	internalStream, err := ra.outAdapter.TransformStream(ctx, []byte(data))
+func (ra *relayAttempt) transformStreamData(ctx context.Context, data []byte) ([]byte, error) {
+	chunk, err := ra.providerAdapter.ParseStreamChunk(ctx, data)
 	if err != nil {
-		log.Warnf("failed to transform stream: %v", err)
+		log.Warnf("failed to parse stream chunk: %v", err)
 		return nil, err
 	}
-	if internalStream == nil {
+	if chunk == nil {
 		return nil, nil
 	}
 
-	inStream, err := ra.inAdapter.TransformStream(ctx, internalStream)
+	// Check for stream termination
+	if chunk.Done {
+		return nil, nil
+	}
+
+	clientData, err := ra.clientAdapter.FormatStreamChunk(ctx, chunk)
 	if err != nil {
-		log.Warnf("failed to transform stream: %v", err)
+		log.Warnf("failed to format stream chunk: %v", err)
 		return nil, err
 	}
 
-	return inStream, nil
+	return clientData, nil
 }
 
 // handleResponse 处理非流式响应
@@ -476,35 +480,46 @@ func (ra *relayAttempt) handleResponse(ctx context.Context, response *http.Respo
 	}
 	ra.metrics.AppendRawResponse(string(body))
 
-	// 重新设置 Response Body 供 TransformResponse 使用
+	// 重新设置 Response Body 供 ParseResponse 使用
 	response.Body = io.NopCloser(bytes.NewReader(body))
 
-	internalResponse, err := ra.outAdapter.TransformResponse(ctx, response)
+	canonicalResp, err := ra.providerAdapter.ParseResponse(ctx, response)
 	if err != nil {
-		log.Warnf("failed to transform response: %v", err)
-		return fmt.Errorf("failed to transform outbound response: %w", err)
+		log.Warnf("failed to parse response: %v", err)
+		return fmt.Errorf("failed to parse provider response: %w", err)
 	}
 
-	inResponse, err := ra.inAdapter.TransformResponse(ctx, internalResponse)
+	// Check for error in canonical response
+	if canonicalResp.Error != nil {
+		errorBytes, err := ra.clientAdapter.FormatError(ctx, canonicalResp.Error)
+		if err != nil {
+			log.Warnf("failed to format error: %v", err)
+			return fmt.Errorf("provider error: %s", canonicalResp.Error.Message)
+		}
+		ra.c.Data(canonicalResp.Error.StatusCode, "application/json", errorBytes)
+		return nil
+	}
+
+	clientResp, err := ra.clientAdapter.FormatResponse(ctx, canonicalResp)
 	if err != nil {
-		log.Warnf("failed to transform response: %v", err)
+		log.Warnf("failed to format response: %v", err)
 		// Feature 009: Handle Context Canceled
 		if errors.Is(err, context.Canceled) {
 			return fmt.Errorf("request canceled by client: %w", context.Canceled)
 		}
-		return fmt.Errorf("failed to transform inbound response: %w", err)
+		return fmt.Errorf("failed to format client response: %w", err)
 	}
 
-	ra.c.Data(http.StatusOK, "application/json", inResponse)
+	ra.c.Data(http.StatusOK, "application/json", clientResp)
 	return nil
 }
 
 // collectResponse 收集响应信息
 func (ra *relayAttempt) collectResponse() {
-	internalResponse, err := ra.inAdapter.GetInternalResponse(ra.c.Request.Context())
-	if err != nil || internalResponse == nil {
+	canonicalResp, err := ra.clientAdapter.AggregateStream(ra.c.Request.Context())
+	if err != nil || canonicalResp == nil {
 		return
 	}
 
-	ra.metrics.SetInternalResponse(internalResponse, ra.internalRequest.Model)
+	ra.metrics.SetCanonicalResponse(canonicalResp, ra.canonicalReq.Model)
 }

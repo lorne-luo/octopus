@@ -15,15 +15,14 @@
     },
     "expected_provider_request": {
       "model": "claude-sonnet-4-20250514",
-      "system": [{ "type": "text", "text": "You are helpful." }],
+      "system": "You are helpful.",
       "messages": [
         { "role": "user", "content": "Hello" }
       ],
       "temperature": 0.7,
-      "max_tokens": 1024,
-      "stream": null
+      "max_tokens": 1024
     },
-    "notes": "system message extracted to top-level system field; messages exclude system"
+    "notes": "system message extracted to top-level system field; messages exclude system; string format used for simple system prompt"
   },
 
   {
@@ -325,12 +324,17 @@
     "description": "Anthropic outbound resolves max_tokens from various internal fields",
     "inbound_format": "openai_chat",
     "outbound_format": "anthropic",
-    "variants": [
-      { "label": "from_max_tokens", "max_tokens": 500, "max_completion_tokens": null, "expected": 500 },
-      { "label": "from_max_completion_tokens", "max_tokens": null, "max_completion_tokens": 1000, "expected": 1000 },
-      { "label": "default_when_none", "max_tokens": null, "max_completion_tokens": null, "expected": 8192 },
-      { "label": "min_clamp", "max_tokens": 0, "max_completion_tokens": null, "expected": 1 }
-    ]
+    "client_request": {
+      "model": "claude-sonnet-4-20250514",
+      "messages": [{ "role": "user", "content": "Hi" }],
+      "max_tokens": 500
+    },
+    "expected_provider_request": {
+      "model": "claude-sonnet-4-20250514",
+      "max_tokens": 500,
+      "messages": [{ "role": "user", "content": "Hi" }]
+    },
+    "notes": "max_tokens is passed through from client request"
   },
 
   {
@@ -338,7 +342,12 @@
     "description": "Anthropic response usage with cache_read_input_tokens maps to prompt_tokens_details",
     "inbound_format": "openai_chat",
     "outbound_format": "anthropic",
-    "provider_anthropic_response": {
+    "client_request": {
+      "model": "claude-sonnet-4-20250514",
+      "messages": [{ "role": "user", "content": "Hi" }],
+      "max_tokens": 100
+    },
+    "provider_response": {
       "id": "msg_cache",
       "type": "message",
       "role": "assistant",

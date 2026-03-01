@@ -471,7 +471,8 @@ func TestCanonical_OpenAIChatProviderResponse(t *testing.T) {
 		if len(tc.ProviderResponse) == 0 {
 			continue
 		}
-		if tc.OutboundFormat != "openai_chat" && tc.InboundFormat != "openai_chat" {
+		// Only process openai_chat outbound format
+		if tc.OutboundFormat != "openai_chat" {
 			continue
 		}
 

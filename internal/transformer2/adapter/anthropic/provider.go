@@ -254,10 +254,9 @@ func extractSystemAndMessages(req *canonical.Request) (SystemContent, []MessageP
 		}
 
 		// Regular message
-		content := convertCanonicalMessageToAnthropicContent(msg)
 		aparam := MessageParam{
 			Role:    string(msg.Role),
-			Content: MessageContent{Blocks: content},
+			Content: convertCanonicalToAnthropicContent(msg.Content),
 		}
 
 		// Handle assistant messages with tool calls
