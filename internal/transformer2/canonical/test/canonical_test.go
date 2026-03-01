@@ -628,6 +628,10 @@ func canonicalRequestToMap(req *canonical.Request) map[string]interface{} {
 			}
 		}
 	}
+	// Include source format only for non-OpenAI inbound formats
+	if req.SourceFormat != "" && req.SourceFormat != canonical.FormatOpenAIChat && req.SourceFormat != canonical.FormatOpenAIResponse {
+		result["raw_api_format"] = string(req.SourceFormat)
+	}
 
 	return result
 }
@@ -643,7 +647,9 @@ func messagesToSlice(messages []canonical.Message) []interface{} {
 			if len(msg.Content) == 1 && msg.Content[0].Type == canonical.ContentText {
 				m["content"] = msg.Content[0].Text
 			} else {
-				m["content"] = contentBlocksToSlice(msg.Content)
+				// Multimodal content: use content_parts and content_type
+				m["content_parts"] = contentBlocksToSlice(msg.Content)
+				m["content_type"] = "multiple"
 			}
 		}
 		if msg.Name != nil {
@@ -654,6 +660,9 @@ func messagesToSlice(messages []canonical.Message) []interface{} {
 		}
 		if msg.ToolCallID != nil {
 			m["tool_call_id"] = *msg.ToolCallID
+		}
+		if msg.Reasoning != nil {
+			m["reasoning_content"] = *msg.Reasoning
 		}
 		result[i] = m
 	}
@@ -669,28 +678,26 @@ func contentBlocksToSlice(blocks []canonical.ContentBlock) []interface{} {
 		if block.Type == canonical.ContentText {
 			b["text"] = block.Text
 		} else if block.Type == canonical.ContentImage && block.Media != nil {
-			img := map[string]interface{}{}
+			// Use "image_url" type to match OpenAI format
+			b["type"] = "image_url"
 			if block.Media.URL != "" {
-				img["url"] = block.Media.URL
+				b["url"] = block.Media.URL
 			}
+			if block.Media.Detail != nil {
+				b["detail"] = *block.Media.Detail
+			}
+			// For base64 data URLs, extract prefix
 			if block.Media.Base64 != "" {
-				img["data"] = block.Media.Base64
-			}
-			if block.Media.MimeType != "" {
-				img["media_type"] = block.Media.MimeType
-			}
-			b["source"] = map[string]interface{}{
-				"type":       "base64",
-				"media_type": block.Media.MimeType,
-				"data":       block.Media.Base64,
-			}
-			if block.Media.URL != "" {
-				b["source"] = map[string]interface{}{
-					"type": "url",
-					"url":  block.Media.URL,
+				if block.Media.MimeType != "" {
+					b["url_prefix"] = "data:" + block.Media.MimeType + ";base64,"
 				}
 			}
-			_ = img // silence unused variable warning
+		} else if block.Type == canonical.ContentAudio && block.Media != nil {
+			// Use "input_audio" type to match OpenAI format
+			b["type"] = "input_audio"
+			if block.Media.AudioFormat != "" {
+				b["format"] = block.Media.AudioFormat
+			}
 		}
 		result[i] = b
 	}
@@ -718,14 +725,24 @@ func toolsToSlice(tools []canonical.Tool) []interface{} {
 		t := map[string]interface{}{
 			"type": tool.Type,
 		}
-		if tool.Name != "" {
-			t["name"] = tool.Name
+		// Wrap function fields in "function" object
+		if tool.Name != "" || tool.Description != "" || tool.Parameters != nil {
+			fn := map[string]interface{}{}
+			if tool.Name != "" {
+				fn["name"] = tool.Name
+			}
+			if tool.Description != "" {
+				fn["description"] = tool.Description
+			}
+			if tool.Parameters != nil {
+				fn["parameters"] = json.RawMessage(tool.Parameters)
+			}
+			t["function"] = fn
 		}
-		if tool.Description != "" {
-			t["description"] = tool.Description
-		}
-		if tool.Parameters != nil {
-			t["parameters"] = json.RawMessage(tool.Parameters)
+		if tool.CacheControl != nil {
+			t["cache_control"] = map[string]interface{}{
+				"type": tool.CacheControl.Type,
+			}
 		}
 		result[i] = t
 	}
@@ -736,6 +753,13 @@ func toolChoiceToMap(tc *canonical.ToolChoice) interface{} {
 	if tc == nil {
 		return nil
 	}
+
+	// Simple string form for auto/none/required
+	if tc.Function == nil && (tc.Mode == "auto" || tc.Mode == "none" || tc.Mode == "required") {
+		return tc.Mode
+	}
+
+	// Object form for named function
 	m := map[string]interface{}{}
 	if tc.Mode != "" {
 		m["type"] = tc.Mode
@@ -775,6 +799,18 @@ func canonicalResponseToMap(resp *canonical.Response) map[string]interface{} {
 	}
 	if resp.Object != "" {
 		result["object"] = resp.Object
+	}
+
+	// Handle error
+	if resp.Error != nil {
+		result["error"] = map[string]interface{}{
+			"status_code": resp.Error.StatusCode,
+			"detail": map[string]interface{}{
+				"message": resp.Error.Message,
+				"type":    resp.Error.Type,
+				"code":    resp.Error.Code,
+			},
+		}
 	}
 
 	if len(resp.Choices) > 0 {
@@ -824,6 +860,11 @@ func messageToMap(msg canonical.Message) map[string]interface{} {
 	}
 	if len(msg.ToolCalls) > 0 {
 		m["tool_calls"] = toolCallsToSlice(msg.ToolCalls)
+		// Also add tool_calls_count for tests that check this
+		m["tool_calls_count"] = len(msg.ToolCalls)
+	}
+	if msg.Reasoning != nil {
+		m["reasoning_content"] = *msg.Reasoning
 	}
 	return m
 }

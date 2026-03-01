@@ -1,0 +1,11 @@
+{
+    "model": "glm-4.7",
+    "temperature": 0.1,
+    "messages": [
+        {
+            "role": "user",
+            "content": "what's your model name"
+        }
+    ],
+    "stream": false
+}

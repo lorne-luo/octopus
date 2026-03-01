@@ -2,7 +2,6 @@ package openai
 
 import (
 	"encoding/json"
-	"strings"
 )
 
 // UnmarshalJSON handles both string and array forms of MessageContent.
@@ -143,17 +142,4 @@ func (tc ToolChoice) MarshalJSON() ([]byte, error) {
 			Name string `json:"name"`
 		}{Name: *tc.Function},
 	})
-}
-
-// NormalizeReasoningEffort normalizes reasoning_effort values.
-func NormalizeReasoningEffort(effort string) string {
-	// Normalize to lowercase
-	e := strings.ToLower(effort)
-	// Valid values: low, medium, high
-	switch e {
-	case "low", "medium", "high":
-		return e
-	default:
-		return e
-	}
 }

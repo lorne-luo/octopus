@@ -199,37 +199,31 @@ func extractSystemAndMessages(req *canonical.Request) (SystemContent, []MessageP
 	var messages []MessageParam
 
 	// First pass - extract system messages
-	var systemTexts []string
 	var systemBlocks []SystemBlock
-	hasSystemCacheControl := false
+	var hasCacheControl bool
 
 	for _, msg := range req.Messages {
 		if msg.Role == canonical.RoleSystem || msg.Role == canonical.RoleDeveloper {
 			// Extract system content
 			for _, cb := range msg.Content {
-				if cb.CacheControl != nil {
-					hasSystemCacheControl = true
-				}
 				systemBlocks = append(systemBlocks, SystemBlock{
 					Type:         "text",
 					Text:         cb.Text,
 					CacheControl: convertCanonicalCacheControl(cb.CacheControl),
 				})
+				if cb.CacheControl != nil {
+					hasCacheControl = true
+				}
 			}
 		}
 	}
 
-	// Build system content
-	if len(systemBlocks) > 0 {
-		if hasSystemCacheControl {
-			system.Blocks = systemBlocks
-		} else {
-			// Use simple string format if no cache_control
-			for _, b := range systemBlocks {
-				systemTexts = append(systemTexts, b.Text)
-			}
-			system.Text = strings.Join(systemTexts, "\n")
-		}
+	// Build system content - use string format for simple single text block
+	// Use array format when there are multiple blocks or cache_control
+	if len(systemBlocks) == 1 && !hasCacheControl {
+		system.Text = systemBlocks[0].Text
+	} else if len(systemBlocks) > 0 {
+		system.Blocks = systemBlocks
 	}
 
 	// Second pass - aggregate tool results and build messages

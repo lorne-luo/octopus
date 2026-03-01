@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/bestruirui/octopus/internal/transformer2/canonical"
 )
@@ -152,22 +153,22 @@ func (a *ChatClientAdapter) ParseRequest(ctx context.Context, body []byte, heade
 	}
 
 	creq := &canonical.Request{
-		Kind:         canonical.KindChat,
-		Model:        req.Model,
-		Temperature:  req.Temperature,
-		TopP:         req.TopP,
-		TopK:         req.TopLogprobs,
-		MaxTokens:    req.MaxTokens,
+		Kind:             canonical.KindChat,
+		Model:            req.Model,
+		Temperature:      req.Temperature,
+		TopP:             req.TopP,
+		TopLogprobs:      req.TopLogprobs,
+		MaxTokens:        req.MaxTokens,
 		FrequencyPenalty: req.FrequencyPenalty,
 		PresencePenalty:  req.PresencePenalty,
-		Seed:         req.Seed,
-		Logprobs:     req.Logprobs,
-		Store:        req.Store,
-		User:         req.User,
-		ServiceTier:  req.ServiceTier,
-		SourceFormat: canonical.FormatOpenAIChat,
-		Headers:      header,
-		RawRequest:   body,
+		Seed:             req.Seed,
+		Logprobs:         req.Logprobs,
+		Store:            req.Store,
+		User:             req.User,
+		ServiceTier:      req.ServiceTier,
+		SourceFormat:     canonical.FormatOpenAIChat,
+		Headers:          header,
+		RawRequest:       body,
 	}
 
 	// Handle MaxCompletionTokens (o1+ models)
@@ -223,7 +224,10 @@ func (a *ChatClientAdapter) ParseRequest(ctx context.Context, body []byte, heade
 		}
 		if req.ResponseFormat.JsonSchema != nil {
 			creq.ResponseFormat.JsonSchema = &canonical.ResponseSchema{
-				Schema: req.ResponseFormat.JsonSchema,
+				Name:        req.ResponseFormat.JsonSchema.Name,
+				Description: req.ResponseFormat.JsonSchema.Description,
+				Schema:      req.ResponseFormat.JsonSchema.Schema,
+				Strict:      req.ResponseFormat.JsonSchema.Strict != nil && *req.ResponseFormat.JsonSchema.Strict,
 			}
 		}
 	}
@@ -366,8 +370,22 @@ func convertContentPartToCanonical(part ContentPart) canonical.ContentBlock {
 		if part.ImageURL != nil {
 			cb.Type = canonical.ContentImage
 			cb.Media = &canonical.MediaContent{
-				URL:     part.ImageURL.URL,
-				Detail:  part.ImageURL.Detail,
+				URL:    part.ImageURL.URL,
+				Detail: part.ImageURL.Detail,
+			}
+			// Parse data URL if present
+			if strings.HasPrefix(part.ImageURL.URL, "data:") {
+				// Extract MIME type and base64 data from data URL
+				// Format: data:image/jpeg;base64,/9j/4AAQ==
+				parts := strings.SplitN(part.ImageURL.URL, ",", 2)
+				if len(parts) == 2 {
+					mimePart := parts[0]
+					cb.Media.Base64 = parts[1]
+					// Extract MIME type from "data:image/jpeg;base64"
+					if strings.HasPrefix(mimePart, "data:") && strings.HasSuffix(mimePart, ";base64") {
+						cb.Media.MimeType = strings.TrimSuffix(strings.TrimPrefix(mimePart, "data:"), ";base64")
+					}
+				}
 			}
 		}
 	case "input_audio":
@@ -442,9 +460,9 @@ func convertCanonicalToOpenAIResponse(resp *canonical.Response) *ChatCompletionR
 
 	if resp.Usage != nil {
 		oresp.Usage = &Usage{
-			PromptTokens:           resp.Usage.PromptTokens,
-			CompletionTokens:       resp.Usage.CompletionTokens,
-			TotalTokens:           resp.Usage.TotalTokens,
+			PromptTokens:     resp.Usage.PromptTokens,
+			CompletionTokens: resp.Usage.CompletionTokens,
+			TotalTokens:      resp.Usage.TotalTokens,
 		}
 		if resp.Usage.PromptTokensDetails != nil {
 			oresp.Usage.PromptTokensDetails = &PromptTokensDetails{
@@ -566,7 +584,7 @@ func convertCanonicalToOpenAIChunk(chunk *canonical.Chunk) *ChatCompletionRespon
 		oresp.Usage = &Usage{
 			PromptTokens:     chunk.Usage.PromptTokens,
 			CompletionTokens: chunk.Usage.CompletionTokens,
-			TotalTokens:     chunk.Usage.TotalTokens,
+			TotalTokens:      chunk.Usage.TotalTokens,
 		}
 	}
 

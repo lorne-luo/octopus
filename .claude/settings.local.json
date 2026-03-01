@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__acp__Edit",
+      "Bash(mgrep:*)"
+    ]
+  },
+  "outputStyle": "Structural Thinking"
+}

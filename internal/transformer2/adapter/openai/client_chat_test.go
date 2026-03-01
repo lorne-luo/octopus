@@ -151,7 +151,7 @@ func TestParseRequest_AllParams(t *testing.T) {
 		{"presence_penalty", 0.3, float64PtrVal(req.PresencePenalty)},
 		{"seed", int64(42), int64PtrVal(req.Seed)},
 		{"logprobs", true, boolPtrVal(req.Logprobs)},
-		{"top_k", int64(3), int64PtrVal(req.TopK)},
+		{"top_logprobs", int64(3), int64PtrVal(req.TopLogprobs)},
 	}
 
 	for _, tt := range tests {
@@ -454,9 +454,9 @@ func TestFormatResponse_ToolCalls(t *testing.T) {
 					Role: canonical.RoleAssistant,
 					ToolCalls: []canonical.ToolCall{
 						{
-							ID:   "call_abc123",
-							Type: "function",
-							Name: "get_weather",
+							ID:        "call_abc123",
+							Type:      "function",
+							Name:      "get_weather",
 							Arguments: "{\"location\": \"Tokyo\", \"unit\": \"celsius\"}",
 						},
 					},
@@ -548,7 +548,7 @@ func TestFormatStreamChunk(t *testing.T) {
 				Created: 1700000000,
 				Deltas: []canonical.ChoiceDelta{
 					{
-						Index: 0,
+						Index:        0,
 						FinishReason: strPtr("stop"),
 					},
 				},

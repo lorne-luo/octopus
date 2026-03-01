@@ -337,22 +337,38 @@ func convertCanonicalToAnthropicThinking(rc *canonical.ReasoningConfig) *Thinkin
 		return nil
 	}
 
-	// Enabled = nil means adaptive mode
+	// Check for explicit disabled
+	if rc.Enabled != nil && !*rc.Enabled {
+		return &ThinkingConfig{Type: "disabled"}
+	}
+
+	// If Enabled is nil (adaptive mode), return adaptive
 	if rc.Enabled == nil {
 		return &ThinkingConfig{Type: "adaptive"}
 	}
 
-	if *rc.Enabled {
-		// Enabled mode
-		tc := &ThinkingConfig{Type: "enabled"}
-		if rc.BudgetTokens != nil && *rc.BudgetTokens > 0 {
-			tc.BudgetTokens = *rc.BudgetTokens
+	// Build thinking config (enabled mode)
+	tc := &ThinkingConfig{Type: "enabled"}
+
+	// Handle budget_tokens
+	if rc.BudgetTokens != nil && *rc.BudgetTokens > 0 {
+		tc.BudgetTokens = *rc.BudgetTokens
+	} else if rc.Effort != nil {
+		// Map reasoning_effort to budget_tokens
+		// low→1024, medium→8192, high→32768
+		switch *rc.Effort {
+		case "low":
+			tc.BudgetTokens = 1024
+		case "medium":
+			tc.BudgetTokens = 8192
+		case "high":
+			tc.BudgetTokens = 32768
+		default:
+			tc.BudgetTokens = 8192
 		}
-		return tc
 	}
 
-	// Disabled
-	return &ThinkingConfig{Type: "disabled"}
+	return tc
 }
 
 // convertAnthropicSystemToCanonical extracts system messages from Anthropic system field.

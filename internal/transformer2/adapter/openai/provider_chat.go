@@ -122,19 +122,19 @@ func (a *ChatProviderAdapter) ParseStreamChunk(ctx context.Context, data []byte)
 // convertCanonicalToOpenAIRequest converts canonical Request to OpenAI format.
 func convertCanonicalToOpenAIRequest(req *canonical.Request) *ChatCompletionRequest {
 	oreq := &ChatCompletionRequest{
-		Model:            req.Model,
-		Temperature:       req.Temperature,
-		TopP:              req.TopP,
-		TopLogprobs:       req.TopK,
-		MaxTokens:         req.MaxTokens,
+		Model:               req.Model,
+		Temperature:         req.Temperature,
+		TopP:                req.TopP,
+		TopLogprobs:         req.TopLogprobs,
+		MaxTokens:           req.MaxTokens,
 		MaxCompletionTokens: req.MaxCompletionTokens,
-		FrequencyPenalty:  req.FrequencyPenalty,
-		PresencePenalty:   req.PresencePenalty,
-		Seed:              req.Seed,
-		Logprobs:          req.Logprobs,
-		Store:             req.Store,
-		User:              req.User,
-		ServiceTier:       req.ServiceTier,
+		FrequencyPenalty:    req.FrequencyPenalty,
+		PresencePenalty:     req.PresencePenalty,
+		Seed:                req.Seed,
+		Logprobs:            req.Logprobs,
+		Store:               req.Store,
+		User:                req.User,
+		ServiceTier:         req.ServiceTier,
 	}
 
 	// Handle stream
@@ -172,7 +172,13 @@ func convertCanonicalToOpenAIRequest(req *canonical.Request) *ChatCompletionRequ
 			Type: req.ResponseFormat.Type,
 		}
 		if req.ResponseFormat.JsonSchema != nil {
-			oreq.ResponseFormat.JsonSchema = req.ResponseFormat.JsonSchema.Schema
+			strict := req.ResponseFormat.JsonSchema.Strict
+			oreq.ResponseFormat.JsonSchema = &JsonSchemaFormat{
+				Name:        req.ResponseFormat.JsonSchema.Name,
+				Description: req.ResponseFormat.JsonSchema.Description,
+				Schema:      req.ResponseFormat.JsonSchema.Schema,
+				Strict:      &strict,
+			}
 		}
 	}
 
@@ -203,8 +209,8 @@ func convertCanonicalToOpenAIRequest(req *canonical.Request) *ChatCompletionRequ
 	// Convert tool_choice
 	if req.ToolChoice != nil {
 		oreq.ToolChoice = convertCanonicalToolChoiceToOpenAI(req.ToolChoice)
-		if req.ToolChoice.DisableParallelToolUse != nil && !*req.ToolChoice.DisableParallelToolUse {
-			parallel := true
+		if req.ToolChoice.DisableParallelToolUse != nil {
+			parallel := !*req.ToolChoice.DisableParallelToolUse
 			oreq.ParallelToolCalls = &parallel
 		}
 	}
