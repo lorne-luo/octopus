@@ -80,7 +80,7 @@ func (s *StopSequences) UnmarshalJSON(data []byte) error {
 
 // MarshalJSON handles StopSequences serialization.
 func (s StopSequences) MarshalJSON() ([]byte, error) {
-	if s.Multiple != nil && len(s.Multiple) > 0 {
+	if len(s.Multiple) > 0 {
 		return json.Marshal(s.Multiple)
 	}
 	if s.Single != "" {
