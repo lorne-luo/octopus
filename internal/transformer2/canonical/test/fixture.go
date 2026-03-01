@@ -37,8 +37,8 @@ type TestCase struct {
 
 	// Streaming
 	Stream                     bool            `json:"stream"`
-	ProviderStreamChunks       []string        `json:"provider_stream_chunks"`
-	ExpectedClientStreamChunks []string        `json:"expected_client_stream_chunks"`
+	ProviderStreamChunks       json.RawMessage `json:"provider_stream_chunks"`
+	ExpectedClientStreamChunks json.RawMessage `json:"expected_client_stream_chunks"`
 	ExpectedAggregatedResponse json.RawMessage `json:"expected_aggregated_response"`
 
 	// Variants for parameterized tests
