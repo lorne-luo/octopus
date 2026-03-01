@@ -661,6 +661,72 @@ func TestFormatStreamChunk_ToolCalls(t *testing.T) {
 	}
 }
 
+// TestFormatStreamChunk_EmptyRole tests that empty role is omitted from output.
+// This is important for compatibility with providers that return empty string for role.
+func TestFormatStreamChunk_EmptyRole(t *testing.T) {
+	adapter := NewChatClientAdapter()
+	ctx := context.Background()
+
+	// Simulate chunk from upstream with empty role (like deepseek returns)
+	chunk := &canonical.Chunk{
+		ID:      "41be5436727f413b842b2c5d7f5aad30",
+		Model:   "deepseek-ai/deepseek-v3.2",
+		Created: 1772402748,
+		Deltas: []canonical.ChoiceDelta{
+			{
+				Index: 0,
+				Delta: canonical.Message{
+					Role: "", // Empty role - should be omitted in output
+					Content: []canonical.ContentBlock{
+						{Type: canonical.ContentText, Text: "你好"},
+					},
+				},
+			},
+		},
+	}
+
+	output, err := adapter.FormatStreamChunk(ctx, chunk)
+	if err != nil {
+		t.Fatalf("FormatStreamChunk failed: %v", err)
+	}
+
+	outputStr := string(output)
+
+	// Verify the output does NOT contain "role":""
+	if contains(outputStr, `"role":""`) {
+		t.Errorf("Output should not contain empty role, got: %s", outputStr)
+	}
+
+	// Verify the output contains the content
+	if !contains(outputStr, "你好") {
+		t.Errorf("Expected output to contain '你好', got: %s", outputStr)
+	}
+
+	// Parse and verify structure
+	var resp ChatCompletionResponse
+	if err := json.Unmarshal(output[6:], &resp); err != nil { // Skip "data: " prefix
+		t.Fatalf("Failed to unmarshal chunk: %v", err)
+	}
+
+	if len(resp.Choices) != 1 {
+		t.Fatalf("Expected 1 choice, got %d", len(resp.Choices))
+	}
+
+	if resp.Choices[0].Delta == nil {
+		t.Fatal("Expected delta in choice, got nil")
+	}
+
+	// Role should be empty string (not set), but not serialized
+	if resp.Choices[0].Delta.Role != "" {
+		t.Errorf("Expected empty role in parsed struct, got '%s'", resp.Choices[0].Delta.Role)
+	}
+
+	// Verify content is present
+	if resp.Choices[0].Delta.Content.String() != "你好" {
+		t.Errorf("Expected content '你好', got '%s'", resp.Choices[0].Delta.Content.String())
+	}
+}
+
 func TestAggregateStream_Basic(t *testing.T) {
 	adapter := NewChatClientAdapter()
 	ctx := context.Background()

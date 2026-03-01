@@ -6,9 +6,9 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"strings"
 
 	"github.com/bestruirui/octopus/internal/transformer2/canonical"
+	"github.com/bestruirui/octopus/internal/transformer2/urlutil"
 )
 
 // ProviderAdapter implements ProviderAdapter for Gemini backends.
@@ -37,21 +37,23 @@ func (a *ProviderAdapter) BuildRequest(ctx context.Context, req *canonical.Reque
 	}
 
 	// Build URL based on request kind
-	var url string
-	baseURL = strings.TrimSuffix(baseURL, "/")
-
+	var endpoint string
 	switch req.Kind {
 	case canonical.KindCountTokens:
-		url = baseURL + "/v1beta/models/" + req.Model + ":countTokens"
+		endpoint = "/v1beta/models/" + req.Model + ":countTokens"
 	default:
 		if req.Stream {
-			url = baseURL + "/v1beta/models/" + req.Model + ":streamGenerateContent?alt=sse"
+			endpoint = "/v1beta/models/" + req.Model + ":streamGenerateContent?alt=sse"
 		} else {
-			url = baseURL + "/v1beta/models/" + req.Model + ":generateContent"
+			endpoint = "/v1beta/models/" + req.Model + ":generateContent"
 		}
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
+	reqURL, err := urlutil.BuildURL(baseURL, endpoint)
+	if err != nil {
+		return nil, err
+	}
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", reqURL, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}

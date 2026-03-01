@@ -26,7 +26,7 @@ func TestEmbeddingBuildRequest_Basic(t *testing.T) {
 	adapter := NewEmbeddingProviderAdapter()
 	ctx := context.Background()
 
-	httpReq, err := adapter.BuildRequest(ctx, req, "https://api.openai.com", "test-key")
+	httpReq, err := adapter.BuildRequest(ctx, req, "https://api.openai.com/v1", "test-key")
 	if err != nil {
 		t.Fatalf("BuildRequest failed: %v", err)
 	}
@@ -35,6 +35,7 @@ func TestEmbeddingBuildRequest_Basic(t *testing.T) {
 	if httpReq.Method != "POST" {
 		t.Errorf("Expected POST method, got %s", httpReq.Method)
 	}
+	// Base URL with /v1 prefix, endpoint is /embeddings
 	if httpReq.URL.String() != "https://api.openai.com/v1/embeddings" {
 		t.Errorf("Expected URL 'https://api.openai.com/v1/embeddings', got %s", httpReq.URL.String())
 	}
@@ -78,7 +79,7 @@ func TestEmbeddingBuildRequest_ArrayInput(t *testing.T) {
 	adapter := NewEmbeddingProviderAdapter()
 	ctx := context.Background()
 
-	httpReq, err := adapter.BuildRequest(ctx, req, "https://api.openai.com", "test-key")
+	httpReq, err := adapter.BuildRequest(ctx, req, "https://api.openai.com/v1", "test-key")
 	if err != nil {
 		t.Fatalf("BuildRequest failed: %v", err)
 	}
@@ -123,7 +124,7 @@ func TestEmbeddingBuildRequest_WithDimensions(t *testing.T) {
 	adapter := NewEmbeddingProviderAdapter()
 	ctx := context.Background()
 
-	httpReq, err := adapter.BuildRequest(ctx, req, "https://api.openai.com", "test-key")
+	httpReq, err := adapter.BuildRequest(ctx, req, "https://api.openai.com/v1", "test-key")
 	if err != nil {
 		t.Fatalf("BuildRequest failed: %v", err)
 	}
@@ -168,13 +169,18 @@ func TestEmbeddingBuildRequest_TrailingSlash(t *testing.T) {
 	}{
 		{
 			name:    "no_trailing_slash",
-			baseURL: "https://api.openai.com",
+			baseURL: "https://api.openai.com/v1",
 			wantURL: "https://api.openai.com/v1/embeddings",
 		},
 		{
 			name:    "with_trailing_slash",
-			baseURL: "https://api.openai.com/",
+			baseURL: "https://api.openai.com/v1/",
 			wantURL: "https://api.openai.com/v1/embeddings",
+		},
+		{
+			name:    "without_v1_prefix",
+			baseURL: "https://api.openai.com",
+			wantURL: "https://api.openai.com/embeddings",
 		},
 	}
 

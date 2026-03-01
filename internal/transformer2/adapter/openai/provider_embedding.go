@@ -7,9 +7,9 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"strings"
 
 	"github.com/bestruirui/octopus/internal/transformer2/canonical"
+	"github.com/bestruirui/octopus/internal/transformer2/urlutil"
 )
 
 // EmbeddingProviderAdapter implements ProviderAdapter for OpenAI Embeddings API.
@@ -29,8 +29,11 @@ func (a *EmbeddingProviderAdapter) BuildRequest(ctx context.Context, req *canoni
 		return nil, err
 	}
 
-	url := strings.TrimSuffix(baseURL, "/") + "/v1/embeddings"
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
+	reqURL, err := urlutil.BuildURL(baseURL, "/embeddings")
+	if err != nil {
+		return nil, err
+	}
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", reqURL, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}

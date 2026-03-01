@@ -32,7 +32,7 @@ func TestResponsesBuildRequest_BasicInput(t *testing.T) {
 		},
 	}
 
-	httpReq, err := adapter.BuildRequest(ctx, req, "https://api.openai.com", "test-key")
+	httpReq, err := adapter.BuildRequest(ctx, req, "https://api.openai.com/v1", "test-key")
 	if err != nil {
 		t.Fatalf("BuildRequest failed: %v", err)
 	}
@@ -41,6 +41,7 @@ func TestResponsesBuildRequest_BasicInput(t *testing.T) {
 	if httpReq.Method != "POST" {
 		t.Errorf("Expected POST method, got %s", httpReq.Method)
 	}
+	// Base URL with /v1 prefix, endpoint is /responses
 	if httpReq.URL.String() != "https://api.openai.com/v1/responses" {
 		t.Errorf("Expected URL 'https://api.openai.com/v1/responses', got %s", httpReq.URL.String())
 	}
@@ -113,7 +114,7 @@ func TestResponsesBuildRequest_ArrayInput(t *testing.T) {
 		},
 	}
 
-	httpReq, err := adapter.BuildRequest(ctx, req, "https://api.openai.com", "test-key")
+	httpReq, err := adapter.BuildRequest(ctx, req, "https://api.openai.com/v1", "test-key")
 	if err != nil {
 		t.Fatalf("BuildRequest failed: %v", err)
 	}
@@ -162,7 +163,7 @@ func TestResponsesBuildRequest_WithInstructions(t *testing.T) {
 		},
 	}
 
-	httpReq, err := adapter.BuildRequest(ctx, req, "https://api.openai.com", "test-key")
+	httpReq, err := adapter.BuildRequest(ctx, req, "https://api.openai.com/v1", "test-key")
 	if err != nil {
 		t.Fatalf("BuildRequest failed: %v", err)
 	}
@@ -216,7 +217,7 @@ func TestResponsesBuildRequest_WithTools(t *testing.T) {
 		},
 	}
 
-	httpReq, err := adapter.BuildRequest(ctx, req, "https://api.openai.com", "test-key")
+	httpReq, err := adapter.BuildRequest(ctx, req, "https://api.openai.com/v1", "test-key")
 	if err != nil {
 		t.Fatalf("BuildRequest failed: %v", err)
 	}
@@ -275,7 +276,7 @@ func TestResponsesBuildRequest_ImageGenerationTool(t *testing.T) {
 		}},
 	}
 
-	httpReq, err := adapter.BuildRequest(ctx, req, "https://api.openai.com", "test-key")
+	httpReq, err := adapter.BuildRequest(ctx, req, "https://api.openai.com/v1", "test-key")
 	if err != nil {
 		t.Fatalf("BuildRequest failed: %v", err)
 	}

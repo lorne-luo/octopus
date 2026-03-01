@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/bestruirui/octopus/internal/transformer2/canonical"
+	"github.com/bestruirui/octopus/internal/transformer2/urlutil"
 )
 
 // ProviderAdapter implements ProviderAdapter for Anthropic backends.
@@ -37,13 +38,16 @@ func (a *ProviderAdapter) BuildRequest(ctx context.Context, req *canonical.Reque
 	}
 
 	// Route to correct endpoint based on request kind
-	endpoint := "/v1/messages"
+	endpoint := "/messages"
 	if req.Kind == canonical.KindCountTokens {
-		endpoint = "/v1/messages/count_tokens"
+		endpoint = "/messages/count_tokens"
 	}
 
-	url := strings.TrimSuffix(baseURL, "/") + endpoint
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
+	reqURL, err := urlutil.BuildURL(baseURL, endpoint)
+	if err != nil {
+		return nil, err
+	}
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", reqURL, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}

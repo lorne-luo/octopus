@@ -42,7 +42,7 @@ func TestBuildRequest_BasicChat(t *testing.T) {
 	}
 
 	// Build HTTP request
-	httpReq, err := adapter.BuildRequest(ctx, canonicalReq, "https://api.openai.com", "test-key")
+	httpReq, err := adapter.BuildRequest(ctx, canonicalReq, "https://api.openai.com/v1", "test-key")
 	if err != nil {
 		t.Fatalf("BuildRequest failed: %v", err)
 	}
@@ -51,6 +51,7 @@ func TestBuildRequest_BasicChat(t *testing.T) {
 	if httpReq.Method != "POST" {
 		t.Errorf("Expected POST method, got %s", httpReq.Method)
 	}
+	// Base URL with /v1 prefix, endpoint is /chat/completions
 	if httpReq.URL.String() != "https://api.openai.com/v1/chat/completions" {
 		t.Errorf("Expected URL 'https://api.openai.com/v1/chat/completions', got %s", httpReq.URL.String())
 	}
@@ -108,7 +109,7 @@ func TestBuildRequest_MultiTurn(t *testing.T) {
 		t.Fatalf("ParseRequest failed: %v", err)
 	}
 
-	httpReq, err := adapter.BuildRequest(ctx, canonicalReq, "https://api.openai.com", "test-key")
+	httpReq, err := adapter.BuildRequest(ctx, canonicalReq, "https://api.openai.com/v1", "test-key")
 	if err != nil {
 		t.Fatalf("BuildRequest failed: %v", err)
 	}
@@ -163,7 +164,7 @@ func TestBuildRequest_AllParams(t *testing.T) {
 		t.Fatalf("ParseRequest failed: %v", err)
 	}
 
-	httpReq, err := adapter.BuildRequest(ctx, canonicalReq, "https://api.openai.com", "test-key")
+	httpReq, err := adapter.BuildRequest(ctx, canonicalReq, "https://api.openai.com/v1", "test-key")
 	if err != nil {
 		t.Fatalf("BuildRequest failed: %v", err)
 	}
@@ -238,7 +239,7 @@ func TestBuildRequest_WithTools(t *testing.T) {
 		t.Fatalf("ParseRequest failed: %v", err)
 	}
 
-	httpReq, err := adapter.BuildRequest(ctx, canonicalReq, "https://api.openai.com", "test-key")
+	httpReq, err := adapter.BuildRequest(ctx, canonicalReq, "https://api.openai.com/v1", "test-key")
 	if err != nil {
 		t.Fatalf("BuildRequest failed: %v", err)
 	}
@@ -306,7 +307,7 @@ func TestBuildRequest_ToolResultRoundTrip(t *testing.T) {
 		t.Fatalf("ParseRequest failed: %v", err)
 	}
 
-	httpReq, err := adapter.BuildRequest(ctx, canonicalReq, "https://api.openai.com", "test-key")
+	httpReq, err := adapter.BuildRequest(ctx, canonicalReq, "https://api.openai.com/v1", "test-key")
 	if err != nil {
 		t.Fatalf("BuildRequest failed: %v", err)
 	}
@@ -892,13 +893,18 @@ func TestBuildRequest_TrailingSlash(t *testing.T) {
 	}{
 		{
 			name:    "no_trailing_slash",
-			baseURL: "https://api.openai.com",
+			baseURL: "https://api.openai.com/v1",
 			wantURL: "https://api.openai.com/v1/chat/completions",
 		},
 		{
 			name:    "with_trailing_slash",
-			baseURL: "https://api.openai.com/",
+			baseURL: "https://api.openai.com/v1/",
 			wantURL: "https://api.openai.com/v1/chat/completions",
+		},
+		{
+			name:    "without_v1_prefix",
+			baseURL: "https://api.openai.com",
+			wantURL: "https://api.openai.com/chat/completions",
 		},
 	}
 

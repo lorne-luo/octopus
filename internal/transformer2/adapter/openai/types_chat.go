@@ -34,7 +34,7 @@ type ChatCompletionRequest struct {
 
 // ChatMessage represents a message in a chat completion request.
 type ChatMessage struct {
-	Role             string         `json:"role"`
+	Role             string         `json:"role,omitempty"`
 	Content          MessageContent `json:"content"`
 	Name             *string        `json:"name,omitempty"`
 	Refusal          string         `json:"refusal,omitempty"`

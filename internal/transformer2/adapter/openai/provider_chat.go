@@ -6,10 +6,10 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"strings"
 
 	"github.com/bestruirui/octopus/internal/transformer2/adapter/openai/quirks"
 	"github.com/bestruirui/octopus/internal/transformer2/canonical"
+	"github.com/bestruirui/octopus/internal/transformer2/urlutil"
 )
 
 // ChatProviderAdapter implements ProviderAdapter for OpenAI Chat Completions API.
@@ -41,8 +41,11 @@ func (a *ChatProviderAdapter) BuildRequest(ctx context.Context, req *canonical.R
 		return nil, err
 	}
 
-	url := strings.TrimSuffix(baseURL, "/") + "/v1/chat/completions"
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
+	reqURL, err := urlutil.BuildURL(baseURL, "/chat/completions")
+	if err != nil {
+		return nil, err
+	}
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", reqURL, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}

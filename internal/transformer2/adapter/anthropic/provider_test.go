@@ -25,7 +25,7 @@ func TestBuildRequest_BasicMessage(t *testing.T) {
 		MaxTokens: int64Ptr(1024),
 	}
 
-	httpReq, err := adapter.BuildRequest(ctx, req, "https://api.anthropic.com", "test-key")
+	httpReq, err := adapter.BuildRequest(ctx, req, "https://api.anthropic.com/v1", "test-key")
 	if err != nil {
 		t.Fatalf("BuildRequest failed: %v", err)
 	}
@@ -34,6 +34,7 @@ func TestBuildRequest_BasicMessage(t *testing.T) {
 	if httpReq.Method != "POST" {
 		t.Errorf("Expected POST method, got %s", httpReq.Method)
 	}
+	// Base URL with /v1 prefix, endpoint is /messages
 	if httpReq.URL.String() != "https://api.anthropic.com/v1/messages" {
 		t.Errorf("Expected URL 'https://api.anthropic.com/v1/messages', got %s", httpReq.URL.String())
 	}
@@ -816,13 +817,18 @@ func TestBuildRequest_TrailingSlash(t *testing.T) {
 	}{
 		{
 			name:    "no_trailing_slash",
-			baseURL: "https://api.anthropic.com",
+			baseURL: "https://api.anthropic.com/v1",
 			wantURL: "https://api.anthropic.com/v1/messages",
 		},
 		{
 			name:    "with_trailing_slash",
-			baseURL: "https://api.anthropic.com/",
+			baseURL: "https://api.anthropic.com/v1/",
 			wantURL: "https://api.anthropic.com/v1/messages",
+		},
+		{
+			name:    "without_v1_prefix",
+			baseURL: "https://api.anthropic.com",
+			wantURL: "https://api.anthropic.com/messages",
 		},
 	}
 
@@ -847,8 +853,8 @@ func TestProviderAdapter_EndToEnd(t *testing.T) {
 		if r.Method != "POST" {
 			t.Errorf("Expected POST, got %s", r.Method)
 		}
-		if r.URL.Path != "/v1/messages" {
-			t.Errorf("Expected path '/v1/messages', got '%s'", r.URL.Path)
+		if r.URL.Path != "/messages" {
+			t.Errorf("Expected path '/messages', got '%s'", r.URL.Path)
 		}
 		if r.Header.Get("Content-Type") != "application/json" {
 			t.Errorf("Expected Content-Type 'application/json', got '%s'", r.Header.Get("Content-Type"))
@@ -891,6 +897,7 @@ func TestProviderAdapter_EndToEnd(t *testing.T) {
 		MaxTokens: int64Ptr(1024),
 	}
 
+	// Use test server URL (without /v1 prefix, endpoint will be /messages)
 	httpReq, err := providerAdapter.BuildRequest(ctx, req, ts.URL, "test-key")
 	if err != nil {
 		t.Fatalf("BuildRequest failed: %v", err)
