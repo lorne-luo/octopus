@@ -28,6 +28,14 @@ func (a *ProviderAdapter) BuildRequest(ctx context.Context, req *canonical.Reque
 		return nil, err
 	}
 
+	// Merge ExtraBody if present (user intent takes precedence)
+	if len(req.ExtraBody) > 0 {
+		body, err = mergeExtraBody(body, req.ExtraBody)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	// Build URL based on request kind
 	var url string
 	baseURL = strings.TrimSuffix(baseURL, "/")

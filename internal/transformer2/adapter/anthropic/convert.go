@@ -155,7 +155,7 @@ func convertAnthropicToolToCanonical(tool Tool) canonical.Tool {
 	ctool := canonical.Tool{
 		Name:        tool.Name,
 		Description: tool.Description,
-		Parameters:   tool.InputSchema,
+		Parameters:  tool.InputSchema,
 	}
 
 	// Anthropic tools don't have explicit type, default to "function"
@@ -186,13 +186,13 @@ func convertCanonicalToAnthropicTool(tool canonical.Tool) Tool {
 // convertAnthropicUsageToCanonical converts Anthropic Usage to canonical Usage.
 func convertAnthropicUsageToCanonical(usage Usage) *canonical.Usage {
 	cusage := &canonical.Usage{
-		PromptTokens:              usage.InputTokens,
-		CompletionTokens:        usage.OutputTokens,
-		TotalTokens:             usage.InputTokens + usage.OutputTokens,
-		CacheCreationInputTokens: usage.CacheCreationInputTokens,
-		CacheReadInputTokens:     usage.CacheReadInputTokens,
+		PromptTokens:               usage.InputTokens,
+		CompletionTokens:           usage.OutputTokens,
+		TotalTokens:                usage.InputTokens + usage.OutputTokens,
+		CacheCreationInputTokens:   usage.CacheCreationInputTokens,
+		CacheReadInputTokens:       usage.CacheReadInputTokens,
 		InputTokensAfterBreakpoint: usage.InputTokens,
-		IsAnthropicUsage:         true,
+		IsAnthropicUsage:           true,
 	}
 
 	return cusage
@@ -503,4 +503,28 @@ func unmarshalJSON(data json.RawMessage, v interface{}) error {
 		return nil
 	}
 	return json.Unmarshal(data, v)
+}
+
+// mergeExtraBody merges opaque ExtraBody JSON into the serialized request body.
+// ExtraBody keys take precedence over existing keys (user intent).
+func mergeExtraBody(body []byte, extraBody json.RawMessage) ([]byte, error) {
+	if len(extraBody) == 0 {
+		return body, nil
+	}
+
+	var base map[string]interface{}
+	if err := json.Unmarshal(body, &base); err != nil {
+		return body, nil
+	}
+
+	var extra map[string]interface{}
+	if err := json.Unmarshal(extraBody, &extra); err != nil {
+		return body, nil
+	}
+
+	for k, v := range extra {
+		base[k] = v
+	}
+
+	return json.Marshal(base)
 }

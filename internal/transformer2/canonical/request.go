@@ -10,7 +10,7 @@ import (
 type RequestKind int
 
 const (
-	KindChat       RequestKind = iota
+	KindChat RequestKind = iota
 	KindEmbedding
 	KindCountTokens
 )
@@ -71,11 +71,11 @@ type Request struct {
 	MediaResolution *string
 
 	// OpenAI-specific passthrough fields
-	LogitBias       map[string]int64
-	ServiceTier     *string
-	PromptCacheKey  *bool
+	LogitBias        map[string]int64
+	ServiceTier      *string
+	PromptCacheKey   *bool
 	SafetyIdentifier *string
-	User            *string
+	User             *string
 
 	// Qwen specific
 	EnableThinking *bool
@@ -102,11 +102,14 @@ type Request struct {
 type APIFormat string
 
 const (
-	FormatOpenAIChat    APIFormat = "openai/chat"
-	FormatOpenAIResponse APIFormat = "openai/responses"
-	FormatOpenAIEmbed   APIFormat = "openai/embeddings"
-	FormatAnthropic     APIFormat = "anthropic/messages"
-	FormatGemini        APIFormat = "gemini"
+	FormatOpenAIChat            APIFormat = "openai/chat"
+	FormatOpenAIResponse        APIFormat = "openai/responses"
+	FormatOpenAIEmbed           APIFormat = "openai/embeddings"
+	FormatOpenAIImageGeneration APIFormat = "openai/image-generation"
+	FormatAnthropic             APIFormat = "anthropic/messages"
+	FormatGemini                APIFormat = "gemini"
+	FormatAiSDKText             APIFormat = "ai-sdk/text"       // future use
+	FormatAiSDKDataStream       APIFormat = "ai-sdk/datastream" // future use
 )
 
 // TransformHints carries adapter-internal metadata for round-trip fidelity.

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/bestruirui/octopus/internal/transformer2/adapter/openai/quirks"
 	"github.com/bestruirui/octopus/internal/transformer2/canonical"
 )
 
@@ -24,6 +25,18 @@ func (a *ChatProviderAdapter) BuildRequest(ctx context.Context, req *canonical.R
 	oreq := convertCanonicalToOpenAIRequest(req)
 
 	body, err := json.Marshal(oreq)
+	if err != nil {
+		return nil, err
+	}
+
+	// Merge ExtraBody if present (user intent takes precedence)
+	body, err = mergeExtraBody(body, req.ExtraBody)
+	if err != nil {
+		return nil, err
+	}
+
+	// Apply provider-specific quirks (strip unsupported fields)
+	body, err = quirks.ApplyQuirks(body, baseURL)
 	if err != nil {
 		return nil, err
 	}

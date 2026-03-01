@@ -20,6 +20,9 @@ type MessageRequest struct {
 	Stream        bool              `json:"stream,omitempty"`
 	Metadata      map[string]string `json:"metadata,omitempty"`
 
+	// Anthropic output_config (effort control for adaptive thinking)
+	OutputConfig *AnthropicOutputConfig `json:"output_config,omitempty"`
+
 	// Anthropic-specific features
 	MetadataUserID *string `json:"-"` // Extracted from metadata.user_id
 }
@@ -314,3 +317,15 @@ const (
 	StopReasonToolUse      = "tool_use"
 	StopReasonStopSequence = "stop_sequence"
 )
+
+// AnthropicOutputConfig represents Anthropic's output_config field.
+// Used for effort control in adaptive thinking mode.
+// Maps to: output_config: {effort: "low"|"medium"|"high"|"max"}
+type AnthropicOutputConfig struct {
+	Effort string `json:"effort,omitempty"`
+}
+
+// CountTokensResponse represents Anthropic's /v1/messages/count_tokens response.
+type CountTokensResponse struct {
+	InputTokens int64 `json:"input_tokens"`
+}

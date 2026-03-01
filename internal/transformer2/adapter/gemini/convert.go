@@ -522,3 +522,27 @@ func filterNonSystemMessages(messages []canonical.Message) []canonical.Message {
 	}
 	return result
 }
+
+// mergeExtraBody merges opaque ExtraBody JSON into the serialized request body.
+// ExtraBody keys take precedence over existing keys (user intent).
+func mergeExtraBody(body []byte, extraBody json.RawMessage) ([]byte, error) {
+	if len(extraBody) == 0 {
+		return body, nil
+	}
+
+	var base map[string]interface{}
+	if err := json.Unmarshal(body, &base); err != nil {
+		return body, nil
+	}
+
+	var extra map[string]interface{}
+	if err := json.Unmarshal(extraBody, &extra); err != nil {
+		return body, nil
+	}
+
+	for k, v := range extra {
+		base[k] = v
+	}
+
+	return json.Marshal(base)
+}

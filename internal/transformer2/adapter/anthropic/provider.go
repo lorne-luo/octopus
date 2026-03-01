@@ -28,7 +28,21 @@ func (a *ProviderAdapter) BuildRequest(ctx context.Context, req *canonical.Reque
 		return nil, err
 	}
 
-	url := strings.TrimSuffix(baseURL, "/") + "/v1/messages"
+	// Merge ExtraBody if present (user intent takes precedence)
+	if len(req.ExtraBody) > 0 {
+		body, err = mergeExtraBody(body, req.ExtraBody)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Route to correct endpoint based on request kind
+	endpoint := "/v1/messages"
+	if req.Kind == canonical.KindCountTokens {
+		endpoint = "/v1/messages/count_tokens"
+	}
+
+	url := strings.TrimSuffix(baseURL, "/") + endpoint
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
@@ -146,11 +160,11 @@ func isClaude3Model(model string) bool {
 // convertCanonicalToAnthropicRequest converts canonical Request to Anthropic format.
 func convertCanonicalToAnthropicRequest(req *canonical.Request) *MessageRequest {
 	areq := &MessageRequest{
-		Model:        req.Model,
-		Temperature:  req.Temperature,
-		TopP:         req.TopP,
-		TopK:         req.TopK,
-		Stream:       req.Stream,
+		Model:       req.Model,
+		Temperature: req.Temperature,
+		TopP:        req.TopP,
+		TopK:        req.TopK,
+		Stream:      req.Stream,
 	}
 
 	// Handle max_tokens (required in Anthropic)
@@ -170,6 +184,14 @@ func convertCanonicalToAnthropicRequest(req *canonical.Request) *MessageRequest 
 	// Convert thinking config
 	if req.Reasoning != nil {
 		areq.Thinking = convertCanonicalToAnthropicThinking(req.Reasoning)
+
+		// Emit output_config.effort for adaptive thinking mode
+		if areq.Thinking != nil && areq.Thinking.Type == "adaptive" && req.Reasoning.Effort != nil {
+			effort := mapCanonicalEffortToAnthropic(*req.Reasoning.Effort)
+			if effort != "" {
+				areq.OutputConfig = &AnthropicOutputConfig{Effort: effort}
+			}
+		}
 	}
 
 	// Extract system messages and regular messages
@@ -191,6 +213,24 @@ func convertCanonicalToAnthropicRequest(req *canonical.Request) *MessageRequest 
 	}
 
 	return areq
+}
+
+// mapCanonicalEffortToAnthropic maps canonical reasoning effort to Anthropic output_config effort.
+func mapCanonicalEffortToAnthropic(effort string) string {
+	switch effort {
+	case "minimal", "low":
+		return "low"
+	case "medium":
+		return "medium"
+	case "high":
+		return "high"
+	case "xhigh", "max":
+		return "max"
+	case "none":
+		return "" // omit thinking entirely
+	default:
+		return effort // passthrough unknown values
+	}
 }
 
 // extractSystemAndMessages extracts system prompt and aggregates tool results.
@@ -281,9 +321,9 @@ func extractSystemAndMessages(req *canonical.Request) (SystemContent, []MessageP
 // convertToolResultToAnthropic converts a tool result message to Anthropic tool_result block.
 func convertToolResultToAnthropic(msg canonical.Message) ContentBlock {
 	block := ContentBlock{
-		Type:       ContentTypeToolResult,
-		ToolUseID:  *msg.ToolCallID,
-		IsError:    false,
+		Type:      ContentTypeToolResult,
+		ToolUseID: *msg.ToolCallID,
+		IsError:   false,
 	}
 
 	// Handle content
@@ -361,6 +401,25 @@ func (a *ProviderAdapter) ParseResponse(ctx context.Context, resp *http.Response
 		}, nil
 	}
 
+	// Check if this is a count_tokens response
+	// count_tokens returns {input_tokens: N} instead of a full message response
+	var ctResp CountTokensResponse
+	if json.Unmarshal(body, &ctResp) == nil && ctResp.InputTokens > 0 {
+		// Check if it's actually a count_tokens response (no "id" field)
+		var raw map[string]interface{}
+		if json.Unmarshal(body, &raw) == nil {
+			if _, hasID := raw["id"]; !hasID {
+				return &canonical.Response{
+					StatusCode: resp.StatusCode,
+					Usage: &canonical.Usage{
+						PromptTokens: ctResp.InputTokens,
+						TotalTokens:  ctResp.InputTokens,
+					},
+				}, nil
+			}
+		}
+	}
+
 	var aresp MessageResponse
 	if err := json.Unmarshal(body, &aresp); err != nil {
 		return nil, err
@@ -406,7 +465,7 @@ func convertAnthropicResponseToCanonical(resp *MessageResponse, statusCode int) 
 				msg.ReasoningSignature = &block.Signature
 				msg.Content = append(msg.Content, canonical.ContentBlock{
 					Type:      canonical.ContentThinking,
-					Thinking: block.Thinking,
+					Thinking:  block.Thinking,
 					Signature: block.Signature,
 				})
 			}

@@ -143,3 +143,29 @@ func (tc ToolChoice) MarshalJSON() ([]byte, error) {
 		}{Name: *tc.Function},
 	})
 }
+
+// mergeExtraBody merges opaque ExtraBody JSON into the serialized request body.
+// ExtraBody keys take precedence over existing keys (user intent).
+// Returns original body unchanged if extraBody is nil or empty.
+func mergeExtraBody(body []byte, extraBody json.RawMessage) ([]byte, error) {
+	if len(extraBody) == 0 {
+		return body, nil
+	}
+
+	var base map[string]interface{}
+	if err := json.Unmarshal(body, &base); err != nil {
+		return body, nil // non-object body, return as-is
+	}
+
+	var extra map[string]interface{}
+	if err := json.Unmarshal(extraBody, &extra); err != nil {
+		return body, nil // invalid extra body, ignore
+	}
+
+	// Merge: ExtraBody keys take precedence
+	for k, v := range extra {
+		base[k] = v
+	}
+
+	return json.Marshal(base)
+}
