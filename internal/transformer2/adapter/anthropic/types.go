@@ -217,7 +217,7 @@ type StreamEvent struct {
 	Message *MessageResponse `json:"message,omitempty"`
 
 	// content_block_start
-	Index        int           `json:"index,omitempty"`
+	Index        int           `json:"index"`
 	ContentBlock *ContentBlock `json:"content_block,omitempty"`
 
 	// For content_block_delta and message_delta
@@ -263,6 +263,27 @@ func (e *StreamEvent) UnmarshalJSON(data []byte) error {
 	}
 
 	return nil
+}
+
+// MarshalJSON implements custom JSON marshaling for StreamEvent.
+// It ensures Delta and DeltaMessage are properly serialized to the "delta" field.
+func (e StreamEvent) MarshalJSON() ([]byte, error) {
+	type Alias StreamEvent
+	aux := &struct {
+		*Alias
+		Delta any `json:"delta,omitempty"`
+	}{
+		Alias: (*Alias)(&e),
+	}
+
+	// Set Delta field for serialization
+	if e.Delta != nil {
+		aux.Delta = e.Delta
+	} else if e.DeltaMessage != nil {
+		aux.Delta = e.DeltaMessage
+	}
+
+	return json.Marshal(aux)
 }
 
 // MessageDeltaRaw captures the raw delta from message_delta events.

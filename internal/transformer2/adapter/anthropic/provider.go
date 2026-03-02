@@ -174,6 +174,9 @@ func convertCanonicalToAnthropicRequest(req *canonical.Request) *MessageRequest 
 	// Handle max_tokens (required in Anthropic)
 	if req.MaxTokens != nil {
 		areq.MaxTokens = *req.MaxTokens
+	} else {
+		// Default to 4096 if not specified (safe for most Claude models)
+		areq.MaxTokens = 4096
 	}
 
 	// Handle stop_sequences
@@ -326,8 +329,15 @@ func extractSystemAndMessages(req *canonical.Request) (SystemContent, []MessageP
 func convertToolResultToAnthropic(msg canonical.Message) ContentBlock {
 	block := ContentBlock{
 		Type:      ContentTypeToolResult,
-		ToolUseID: *msg.ToolCallID,
 		IsError:   false,
+	}
+
+	// Guard against nil ToolCallID
+	if msg.ToolCallID != nil {
+		block.ToolUseID = *msg.ToolCallID
+	} else {
+		// Generate a placeholder when ToolCallID is missing
+		block.ToolUseID = "missing_tool_call_id"
 	}
 
 	// Handle content

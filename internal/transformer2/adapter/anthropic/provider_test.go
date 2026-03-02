@@ -1105,6 +1105,89 @@ func TestParseStreamChunk_ThinkingDelta(t *testing.T) {
 	}
 }
 
+func TestBuildRequest_ToolResultWithNilToolCallID(t *testing.T) {
+	adapter := NewProviderAdapter()
+	ctx := context.Background()
+
+	// Test that tool result with nil ToolCallID doesn't panic
+	req := &canonical.Request{
+		Kind:  canonical.KindChat,
+		Model: "claude-sonnet-4-20250514",
+		Messages: []canonical.Message{
+			{Role: canonical.RoleUser, Content: []canonical.ContentBlock{{Type: canonical.ContentText, Text: "What's the weather?"}}},
+			{Role: canonical.RoleAssistant, ToolCalls: []canonical.ToolCall{{ID: "toolu_1", Name: "get_weather", Type: "function", Arguments: `{"location":"Tokyo"}`}}},
+			{Role: canonical.RoleTool, ToolCallID: nil, Content: []canonical.ContentBlock{{Type: canonical.ContentText, Text: "Sunny, 25C"}}},
+		},
+		MaxTokens: int64Ptr(1024),
+	}
+
+	// This should not panic
+	httpReq, err := adapter.BuildRequest(ctx, req, "https://api.anthropic.com", "test-key")
+	if err != nil {
+		t.Fatalf("BuildRequest failed: %v", err)
+	}
+
+	body, err := io.ReadAll(httpReq.Body)
+	if err != nil {
+		t.Fatalf("Failed to read request body: %v", err)
+	}
+
+	var areq MessageRequest
+	if err := json.Unmarshal(body, &areq); err != nil {
+		t.Fatalf("Failed to unmarshal request body: %v", err)
+	}
+
+	// Verify that tool_result block has a placeholder ID
+	foundToolResult := false
+	for _, msg := range areq.Messages {
+		for _, block := range msg.Content.Blocks {
+			if block.Type == ContentTypeToolResult {
+				foundToolResult = true
+				if block.ToolUseID == "" {
+					t.Error("Expected tool_result to have a tool_use_id placeholder when ToolCallID is nil")
+				}
+			}
+		}
+	}
+	if !foundToolResult {
+		t.Error("Expected to find tool_result block in messages")
+	}
+}
+
+func TestBuildRequest_NilMaxTokens_UsesDefault(t *testing.T) {
+	adapter := NewProviderAdapter()
+	ctx := context.Background()
+
+	req := &canonical.Request{
+		Kind:  canonical.KindChat,
+		Model: "claude-sonnet-4-20250514",
+		Messages: []canonical.Message{
+			{Role: canonical.RoleUser, Content: []canonical.ContentBlock{{Type: canonical.ContentText, Text: "Hello"}}},
+		},
+		MaxTokens: nil, // No max_tokens specified
+	}
+
+	httpReq, err := adapter.BuildRequest(ctx, req, "https://api.anthropic.com", "test-key")
+	if err != nil {
+		t.Fatalf("BuildRequest failed: %v", err)
+	}
+
+	body, err := io.ReadAll(httpReq.Body)
+	if err != nil {
+		t.Fatalf("Failed to read request body: %v", err)
+	}
+
+	var areq MessageRequest
+	if err := json.Unmarshal(body, &areq); err != nil {
+		t.Fatalf("Failed to unmarshal request body: %v", err)
+	}
+
+	// Should use default value of 4096
+	if areq.MaxTokens != 4096 {
+		t.Errorf("Expected max_tokens to default to 4096, got %d", areq.MaxTokens)
+	}
+}
+
 func TestParseResponse_StopSequence(t *testing.T) {
 	adapter := NewProviderAdapter()
 	ctx := context.Background()

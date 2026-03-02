@@ -286,6 +286,15 @@ func (ra *relayAttempt) forward() (int, error) {
 		return 0, fmt.Errorf("failed to create request: %w", err)
 	}
 
+	// 记录转换后的请求 JSON
+	if outboundRequest.Body != nil {
+		bodyBytes, readErr := io.ReadAll(outboundRequest.Body)
+		if readErr == nil {
+			outboundRequest.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+			log.Infof("converted request to channel %s: %s", ra.channel.Name, string(bodyBytes))
+		}
+	}
+
 	// 复制请求头
 	ra.copyHeaders(outboundRequest)
 

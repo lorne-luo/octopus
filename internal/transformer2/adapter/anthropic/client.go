@@ -322,6 +322,25 @@ func (a *ClientAdapter) FormatResponse(ctx context.Context, resp *canonical.Resp
 func convertCanonicalMessageToAnthropicContent(msg canonical.Message) []ContentBlock {
 	blocks := make([]ContentBlock, 0)
 
+	// Handle top-level Reasoning field (if not already in Content)
+	if msg.Reasoning != nil && *msg.Reasoning != "" {
+		// Check if ContentThinking is already in Content
+		hasThinkingBlock := false
+		for _, cb := range msg.Content {
+			if cb.Type == canonical.ContentThinking {
+				hasThinkingBlock = true
+				break
+			}
+		}
+		if !hasThinkingBlock {
+			blocks = append(blocks, ContentBlock{
+				Type:      ContentTypeThinking,
+				Thinking:  *msg.Reasoning,
+				Signature: "", // No signature available from Reasoning field
+			})
+		}
+	}
+
 	// Convert content blocks
 	for _, cb := range msg.Content {
 		block := ContentBlock{}

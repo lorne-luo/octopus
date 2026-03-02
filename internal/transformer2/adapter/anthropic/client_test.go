@@ -651,6 +651,136 @@ func strPtr(s string) *string {
 	return &s
 }
 
+func TestStreamEventMarshalJSON(t *testing.T) {
+	tests := []struct {
+		name     string
+		event    StreamEvent
+		expected map[string]any
+	}{
+		{
+			name: "content_block_delta with index 0",
+			event: StreamEvent{
+				Type:  EventTypeContentBlockDelta,
+				Index: 0,
+				Delta: &ContentDelta{
+					Type: "text_delta",
+					Text: "Hello",
+				},
+			},
+			expected: map[string]any{
+				"type":  "content_block_delta",
+				"index": float64(0),
+				"delta": map[string]any{
+					"type": "text_delta",
+					"text": "Hello",
+				},
+			},
+		},
+		{
+			name: "content_block_delta with index 1",
+			event: StreamEvent{
+				Type:  EventTypeContentBlockDelta,
+				Index: 1,
+				Delta: &ContentDelta{
+					Type:       "input_json_delta",
+					PartialJSON: `{"foo":`,
+				},
+			},
+			expected: map[string]any{
+				"type":  "content_block_delta",
+				"index": float64(1),
+				"delta": map[string]any{
+					"type":         "input_json_delta",
+					"partial_json": `{"foo":`,
+				},
+			},
+		},
+		{
+			name: "message_delta",
+			event: StreamEvent{
+				Type: EventTypeMessageDelta,
+				DeltaMessage: &MessageDeltaRaw{
+					StopReason: "end_turn",
+				},
+			},
+			expected: map[string]any{
+				"type": "message_delta",
+				"delta": map[string]any{
+					"stop_reason": "end_turn",
+				},
+			},
+		},
+		{
+			name: "thinking_delta",
+			event: StreamEvent{
+				Type:  EventTypeContentBlockDelta,
+				Index: 0,
+				Delta: &ContentDelta{
+					Type:     "thinking_delta",
+					Thinking: "Let me think...",
+				},
+			},
+			expected: map[string]any{
+				"type":  "content_block_delta",
+				"index": float64(0),
+				"delta": map[string]any{
+					"type":     "thinking_delta",
+					"thinking": "Let me think...",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := json.Marshal(tt.event)
+			if err != nil {
+				t.Fatalf("Failed to marshal: %v", err)
+			}
+
+			var result map[string]any
+			if err := json.Unmarshal(data, &result); err != nil {
+				t.Fatalf("Failed to unmarshal result: %v", err)
+			}
+
+			// Check that index is present for content_block_delta events
+			if tt.event.Type == EventTypeContentBlockDelta {
+				if _, ok := result["index"]; !ok {
+					t.Errorf("Missing 'index' field in output: %s", string(data))
+				}
+				if _, ok := result["delta"]; !ok {
+					t.Errorf("Missing 'delta' field in output: %s", string(data))
+				}
+			}
+
+			// Verify the output matches expected
+			for key, expectedVal := range tt.expected {
+				actualVal, ok := result[key]
+				if !ok {
+					t.Errorf("Missing key '%s' in output: %s", key, string(data))
+					continue
+				}
+				if key == "delta" {
+					// Compare delta structures
+					expectedDelta := expectedVal.(map[string]any)
+					actualDelta, ok := actualVal.(map[string]any)
+					if !ok {
+						t.Errorf("Delta is not an object: %v", actualVal)
+						continue
+					}
+					for dk, dv := range expectedDelta {
+						if actualDelta[dk] != dv {
+							t.Errorf("Delta[%s]: expected %v, got %v", dk, dv, actualDelta[dk])
+						}
+					}
+				} else if actualVal != expectedVal {
+					t.Errorf("Key '%s': expected %v, got %v", key, expectedVal, actualVal)
+				}
+			}
+		})
+	}
+}
+
 func TestAnthropicCachingUsageSemantics(t *testing.T) {
 	adapter := NewClientAdapter()
 	ctx := context.Background()
@@ -702,6 +832,120 @@ func TestAnthropicCachingUsageSemantics(t *testing.T) {
 	}
 	if aresp.Usage.CacheReadInputTokens != 100 {
 		t.Errorf("Expected cache_read_input_tokens 100, got %d", aresp.Usage.CacheReadInputTokens)
+	}
+}
+
+func TestFormatResponse_WithReasoningField(t *testing.T) {
+	adapter := NewClientAdapter()
+	ctx := context.Background()
+
+	// Test that top-level Reasoning field is converted to thinking block
+	reasoning := "Step 1: Analyze the problem...\nStep 2: Compute the answer."
+	finishReason := "stop"
+	resp := &canonical.Response{
+		ID:     "msg_reasoning",
+		Model:  "claude-sonnet-4-20250514",
+		Object: "chat.completion",
+		Choices: []canonical.Choice{
+			{
+				Index: 0,
+				Message: canonical.Message{
+					Role: canonical.RoleAssistant,
+					Reasoning: &reasoning,
+					Content: []canonical.ContentBlock{
+						{Type: canonical.ContentText, Text: "The answer is 42."},
+					},
+				},
+				FinishReason: &finishReason,
+			},
+		},
+		Usage: &canonical.Usage{
+			PromptTokens:     20,
+			CompletionTokens: 50,
+		},
+	}
+
+	output, err := adapter.FormatResponse(ctx, resp)
+	if err != nil {
+		t.Fatalf("FormatResponse failed: %v", err)
+	}
+
+	var aresp MessageResponse
+	if err := json.Unmarshal(output, &aresp); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	// Should have 2 content blocks: thinking + text
+	if len(aresp.Content) != 2 {
+		t.Fatalf("Expected 2 content blocks (thinking + text), got %d", len(aresp.Content))
+	}
+
+	// First block should be thinking
+	if aresp.Content[0].Type != ContentTypeThinking {
+		t.Errorf("Expected first block type 'thinking', got '%s'", aresp.Content[0].Type)
+	}
+	if aresp.Content[0].Thinking != reasoning {
+		t.Errorf("Expected thinking content '%s', got '%s'", reasoning, aresp.Content[0].Thinking)
+	}
+
+	// Second block should be text
+	if aresp.Content[1].Type != ContentTypeText {
+		t.Errorf("Expected second block type 'text', got '%s'", aresp.Content[1].Type)
+	}
+	if aresp.Content[1].Text != "The answer is 42." {
+		t.Errorf("Expected text 'The answer is 42.', got '%s'", aresp.Content[1].Text)
+	}
+}
+
+func TestFormatResponse_ReasoningAlreadyInContent(t *testing.T) {
+	adapter := NewClientAdapter()
+	ctx := context.Background()
+
+	// Test that if ContentThinking is already in Content, we don't duplicate
+	reasoning := "This reasoning is already in content."
+	finishReason := "stop"
+	resp := &canonical.Response{
+		ID:     "msg_reasoning_dup",
+		Model:  "claude-sonnet-4-20250514",
+		Object: "chat.completion",
+		Choices: []canonical.Choice{
+			{
+				Index: 0,
+				Message: canonical.Message{
+					Role: canonical.RoleAssistant,
+					Reasoning: &reasoning,
+					Content: []canonical.ContentBlock{
+						{Type: canonical.ContentThinking, Thinking: reasoning, Signature: "sig123"},
+						{Type: canonical.ContentText, Text: "The answer is 42."},
+					},
+				},
+				FinishReason: &finishReason,
+			},
+		},
+	}
+
+	output, err := adapter.FormatResponse(ctx, resp)
+	if err != nil {
+		t.Fatalf("FormatResponse failed: %v", err)
+	}
+
+	var aresp MessageResponse
+	if err := json.Unmarshal(output, &aresp); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	// Should have 2 content blocks: thinking (from Content) + text
+	// NOT 3 (no duplicate from Reasoning field)
+	if len(aresp.Content) != 2 {
+		t.Fatalf("Expected 2 content blocks (no duplicate), got %d", len(aresp.Content))
+	}
+
+	// First block should be thinking with signature preserved
+	if aresp.Content[0].Type != ContentTypeThinking {
+		t.Errorf("Expected first block type 'thinking', got '%s'", aresp.Content[0].Type)
+	}
+	if aresp.Content[0].Signature != "sig123" {
+		t.Errorf("Expected signature 'sig123', got '%s'", aresp.Content[0].Signature)
 	}
 }
 
