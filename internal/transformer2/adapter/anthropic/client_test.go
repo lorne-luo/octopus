@@ -519,8 +519,8 @@ func TestFormatResponse(t *testing.T) {
 		if aresp.Content[0].Type != ContentTypeText {
 			t.Errorf("Expected content type 'text', got '%s'", aresp.Content[0].Type)
 		}
-		if aresp.Content[0].Text != "Hello! How can I help?" {
-			t.Errorf("Expected content text 'Hello! How can I help?', got '%s'", aresp.Content[0].Text)
+		if derefStr(aresp.Content[0].Text) != "Hello! How can I help?" {
+			t.Errorf("Expected content text 'Hello! How can I help?', got '%s'", derefStr(aresp.Content[0].Text))
 		}
 		if aresp.Usage.InputTokens != 10 {
 			t.Errorf("Expected input_tokens 10, got %d", aresp.Usage.InputTokens)
@@ -648,9 +648,7 @@ func TestParseRequestWithHeaders(t *testing.T) {
 }
 
 // Helper function
-func strPtr(s string) *string {
-	return &s
-}
+// strPtr is now defined in types.go
 
 func TestStreamEventMarshalJSON(t *testing.T) {
 	tests := []struct {
@@ -885,16 +883,16 @@ func TestFormatResponse_WithReasoningField(t *testing.T) {
 	if aresp.Content[0].Type != ContentTypeThinking {
 		t.Errorf("Expected first block type 'thinking', got '%s'", aresp.Content[0].Type)
 	}
-	if aresp.Content[0].Thinking != reasoning {
-		t.Errorf("Expected thinking content '%s', got '%s'", reasoning, aresp.Content[0].Thinking)
+	if derefStr(aresp.Content[0].Thinking) != reasoning {
+		t.Errorf("Expected thinking content '%s', got '%s'", reasoning, derefStr(aresp.Content[0].Thinking))
 	}
 
 	// Second block should be text
 	if aresp.Content[1].Type != ContentTypeText {
 		t.Errorf("Expected second block type 'text', got '%s'", aresp.Content[1].Type)
 	}
-	if aresp.Content[1].Text != "The answer is 42." {
-		t.Errorf("Expected text 'The answer is 42.', got '%s'", aresp.Content[1].Text)
+	if derefStr(aresp.Content[1].Text) != "The answer is 42." {
+		t.Errorf("Expected text 'The answer is 42.', got '%s'", derefStr(aresp.Content[1].Text))
 	}
 }
 
@@ -945,8 +943,8 @@ func TestFormatResponse_ReasoningAlreadyInContent(t *testing.T) {
 	if aresp.Content[0].Type != ContentTypeThinking {
 		t.Errorf("Expected first block type 'thinking', got '%s'", aresp.Content[0].Type)
 	}
-	if aresp.Content[0].Signature != "sig123" {
-		t.Errorf("Expected signature 'sig123', got '%s'", aresp.Content[0].Signature)
+	if derefStr(aresp.Content[0].Signature) != "sig123" {
+		t.Errorf("Expected signature 'sig123', got '%s'", derefStr(aresp.Content[0].Signature))
 	}
 }
 

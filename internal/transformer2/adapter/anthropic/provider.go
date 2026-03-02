@@ -328,8 +328,8 @@ func extractSystemAndMessages(req *canonical.Request) (SystemContent, []MessageP
 // convertToolResultToAnthropic converts a tool result message to Anthropic tool_result block.
 func convertToolResultToAnthropic(msg canonical.Message) ContentBlock {
 	block := ContentBlock{
-		Type:      ContentTypeToolResult,
-		IsError:   false,
+		Type:    ContentTypeToolResult,
+		IsError: false,
 	}
 
 	// Guard against nil ToolCallID
@@ -350,7 +350,7 @@ func convertToolResultToAnthropic(msg canonical.Message) ContentBlock {
 			blocks[i] = ContentBlock{Type: string(cb.Type)}
 			switch cb.Type {
 			case canonical.ContentText:
-				blocks[i].Text = cb.Text
+				blocks[i].Text = strPtr(cb.Text)
 			case canonical.ContentImage:
 				if cb.Media != nil {
 					blocks[i].Source = &ImageSource{
@@ -463,7 +463,7 @@ func convertAnthropicResponseToCanonical(resp *MessageResponse, statusCode int) 
 			case ContentTypeText:
 				msg.Content = append(msg.Content, canonical.ContentBlock{
 					Type: canonical.ContentText,
-					Text: block.Text,
+					Text: derefStr(block.Text),
 				})
 
 			case ContentTypeToolUse:
@@ -475,12 +475,12 @@ func convertAnthropicResponseToCanonical(resp *MessageResponse, statusCode int) 
 				})
 
 			case ContentTypeThinking:
-				msg.Reasoning = &block.Thinking
-				msg.ReasoningSignature = &block.Signature
+				msg.Reasoning = block.Thinking
+				msg.ReasoningSignature = block.Signature
 				msg.Content = append(msg.Content, canonical.ContentBlock{
 					Type:      canonical.ContentThinking,
-					Thinking:  block.Thinking,
-					Signature: block.Signature,
+					Thinking:  derefStr(block.Thinking),
+					Signature: derefStr(block.Signature),
 				})
 			}
 		}

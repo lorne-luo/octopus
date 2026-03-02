@@ -48,7 +48,7 @@ func convertAnthropicContentToCanonical(blocks []ContentBlock) []canonical.Conte
 		switch block.Type {
 		case ContentTypeText:
 			cb.Type = canonical.ContentText
-			cb.Text = block.Text
+			cb.Text = derefStr(block.Text)
 			if block.CacheControl != nil {
 				cb.CacheControl = &canonical.CacheControl{Type: block.CacheControl.Type}
 			}
@@ -65,8 +65,8 @@ func convertAnthropicContentToCanonical(blocks []ContentBlock) []canonical.Conte
 
 		case ContentTypeThinking:
 			cb.Type = canonical.ContentThinking
-			cb.Thinking = block.Thinking
-			cb.Signature = block.Signature
+			cb.Thinking = derefStr(block.Thinking)
+			cb.Signature = derefStr(block.Signature)
 
 		case ContentTypeToolUse:
 			// Tool use blocks are handled via ToolCalls in the message
@@ -107,7 +107,7 @@ func convertCanonicalToAnthropicContent(blocks []canonical.ContentBlock) Message
 		switch cb.Type {
 		case canonical.ContentText:
 			block.Type = ContentTypeText
-			block.Text = cb.Text
+			block.Text = strPtr(cb.Text)
 			if cb.CacheControl != nil {
 				block.CacheControl = &CacheControl{Type: cb.CacheControl.Type}
 			}
@@ -129,8 +129,8 @@ func convertCanonicalToAnthropicContent(blocks []canonical.ContentBlock) Message
 
 		case canonical.ContentThinking:
 			block.Type = ContentTypeThinking
-			block.Thinking = cb.Thinking
-			block.Signature = cb.Signature
+			block.Thinking = strPtr(cb.Thinking)
+			block.Signature = strPtr(cb.Signature)
 
 		case canonical.ContentDocument:
 			// Document content passthrough
@@ -475,7 +475,7 @@ func extractToolResultContent(msg canonical.Message) (string, []ContentBlock) {
 		block := ContentBlock{Type: string(cb.Type)}
 		switch cb.Type {
 		case canonical.ContentText:
-			block.Text = cb.Text
+			block.Text = strPtr(cb.Text)
 		case canonical.ContentImage:
 			if cb.Media != nil {
 				block.Source = &ImageSource{

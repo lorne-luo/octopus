@@ -120,7 +120,7 @@ type ContentBlock struct {
 	Type string `json:"type"`
 
 	// Text content
-	Text string `json:"text,omitempty"`
+	Text *string `json:"text,omitempty"`
 
 	// Image content
 	Source *ImageSource `json:"source,omitempty"`
@@ -136,8 +136,8 @@ type ContentBlock struct {
 	IsError   bool            `json:"is_error,omitempty"`
 
 	// Thinking content (extended thinking)
-	Thinking  string `json:"thinking,omitempty"`
-	Signature string `json:"signature,omitempty"`
+	Thinking  *string `json:"thinking,omitempty"`
+	Signature *string `json:"signature,omitempty"`
 
 	// Cache control
 	CacheControl *CacheControl `json:"cache_control,omitempty"`
@@ -302,6 +302,19 @@ type ContentDelta struct {
 	PartialJSON string `json:"partial_json,omitempty"`
 	Thinking    string `json:"thinking,omitempty"`
 	Signature   string `json:"signature,omitempty"`
+}
+
+// strPtr returns a pointer to a string.
+func strPtr(s string) *string {
+	return &s
+}
+
+// derefStr safely dereferences a *string, returning "" if nil.
+func derefStr(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }
 
 // MessageDelta represents message-level delta.

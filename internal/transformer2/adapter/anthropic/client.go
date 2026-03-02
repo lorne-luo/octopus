@@ -205,7 +205,7 @@ func convertAnthropicMessageToCanonicalForClient(msg MessageParam) canonical.Mes
 			case ContentTypeText:
 				cmsg.Content = append(cmsg.Content, canonical.ContentBlock{
 					Type: canonical.ContentText,
-					Text: block.Text,
+					Text: derefStr(block.Text),
 				})
 
 			case ContentTypeImage:
@@ -259,7 +259,7 @@ func convertAnthropicMessageToCanonicalForClient(msg MessageParam) canonical.Mes
 								if cb.Type == ContentTypeText {
 									cmsg.Content = append(cmsg.Content, canonical.ContentBlock{
 										Type: canonical.ContentText,
-										Text: cb.Text,
+										Text: derefStr(cb.Text),
 									})
 								}
 							}
@@ -269,8 +269,8 @@ func convertAnthropicMessageToCanonicalForClient(msg MessageParam) canonical.Mes
 
 			case ContentTypeThinking:
 				// For assistant messages, set reasoning_content field instead of adding to Content
-				cmsg.Reasoning = &block.Thinking
-				cmsg.ReasoningSignature = &block.Signature
+				cmsg.Reasoning = block.Thinking
+				cmsg.ReasoningSignature = block.Signature
 			}
 		}
 
@@ -348,8 +348,8 @@ func convertCanonicalMessageToAnthropicContent(msg canonical.Message) []ContentB
 		if !hasThinkingBlock {
 			blocks = append(blocks, ContentBlock{
 				Type:      ContentTypeThinking,
-				Thinking:  *msg.Reasoning,
-				Signature: "", // No signature available from Reasoning field
+				Thinking:  msg.Reasoning,
+				Signature: strPtr(""), // No signature available from Reasoning field
 			})
 		}
 	}
@@ -361,7 +361,7 @@ func convertCanonicalMessageToAnthropicContent(msg canonical.Message) []ContentB
 		switch cb.Type {
 		case canonical.ContentText:
 			block.Type = ContentTypeText
-			block.Text = cb.Text
+			block.Text = strPtr(cb.Text)
 
 		case canonical.ContentImage:
 			block.Type = ContentTypeImage
@@ -380,8 +380,8 @@ func convertCanonicalMessageToAnthropicContent(msg canonical.Message) []ContentB
 
 		case canonical.ContentThinking:
 			block.Type = ContentTypeThinking
-			block.Thinking = cb.Thinking
-			block.Signature = cb.Signature
+			block.Thinking = strPtr(cb.Thinking)
+			block.Signature = strPtr(cb.Signature)
 		}
 
 		blocks = append(blocks, block)
@@ -468,8 +468,8 @@ func (a *ClientAdapter) FormatStreamChunk(ctx context.Context, chunk *canonical.
 				a.hasThinkingContentStarted = true
 				events = append(events, a.emitContentBlockStart(&ContentBlock{
 					Type:      ContentTypeThinking,
-					Thinking:  "",
-					Signature: "",
+					Thinking:  strPtr(""),
+					Signature: strPtr(""),
 				}))
 			}
 
@@ -522,7 +522,7 @@ func (a *ClientAdapter) FormatStreamChunk(ctx context.Context, chunk *canonical.
 						a.hasTextContentStarted = true
 						events = append(events, a.emitContentBlockStart(&ContentBlock{
 							Type: ContentTypeText,
-							Text: "",
+							Text: strPtr(""),
 						}))
 					}
 

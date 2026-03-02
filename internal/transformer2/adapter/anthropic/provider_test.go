@@ -189,11 +189,11 @@ func TestBuildRequest_ToolChoice(t *testing.T) {
 		{
 			name: "disable_parallel",
 			choice: &canonical.ToolChoice{
-				Mode:                 "auto",
+				Mode:                   "auto",
 				DisableParallelToolUse: boolPtr(true),
 			},
 			expected: ToolChoice{
-				Type:                  "auto",
+				Type:                   "auto",
 				DisableParallelToolUse: true,
 			},
 		},
@@ -349,7 +349,7 @@ func TestBuildRequest_ThinkingConfig(t *testing.T) {
 			},
 			MaxTokens: int64Ptr(1024),
 			Reasoning: &canonical.ReasoningConfig{
-				Enabled:     &enabled,
+				Enabled:      &enabled,
 				BudgetTokens: &budget,
 			},
 		}
@@ -865,12 +865,12 @@ func TestProviderAdapter_EndToEnd(t *testing.T) {
 
 		// Return mock response
 		resp := MessageResponse{
-			ID:   "msg_test",
-			Type: "message",
-			Role: "assistant",
+			ID:    "msg_test",
+			Type:  "message",
+			Role:  "assistant",
 			Model: "claude-sonnet-4-20250514",
 			Content: []ContentBlock{
-				{Type: ContentTypeText, Text: "Hello, world!"},
+				{Type: ContentTypeText, Text: strPtr("Hello, world!")},
 			},
 			StopReason: "end_turn",
 			Usage: Usage{
