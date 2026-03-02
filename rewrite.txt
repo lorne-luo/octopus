@@ -1,0 +1,1 @@
+{"id":"cht000cbc0b@dx19cae505239b87e700","type":"message","role":"assistant","model":"xopkimik25","content":[{"type":"text","text":" The quick brown fox jumps over the lazy dog while the sun sets behind the mountains."}],"stop_reason":"end_turn","usage":{"input_tokens":34,"output_tokens":18}}

@@ -3,6 +3,7 @@ package adapter
 import (
 	"context"
 	"net/http"
+	"net/url"
 
 	"github.com/bestruirui/octopus/internal/transformer2/canonical"
 )
@@ -36,4 +37,23 @@ type ProviderAdapter interface {
 
 	// ParseStreamChunk parses SSE data to canonical Chunk.
 	ParseStreamChunk(ctx context.Context, data []byte) (*canonical.Chunk, error)
+}
+
+// PassthroughProvider is an optional extension of ProviderAdapter.
+// When the inbound format matches the outbound channel format, implementors
+// can skip the canonical Request → provider format conversion and directly
+// use the raw request body.
+type PassthroughProvider interface {
+	// BuildPassthroughRequest builds an HTTP request using the raw body.
+	// The model name in rawBody has already been replaced by the caller.
+	BuildPassthroughRequest(ctx context.Context, rawBody []byte, stream bool, baseURL, key string, query url.Values) (*http.Request, error)
+}
+
+// RawStreamProvider is an optional extension of ProviderAdapter.
+// Implementors whose response is NOT in SSE format (e.g. Kiro uses
+// AWS Event Stream binary format) should implement this interface so
+// the relay reads the raw byte stream instead of parsing SSE events.
+type RawStreamProvider interface {
+	// IsRawStream returns true if this provider uses raw byte stream instead of SSE.
+	IsRawStream() bool
 }

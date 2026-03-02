@@ -28,6 +28,7 @@ const (
 	ProviderGemini          ProviderType = 3
 	ProviderVolcengine      ProviderType = 4
 	ProviderOpenAIEmbedding ProviderType = 5
+	ProviderKiro            ProviderType = 6
 )
 
 // GetClient returns a ClientAdapter for the given client type.
@@ -72,7 +73,8 @@ func IsChatProvider(t ProviderType) bool {
 		t == ProviderOpenAIResponse ||
 		t == ProviderAnthropic ||
 		t == ProviderGemini ||
-		t == ProviderVolcengine
+		t == ProviderVolcengine ||
+		t == ProviderKiro
 }
 
 // IsEmbeddingProvider returns true if the provider type is an embedding provider.
