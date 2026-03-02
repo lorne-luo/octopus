@@ -55,23 +55,29 @@ var hopByHopHeaders = map[string]bool{
 }
 
 type relayRequest struct {
-	c               *gin.Context
-	clientAdapter   adapter.ClientAdapter
-	canonicalReq    *canonical.Request
-	metrics         *RelayMetrics
-	apiKeyID        int
-	requestModel    string
-	iter            *balancer.Iterator
+	c             *gin.Context
+	clientAdapter adapter.ClientAdapter
+	canonicalReq  *canonical.Request
+	metrics       *RelayMetrics
+	apiKeyID      int
+	requestModel  string
+	iter          *balancer.Iterator
+	rawBody       []byte // 原始请求 body，passthrough 模式使用
 }
 
-// relayAttempt 尝试级上下文
 type relayAttempt struct {
 	*relayRequest // 嵌入请求级上下文
 
 	providerAdapter      adapter.ProviderAdapter
 	channel              *dbmodel.Channel
+	channelID            int
+	channelName          string
+	channelType          int
+	baseUrl              string
 	usedKey              dbmodel.ChannelKey
 	firstTokenTimeOutSec int
+	isPassthrough        bool // 是否为 passthrough 模式
+	isRawStream          bool // 是否为原始流模式（非SSE，如Kiro的AWS Event Stream）
 }
 
 // attemptResult 封装单次尝试的结果

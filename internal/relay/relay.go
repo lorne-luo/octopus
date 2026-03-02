@@ -69,6 +69,7 @@ func Handler(clientType adapter.ClientType, c *gin.Context) {
 		apiKeyID:      apiKeyID,
 		requestModel:  requestModel,
 		iter:          iter,
+		rawBody:       body,
 	}
 
 	var lastErr error
@@ -99,7 +100,21 @@ func Handler(clientType adapter.ClientType, c *gin.Context) {
 			continue
 		}
 
-		usedKey := channel.GetChannelKey()
+		var usedKey dbmodel.ChannelKey
+		if channel.UseOAuth {
+			apiKey, err := GetChannelKey(c.Request.Context(), channel)
+			if err != nil {
+				iter.Skip(channel.ID, 0, channel.Name, int(channel.Type), "", "oauth failed: "+err.Error())
+				continue
+			}
+			usedKey = dbmodel.ChannelKey{
+				ChannelID:  channel.ID,
+				ChannelKey: apiKey,
+				Enabled:    true,
+			}
+		} else {
+			usedKey = channel.GetChannelKey()
+		}
 		if usedKey.ChannelKey == "" {
 			iter.Skip(channel.ID, 0, channel.Name, int(channel.Type), "", "no available key")
 			continue
@@ -139,13 +154,38 @@ func Handler(clientType adapter.ClientType, c *gin.Context) {
 			requestModel, group.Mode, channel.Name, item.ModelName,
 			iter.Index()+1, iter.Len(), iter.IsSticky())
 
-		// 构造尝试级上下文 -- 只写变化的 4 个字段
+		// 检测是否可以走 passthrough 路径
+		isPassthrough := false
+		if pp, ok := providerAdapter.(adapter.PassthroughProvider); ok && pp != nil {
+			// Only enable passthrough when the source format matches the provider type
+			if matchesProvider(canonicalReq.SourceFormat, adapter.ProviderType(channel.Type)) {
+				isPassthrough = true
+				log.Infof("passthrough mode enabled for channel %s", channel.Name)
+			}
+		}
+
+		// 检测是否为原始流模式（非SSE）
+		isRawStream := false
+		if rs, ok := providerAdapter.(adapter.RawStreamProvider); ok {
+			isRawStream = rs.IsRawStream()
+			if isRawStream {
+				log.Infof("raw stream mode enabled for channel %s", channel.Name)
+			}
+		}
+
+		// 构造尝试级上下文
 		ra := &relayAttempt{
 			relayRequest:         req,
 			providerAdapter:      providerAdapter,
 			channel:              channel,
+			channelID:            channel.ID,
+			channelName:          channel.Name,
+			channelType:          int(channel.Type),
+			baseUrl:              channel.GetBaseUrl(),
 			usedKey:              usedKey,
 			firstTokenTimeOutSec: group.FirstTokenTimeOut,
+			isPassthrough:        isPassthrough,
+			isRawStream:          isRawStream,
 		}
 
 		result := ra.attempt()
@@ -165,7 +205,7 @@ func Handler(clientType adapter.ClientType, c *gin.Context) {
 	}
 
 	// 所有通道都失败
-	metrics.CalcTokensFromRequest()
+	metrics.SetFinalResponse(errorResponseBody(http.StatusBadGateway, "all channels failed"))
 	metrics.Save(c.Request.Context(), false, lastErr, iter.Attempts())
 	resp.Error(c, http.StatusBadGateway, "all channels failed")
 }
@@ -176,10 +216,20 @@ func (ra *relayAttempt) attempt() attemptResult {
 	if len(ra.usedKey.ChannelKey) > 4 {
 		apiKeySuffix = ra.usedKey.ChannelKey[len(ra.usedKey.ChannelKey)-4:]
 	}
-	span := ra.iter.StartAttempt(ra.channel.ID, ra.usedKey.ID, ra.channel.Name, int(ra.channel.Type), apiKeySuffix)
+	span := ra.iter.StartAttempt(ra.channelID, ra.usedKey.ID, ra.channelName, ra.channelType, apiKeySuffix)
 
 	// 转发请求
-	statusCode, fwdErr := ra.forward()
+	var statusCode int
+	var fwdErr error
+	if ra.isPassthrough {
+		if pp, ok := ra.providerAdapter.(adapter.PassthroughProvider); ok {
+			statusCode, fwdErr = ra.forwardPassthrough(pp)
+		} else {
+			statusCode, fwdErr = ra.forward()
+		}
+	} else {
+		statusCode, fwdErr = ra.forward()
+	}
 
 	// 更新 channel key 状态
 	ra.usedKey.StatusCode = statusCode

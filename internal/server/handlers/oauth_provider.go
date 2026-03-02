@@ -7,7 +7,6 @@ import (
 	"strconv"
 
 	"github.com/bestruirui/octopus/internal/helper"
-	log "github.com/bestruirui/octopus/internal/utils/log"
 	"github.com/bestruirui/octopus/internal/model"
 	"github.com/bestruirui/octopus/internal/oauth"
 	"github.com/bestruirui/octopus/internal/oauth/iflow"
@@ -15,7 +14,8 @@ import (
 	"github.com/bestruirui/octopus/internal/server/middleware"
 	"github.com/bestruirui/octopus/internal/server/resp"
 	"github.com/bestruirui/octopus/internal/server/router"
-	"github.com/bestruirui/octopus/internal/transformer/outbound"
+	"github.com/bestruirui/octopus/internal/transformer2/adapter"
+	log "github.com/bestruirui/octopus/internal/utils/log"
 	"github.com/gin-gonic/gin"
 )
 
@@ -150,13 +150,13 @@ func listOAuthProvider(c *gin.Context) {
 }
 
 type CreateOAuthProviderRequest struct {
-	Name         string                    `json:"name" binding:"required"`
-	ProviderType model.OAuthProviderType   `json:"provider_type" binding:"required"`
-	APIKey       string                    `json:"api_key"`
-	Status       int                       `json:"status"`
-	Model        string                    `json:"model"`
-	CustomModel  string                    `json:"custom_model"`
-	MatchRegex   *string                   `json:"match_regex"`
+	Name         string                     `json:"name" binding:"required"`
+	ProviderType model.OAuthProviderType    `json:"provider_type" binding:"required"`
+	APIKey       string                     `json:"api_key"`
+	Status       int                        `json:"status"`
+	Model        string                     `json:"model"`
+	CustomModel  string                     `json:"custom_model"`
+	MatchRegex   *string                    `json:"match_regex"`
 	AuthJsons    []model.AuthJsonAddRequest `json:"auth_jsons"`
 }
 
@@ -336,7 +336,7 @@ func fetchOAuthProviderModels(c *gin.Context) {
 
 	// Build Channel-like request for FetchModels
 	channel := model.Channel{
-		Type:         outbound.OutboundTypeOpenAIChat,
+		Type:         adapter.ProviderOpenAIChat,
 		BaseUrls:     []model.BaseUrl{{URL: provider.GetBaseURL()}},
 		CustomHeader: []model.CustomHeader{},
 	}

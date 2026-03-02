@@ -5,9 +5,9 @@ import (
 	"fmt"
 
 	"github.com/bestruirui/octopus/internal/db"
-	log "github.com/bestruirui/octopus/internal/utils/log"
 	"github.com/bestruirui/octopus/internal/model"
-	"github.com/bestruirui/octopus/internal/transformer/outbound"
+	"github.com/bestruirui/octopus/internal/transformer2/adapter"
+	log "github.com/bestruirui/octopus/internal/utils/log"
 )
 
 func OAuthProviderList(ctx context.Context) ([]model.OAuthProvider, error) {
@@ -82,8 +82,8 @@ func OAuthProviderCreate(req *OAuthProviderCreateRequest, ctx context.Context) e
 	// Create a corresponding Channel with UseOAuth=true
 	channel := &model.Channel{
 		Name:            fmt.Sprintf("OAuth-%s", req.Provider.Name),
-		Type:            outbound.OutboundTypeOpenAIChat, // Default to OpenAI Chat type
-		Enabled:         req.Provider.Status == 1,        // Enable if provider is active
+		Type:            adapter.ProviderOpenAIChat, // Default to OpenAI Chat type
+		Enabled:         req.Provider.Status == 1,   // Enable if provider is active
 		BaseUrls:        []model.BaseUrl{{URL: req.Provider.GetBaseURL(), Delay: 0}},
 		Keys:            []model.ChannelKey{}, // OAuth channels don't use keys directly
 		Model:           req.Model,

@@ -29,8 +29,9 @@ type RelayMetrics struct {
 	CanonicalResp *canonical.Response
 
 	// 原始请求和响应（用于调试）
-	RawRequest  string
-	RawResponse *strings.Builder
+	RawRequest    string
+	RawResponse   *strings.Builder
+	FinalResponse string // passthrough 模式的响应内容
 
 	// 统计指标
 	ActualModel string
@@ -58,6 +59,11 @@ func (m *RelayMetrics) SetRawRequest(req string) {
 
 func (m *RelayMetrics) AppendRawResponse(resp string) {
 	m.RawResponse.WriteString(resp)
+}
+
+// SetFinalResponse sets the final response string for passthrough mode
+func (m *RelayMetrics) SetFinalResponse(raw string) {
+	m.FinalResponse = raw
 }
 
 // SetCanonicalResponse sets the canonical response and calculates metrics
@@ -247,7 +253,9 @@ func (m *RelayMetrics) saveLog(ctx context.Context, err error, duration time.Dur
 	}
 
 	// 响应内容
-	if m.CanonicalResp != nil {
+	if m.FinalResponse != "" {
+		relayLog.ResponseContent = m.FinalResponse
+	} else if m.CanonicalResp != nil {
 		// 如果有 CanonicalResp，使用过滤后的 JSON
 		respForLog := m.filterResponseForLog(m.CanonicalResp)
 		if respJSON, jsonErr := json.Marshal(respForLog); jsonErr == nil {
