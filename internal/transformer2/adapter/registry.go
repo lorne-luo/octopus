@@ -3,6 +3,7 @@ package adapter
 import (
 	"github.com/bestruirui/octopus/internal/transformer2/adapter/anthropic"
 	"github.com/bestruirui/octopus/internal/transformer2/adapter/gemini"
+	"github.com/bestruirui/octopus/internal/transformer2/adapter/kiro"
 	"github.com/bestruirui/octopus/internal/transformer2/adapter/openai"
 	"github.com/bestruirui/octopus/internal/transformer2/adapter/volcengine"
 )
@@ -62,6 +63,8 @@ func GetProvider(t ProviderType) ProviderAdapter {
 		return volcengine.NewProviderAdapter()
 	case ProviderOpenAIEmbedding:
 		return openai.NewEmbeddingProviderAdapter()
+	case ProviderKiro:
+		return kiro.NewProviderAdapter()
 	default:
 		return nil
 	}
