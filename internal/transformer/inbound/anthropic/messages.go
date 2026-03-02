@@ -980,7 +980,10 @@ func mergeToolCall(toolCalls []model.ToolCall, delta model.ToolCall) []model.Too
 				toolCalls[i].Function.Name = delta.Function.Name
 			}
 			if delta.Function.Arguments != "" {
+				fmt.Printf("[mergeToolCall1] existing.Arguments(before): %v\n", toolCalls[i].Function.Arguments)
 				toolCalls[i].Function.Arguments += delta.Function.Arguments
+				// 打印 delta.Function.Arguments 和 toolCalls[i].Function.Arguments 到日志
+				fmt.Printf("[mergeToolCall1] delta.Function.Arguments1: %v, existing.Arguments(after): %v\n", delta.Function.Arguments, toolCalls[i].Function.Arguments)
 			}
 			// Preserve CacheControl from delta
 			if delta.CacheControl != nil {

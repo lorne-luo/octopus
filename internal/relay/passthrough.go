@@ -21,7 +21,7 @@ import (
 func matchesProvider(format canonical.APIFormat, providerType adapter.ProviderType) bool {
 	switch format {
 	case canonical.FormatOpenAIChat:
-		return providerType == adapter.ProviderOpenAIChat || providerType == adapter.ProviderVolcengine || providerType == adapter.ProviderKiro
+		return providerType == adapter.ProviderOpenAIChat || providerType == adapter.ProviderVolcengine
 	case canonical.FormatOpenAIResponse:
 		return providerType == adapter.ProviderOpenAIResponse
 	case canonical.FormatAnthropic:
@@ -146,8 +146,6 @@ func (ra *relayAttempt) handleSSEPassthrough(ctx context.Context, response *http
 		}()
 	}
 
-	var lastEventData string
-
 	for {
 		select {
 		case <-ctx.Done():
@@ -168,9 +166,6 @@ func (ra *relayAttempt) handleSSEPassthrough(ctx context.Context, response *http
 				log.Warnf("failed to read event: %v", r.err)
 				return fmt.Errorf("failed to read stream event: %w", r.err)
 			}
-
-			lastEventData = r.data
-			_ = lastEventData // suppress unused warning
 
 			if firstToken {
 				ra.metrics.SetFirstTokenTime(time.Now())

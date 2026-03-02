@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -26,7 +27,6 @@ type ProviderAdapter struct {
 	parser          *kiroparser.AwsEventStreamParser
 	accumulatedText strings.Builder
 	thinkingText    strings.Builder
-	toolCalls       []kiroToolCall
 	usage           *canonical.Usage
 	responseID      string
 	created         int64
@@ -98,16 +98,9 @@ func (p *ProviderAdapter) ParseResponse(ctx context.Context, resp *http.Response
 	}
 
 	// Read entire body as AWS Event Stream
-	buf := make([]byte, 0, 64*1024)
-	tmp := make([]byte, 4096)
-	for {
-		n, err := resp.Body.Read(tmp)
-		if n > 0 {
-			buf = append(buf, tmp[:n]...)
-		}
-		if err != nil {
-			break
-		}
+	buf, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return nil, fmt.Errorf("kiro: failed to read response body: %w", readErr)
 	}
 
 	// Parse all events

@@ -19,12 +19,13 @@ import (
 
 type MessageOutbound struct {
 	// Stream state tracking
-	streamID    string
-	streamModel string
-	streamUsage *model.Usage
-	toolIndex   int
-	toolCalls   map[int]*model.ToolCall
-	initialized bool
+	streamID           string
+	streamModel        string
+	streamUsage        *model.Usage
+	toolIndex          int
+	toolCalls          map[int]*model.ToolCall
+	contentBlockToTool map[int64]int
+	initialized        bool
 }
 
 func (o *MessageOutbound) TransformRequest(ctx context.Context, request *model.InternalLLMRequest, baseUrl, key string) (*http.Request, error) {
@@ -125,6 +126,7 @@ func (o *MessageOutbound) TransformStream(ctx context.Context, eventData []byte)
 	// Initialize state if needed
 	if !o.initialized {
 		o.toolCalls = make(map[int]*model.ToolCall)
+		o.contentBlockToTool = make(map[int64]int)
 		o.toolIndex = -1
 		o.initialized = true
 	}
@@ -145,6 +147,10 @@ func (o *MessageOutbound) TransformStream(ctx context.Context, eventData []byte)
 	switch streamEvent.Type {
 	case "message_start":
 		if streamEvent.Message != nil {
+			// Reset per-message streaming state.
+			o.toolCalls = make(map[int]*model.ToolCall)
+			o.contentBlockToTool = make(map[int64]int)
+			o.toolIndex = -1
 			o.streamID = streamEvent.Message.ID
 			o.streamModel = streamEvent.Message.Model
 			resp.ID = o.streamID
@@ -184,6 +190,9 @@ func (o *MessageOutbound) TransformStream(ctx context.Context, eventData []byte)
 					},
 				}
 				o.toolCalls[o.toolIndex] = &toolCall
+				if streamEvent.Index != nil {
+					o.contentBlockToTool[*streamEvent.Index] = o.toolIndex
+				}
 
 				resp.Choices = []model.Choice{
 					{
@@ -219,11 +228,23 @@ func (o *MessageOutbound) TransformStream(ctx context.Context, eventData []byte)
 					}
 				}
 			case "input_json_delta":
-				if streamEvent.Delta.PartialJSON != nil && o.toolIndex >= 0 {
+				if streamEvent.Delta.PartialJSON != nil {
+					targetToolIndex := o.toolIndex
+					if streamEvent.Index != nil {
+						mappedToolIndex, ok := o.contentBlockToTool[*streamEvent.Index]
+						if !ok {
+							return nil, nil
+						}
+						targetToolIndex = mappedToolIndex
+					}
+					toolCall, ok := o.toolCalls[targetToolIndex]
+					if !ok {
+						return nil, nil
+					}
 					choice.Delta.ToolCalls = []model.ToolCall{
 						{
-							Index: o.toolIndex,
-							ID:    o.toolCalls[o.toolIndex].ID,
+							Index: targetToolIndex,
+							ID:    toolCall.ID,
 							Type:  "function",
 							Function: model.FunctionCall{
 								Arguments: *streamEvent.Delta.PartialJSON,
