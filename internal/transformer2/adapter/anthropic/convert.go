@@ -185,10 +185,14 @@ func convertCanonicalToAnthropicTool(tool canonical.Tool) Tool {
 
 // convertAnthropicUsageToCanonical converts Anthropic Usage to canonical Usage.
 func convertAnthropicUsageToCanonical(usage Usage) *canonical.Usage {
+	// CRITICAL CACHING SEMANTICS: When caching is enabled, input_tokens only
+	// represents tokens AFTER the last cache breakpoint, NOT total input tokens.
+	// Correct formula: PromptTokens = cache_read + cache_creation + input_tokens
+	totalPromptTokens := usage.InputTokens + usage.CacheReadInputTokens + usage.CacheCreationInputTokens
 	cusage := &canonical.Usage{
-		PromptTokens:               usage.InputTokens,
+		PromptTokens:               totalPromptTokens,
 		CompletionTokens:           usage.OutputTokens,
-		TotalTokens:                usage.InputTokens + usage.OutputTokens,
+		TotalTokens:                totalPromptTokens + usage.OutputTokens,
 		CacheCreationInputTokens:   usage.CacheCreationInputTokens,
 		CacheReadInputTokens:       usage.CacheReadInputTokens,
 		InputTokensAfterBreakpoint: usage.InputTokens,
@@ -317,12 +321,14 @@ func convertAnthropicThinkingToCanonical(thinking *ThinkingConfig) *canonical.Re
 		}
 		if thinking.BudgetTokens > 0 {
 			rc.BudgetTokens = &thinking.BudgetTokens
-			// Map budget_tokens to effort level
-			// low (<2048), medium (<16384), high (>=16384)
+			// Map budget_tokens to effort level (per cross_cutting.md)
+			// minimal: ≤1024, low: ≤5000, medium: ≤15000, high: >15000
 			var effort string
-			if thinking.BudgetTokens < 2048 {
+			if thinking.BudgetTokens <= 1024 {
+				effort = "minimal"
+			} else if thinking.BudgetTokens <= 5000 {
 				effort = "low"
-			} else if thinking.BudgetTokens < 16384 {
+			} else if thinking.BudgetTokens <= 15000 {
 				effort = "medium"
 			} else {
 				effort = "high"
@@ -365,102 +371,25 @@ func convertCanonicalToAnthropicThinking(rc *canonical.ReasoningConfig) *Thinkin
 	if rc.BudgetTokens != nil && *rc.BudgetTokens > 0 {
 		tc.BudgetTokens = *rc.BudgetTokens
 	} else if rc.Effort != nil {
-		// Map reasoning_effort to budget_tokens
-		// low→1024, medium→8192, high→32768
+		// Map reasoning_effort to budget_tokens (per cross_cutting.md)
+		// minimal→1024, low→5000, medium→15000, high→30000, xhigh→60000
 		switch *rc.Effort {
-		case "low":
+		case "minimal":
 			tc.BudgetTokens = 1024
+		case "low":
+			tc.BudgetTokens = 5000
 		case "medium":
-			tc.BudgetTokens = 8192
+			tc.BudgetTokens = 15000
 		case "high":
-			tc.BudgetTokens = 32768
+			tc.BudgetTokens = 30000
+		case "xhigh", "max":
+			tc.BudgetTokens = 60000
 		default:
-			tc.BudgetTokens = 8192
+			tc.BudgetTokens = 15000
 		}
 	}
 
 	return tc
-}
-
-// convertAnthropicSystemToCanonical extracts system messages from Anthropic system field.
-// Returns the system prompt as a string and whether it was in array format.
-func convertAnthropicSystemToCanonical(system SystemContent) (string, []canonical.ContentBlock, bool) {
-	if system.Text != "" {
-		return system.Text, nil, false
-	}
-
-	if len(system.Blocks) > 0 {
-		blocks := make([]canonical.ContentBlock, 0, len(system.Blocks))
-		for _, b := range system.Blocks {
-			cb := canonical.ContentBlock{
-				Type: canonical.ContentText,
-				Text: b.Text,
-			}
-			if b.CacheControl != nil {
-				cb.CacheControl = &canonical.CacheControl{Type: b.CacheControl.Type}
-			}
-			blocks = append(blocks, cb)
-		}
-		return "", blocks, true
-	}
-
-	return "", nil, false
-}
-
-// convertCanonicalToAnthropicSystem converts canonical system content to Anthropic SystemContent.
-// If any block has CacheControl, use array format.
-func convertCanonicalToAnthropicSystem(messages []canonical.Message) SystemContent {
-	// Extract text from system/developer messages
-	var textParts []string
-	var blocks []SystemBlock
-	hasCacheControl := false
-
-	for _, msg := range messages {
-		if msg.Role != canonical.RoleSystem && msg.Role != canonical.RoleDeveloper {
-			continue
-		}
-
-		for _, cb := range msg.Content {
-			if cb.Type == canonical.ContentText {
-				if cb.CacheControl != nil {
-					// Use array format if any block has cache_control
-					hasCacheControl = true
-					blocks = append(blocks, SystemBlock{
-						Type:         "text",
-						Text:         cb.Text,
-						CacheControl: &CacheControl{Type: cb.CacheControl.Type},
-					})
-				} else {
-					textParts = append(textParts, cb.Text)
-				}
-			}
-		}
-	}
-
-	// If any block has cache_control, use array format
-	if hasCacheControl {
-		// Add non-cache blocks too
-		for _, text := range textParts {
-			blocks = append([]SystemBlock{{Type: "text", Text: text}}, blocks...)
-		}
-		return SystemContent{Blocks: blocks}
-	}
-
-	// Use string format
-	if len(textParts) == 1 {
-		return SystemContent{Text: textParts[0]}
-	}
-
-	// Concatenate with newlines
-	text := ""
-	for i, t := range textParts {
-		if i > 0 {
-			text += "\n"
-		}
-		text += t
-	}
-
-	return SystemContent{Text: text}
 }
 
 // extractToolResultContent extracts the content from a tool result message.

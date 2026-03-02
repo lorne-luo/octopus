@@ -268,9 +268,15 @@ func convertAnthropicMessageToCanonicalForClient(msg MessageParam) canonical.Mes
 				}
 
 			case ContentTypeThinking:
-				// For assistant messages, set reasoning_content field instead of adding to Content
+				// For assistant messages, set reasoning_content field
+				// AND add to Content for interleaved thinking support
 				cmsg.Reasoning = block.Thinking
 				cmsg.ReasoningSignature = block.Signature
+				cmsg.Content = append(cmsg.Content, canonical.ContentBlock{
+					Type:      canonical.ContentThinking,
+					Thinking:  derefStr(block.Thinking),
+					Signature: derefStr(block.Signature),
+				})
 			}
 		}
 

@@ -1,5 +1,7 @@
 package canonical
 
+import "encoding/json"
+
 // Role represents the role of a message sender.
 type Role string
 
@@ -41,21 +43,21 @@ type Message struct {
 	ToolCallID *string
 
 	// Tool call helper fields (not serialized, used by adapters)
-	MessageIndex  *int
-	ToolCallName  *string
+	MessageIndex    *int
+	ToolCallName    *string
 	ToolCallIsError *bool
 
 	// Reasoning/Thinking output
-	Reasoning         *string
+	Reasoning          *string
 	ReasoningSignature *string // Gemini thoughtSignature, Anthropic signature
-	ThoughtSummary    *string // Gemini thought_summary
-	RedactedThinking  *string // Anthropic redacted_thinking.data (opaque passthrough)
+	ThoughtSummary     *string // Gemini thought_summary
+	RedactedThinking   *string // Anthropic redacted_thinking.data (opaque passthrough)
 
 	// Provider-specific passthrough
 	CacheControl *CacheControl
 
 	// Server tool content blocks (Anthropic: web_search_tool_result, etc.)
-	ServerToolBlocks []interface{}
+	ServerToolBlocks []json.RawMessage
 
 	// Image generation results (merged into Content during processing)
 	Images []ContentBlock
@@ -63,13 +65,13 @@ type Message struct {
 
 // ContentBlock represents a single content block in a message.
 type ContentBlock struct {
-	Type ContentType
-	Text string // when Type == ContentText
+	Type  ContentType
+	Text  string        // when Type == ContentText
 	Media *MediaContent // when Type == ContentImage/Audio/File/Document
 
 	// Thinking content (Anthropic extended thinking, OpenAI reasoning)
 	// Present when Type == ContentThinking
-	Thinking string // the thinking/reasoning text
+	Thinking  string // the thinking/reasoning text
 	Signature string // Anthropic thinking block signature (required for multi-turn)
 
 	// Provider-specific passthrough
@@ -82,10 +84,10 @@ type ContentBlock struct {
 // MediaContent unifies multimodal content across providers.
 type MediaContent struct {
 	// Image
-	URL     string  // URL-based image (OpenAI image_url.url, Anthropic url source, Gemini fileUri)
-	Base64  string  // base64-encoded image data
-	MimeType string // MIME type (image/jpeg, image/png, etc.)
-	Detail  *string // OpenAI detail level: "auto"|"low"|"high"
+	URL      string  // URL-based image (OpenAI image_url.url, Anthropic url source, Gemini fileUri)
+	Base64   string  // base64-encoded image data
+	MimeType string  // MIME type (image/jpeg, image/png, etc.)
+	Detail   *string // OpenAI detail level: "auto"|"low"|"high"
 
 	// Audio
 	AudioFormat string // "wav"|"mp3"

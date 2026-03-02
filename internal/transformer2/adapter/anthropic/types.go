@@ -139,6 +139,9 @@ type ContentBlock struct {
 	Thinking  *string `json:"thinking,omitempty"`
 	Signature *string `json:"signature,omitempty"`
 
+	// Redacted thinking (opaque passthrough)
+	Data json.RawMessage `json:"data,omitempty"`
+
 	// Cache control
 	CacheControl *CacheControl `json:"cache_control,omitempty"`
 }

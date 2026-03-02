@@ -379,11 +379,11 @@ func convertCanonicalCacheControl(cc *canonical.CacheControl) *CacheControl {
 	return &CacheControl{Type: cc.Type}
 }
 
-// jsonEscape escapes a string for JSON.
+// jsonEscape escapes a string for use inside a JSON string value.
 func jsonEscape(s string) string {
-	var buf bytes.Buffer
-	json.HTMLEscape(&buf, []byte(s))
-	return buf.String()
+	b, _ := json.Marshal(s)
+	// json.Marshal wraps in quotes — strip them
+	return string(b[1 : len(b)-1])
 }
 
 // ParseResponse parses Anthropic HTTP response to canonical Response.
@@ -482,6 +482,13 @@ func convertAnthropicResponseToCanonical(resp *MessageResponse, statusCode int) 
 					Thinking:  derefStr(block.Thinking),
 					Signature: derefStr(block.Signature),
 				})
+
+			case "redacted_thinking":
+				// Opaque passthrough for redacted thinking blocks
+				if block.Data != nil {
+					data := string(block.Data)
+					msg.RedactedThinking = &data
+				}
 			}
 		}
 
@@ -585,8 +592,12 @@ func (a *ProviderAdapter) ParseStreamChunk(ctx context.Context, data []byte) (*c
 				}}
 
 			case "signature_delta":
-				// Signature delta - handled separately from thinking content
-				// Could be added to ChoiceDelta if needed
+				chunk.Deltas = []canonical.ChoiceDelta{{
+					Index: event.Index,
+					Delta: canonical.Message{
+						ReasoningSignature: &event.Delta.Signature,
+					},
+				}}
 			}
 
 			return chunk, nil
