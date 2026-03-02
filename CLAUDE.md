@@ -52,3 +52,28 @@ It is built with Go (Backend) and React/Next.js (Frontend).
 1.  Add provider constant in `internal/conf/const.go` (if needed).
 2.  Implement transformer in `internal/transformer`.
 3.  Update relay logic to handle the new provider type.
+
+
+### Debug with real channel
+I will add some real channel in data/data.db
+You can get schema by 
+```
+sqlite3 data/data.db ".schema channels"
+```
+and get data from tables
+sqlite3 data/data.db "SELECT * FROM channels where name='Xunfei';"
+And design curl to verify the channel works, if `localhost:9100` is not reachable you can ask me to start the server
+```
+curl -N http://localhost:9100/v1/messages \
+  --header "x-api-key: sk-octopus-Qx8dHErG0OtVXKI1za3TNhEi9aPo79xpEgu3PqAAk0R2diHu" \
+  --header "anthropic-version: 2023-06-01" \
+  --header "content-type: application/json" \
+  --data '{
+    "model": "xunf",
+    "max_tokens": 1024,
+    "stream": true,
+    "messages": [
+      {"role": "user", "content": "Hello, generate 30 tokens sentence"}
+    ]
+  }'
+```
