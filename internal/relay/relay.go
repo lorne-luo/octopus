@@ -291,7 +291,7 @@ func (ra *relayAttempt) forward() (int, error) {
 		bodyBytes, readErr := io.ReadAll(outboundRequest.Body)
 		if readErr == nil {
 			outboundRequest.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-			log.Infof("converted request to channel %s: %s", ra.channel.Name, string(bodyBytes))
+			log.Debugf("converted request to channel %s: %s", ra.channel.Name, string(bodyBytes))
 		}
 	}
 
