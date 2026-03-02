@@ -12,6 +12,19 @@ import (
 // ClientAdapter implements ClientAdapter for Anthropic Messages API.
 type ClientAdapter struct {
 	aggregator *streamAggregator
+
+	// Stream state for FormatStreamChunk
+	hasStarted                bool
+	hasTextContentStarted     bool
+	hasThinkingContentStarted bool
+	hasToolContentStarted     bool
+	hasFinished               bool
+	messageStopped            bool
+	contentIndex              int
+	stopReason                *string
+	toolCallIndices           map[int]bool
+	messageID                 string
+	modelName                 string
 }
 
 // streamAggregator accumulates Anthropic stream chunks.
@@ -388,80 +401,298 @@ func convertCanonicalMessageToAnthropicContent(msg canonical.Message) []ContentB
 }
 
 // FormatStreamChunk converts canonical Chunk to Anthropic SSE format.
+// This is a stateful function that tracks stream state to emit the complete
+// Anthropic SSE event lifecycle:
+//
+//	message_start → content_block_start → content_block_delta* →
+//	content_block_stop → message_delta → message_stop
 func (a *ClientAdapter) FormatStreamChunk(ctx context.Context, chunk *canonical.Chunk) ([]byte, error) {
-	// For Anthropic, we format chunks as SSE events
-	if chunk.Done {
-		// Final chunk - format as message_stop
-		event := StreamEvent{Type: EventTypeMessageStop}
-		data, _ := json.Marshal(event)
-		return formatSSE(EventTypeMessageStop, data), nil
+	// Store chunk for aggregation
+	a.aggregator.addChunk(chunk)
+
+	var events [][]byte
+
+	// Cache ID and model from chunks
+	if a.messageID == "" && chunk.ID != "" {
+		a.messageID = chunk.ID
+	}
+	if a.modelName == "" && chunk.Model != "" {
+		a.modelName = chunk.Model
 	}
 
-	// Format based on content
+	// Emit message_start on the first chunk
+	if !a.hasStarted {
+		a.hasStarted = true
+
+		usage := &Usage{}
+		if chunk.Usage != nil {
+			usage = &Usage{
+				InputTokens:  chunk.Usage.PromptTokens,
+				OutputTokens: chunk.Usage.CompletionTokens,
+			}
+		}
+
+		startEvent := StreamEvent{
+			Type: EventTypeMessageStart,
+			Message: &MessageResponse{
+				ID:      a.messageID,
+				Type:    "message",
+				Role:    "assistant",
+				Model:   a.modelName,
+				Content: []ContentBlock{},
+				Usage:   *usage,
+			},
+		}
+		data, err := json.Marshal(startEvent)
+		if err != nil {
+			return nil, err
+		}
+		events = append(events, formatSSE(EventTypeMessageStart, data))
+	}
+
+	// Process deltas
 	if len(chunk.Deltas) > 0 {
-		// Content delta
 		delta := chunk.Deltas[0]
+
+		// Handle thinking/reasoning content
+		if delta.Delta.Reasoning != nil && *delta.Delta.Reasoning != "" {
+			// Close tool block if open
+			if a.hasToolContentStarted {
+				a.hasToolContentStarted = false
+				events = append(events, a.emitContentBlockStop())
+				a.contentIndex++
+			}
+
+			// Emit content_block_start for thinking if not started
+			if !a.hasThinkingContentStarted {
+				a.hasThinkingContentStarted = true
+				events = append(events, a.emitContentBlockStart(&ContentBlock{
+					Type:      ContentTypeThinking,
+					Thinking:  "",
+					Signature: "",
+				}))
+			}
+
+			// Emit thinking delta
+			deltaEvent := StreamEvent{
+				Type:  EventTypeContentBlockDelta,
+				Index: a.contentIndex,
+				Delta: &ContentDelta{
+					Type:     "thinking_delta",
+					Thinking: *delta.Delta.Reasoning,
+				},
+			}
+			data, _ := json.Marshal(deltaEvent)
+			events = append(events, formatSSE(EventTypeContentBlockDelta, data))
+		}
+
+		// Handle reasoning signature
+		if delta.Delta.ReasoningSignature != nil && *delta.Delta.ReasoningSignature != "" {
+			sigEvent := StreamEvent{
+				Type:  EventTypeContentBlockDelta,
+				Index: a.contentIndex,
+				Delta: &ContentDelta{
+					Type:      "signature_delta",
+					Signature: *delta.Delta.ReasoningSignature,
+				},
+			}
+			data, _ := json.Marshal(sigEvent)
+			events = append(events, formatSSE(EventTypeContentBlockDelta, data))
+		}
+
+		// Handle text content
 		if len(delta.Delta.Content) > 0 {
-			// Text content delta
 			for _, cb := range delta.Delta.Content {
-				if cb.Type == canonical.ContentText {
-					event := StreamEvent{
+				if cb.Type == canonical.ContentText && cb.Text != "" {
+					// Close thinking block if open
+					if a.hasThinkingContentStarted {
+						a.hasThinkingContentStarted = false
+						events = append(events, a.emitContentBlockStop())
+						a.contentIndex++
+					}
+					// Close tool block if open
+					if a.hasToolContentStarted {
+						a.hasToolContentStarted = false
+						events = append(events, a.emitContentBlockStop())
+						a.contentIndex++
+					}
+
+					// Emit content_block_start for text if not started
+					if !a.hasTextContentStarted {
+						a.hasTextContentStarted = true
+						events = append(events, a.emitContentBlockStart(&ContentBlock{
+							Type: ContentTypeText,
+							Text: "",
+						}))
+					}
+
+					// Emit text delta
+					deltaEvent := StreamEvent{
 						Type:  EventTypeContentBlockDelta,
-						Index: delta.Index,
+						Index: a.contentIndex,
 						Delta: &ContentDelta{
 							Type: "text_delta",
 							Text: cb.Text,
 						},
 					}
-					data, _ := json.Marshal(event)
-					return formatSSE(EventTypeContentBlockDelta, data), nil
+					data, _ := json.Marshal(deltaEvent)
+					events = append(events, formatSSE(EventTypeContentBlockDelta, data))
 				}
 			}
 		}
 
-		// Tool call delta
-		for _, tc := range delta.Delta.ToolCalls {
-			event := StreamEvent{
-				Type:  EventTypeContentBlockDelta,
-				Index: delta.Index,
-				Delta: &ContentDelta{
-					Type:       "input_json_delta",
-					PartialJSON: tc.Arguments,
-				},
+		// Handle tool calls
+		if len(delta.Delta.ToolCalls) > 0 {
+			// Close thinking block if open
+			if a.hasThinkingContentStarted {
+				a.hasThinkingContentStarted = false
+				events = append(events, a.emitContentBlockStop())
+				a.contentIndex++
 			}
-			data, _ := json.Marshal(event)
-			return formatSSE(EventTypeContentBlockDelta, data), nil
+			// Close text block if open
+			if a.hasTextContentStarted {
+				a.hasTextContentStarted = false
+				events = append(events, a.emitContentBlockStop())
+				a.contentIndex++
+			}
+
+			if a.toolCallIndices == nil {
+				a.toolCallIndices = make(map[int]bool)
+			}
+
+			for _, tc := range delta.Delta.ToolCalls {
+				toolCallIndex := tc.Index
+
+				if !a.toolCallIndices[toolCallIndex] {
+					// Close previous tool block if starting a new one
+					if toolCallIndex > 0 && a.hasToolContentStarted {
+						events = append(events, a.emitContentBlockStop())
+						a.contentIndex++
+					}
+
+					a.toolCallIndices[toolCallIndex] = true
+					a.hasToolContentStarted = true
+
+					// Emit content_block_start for tool_use
+					events = append(events, a.emitContentBlockStart(&ContentBlock{
+						Type:  ContentTypeToolUse,
+						ID:    tc.ID,
+						Name:  tc.Name,
+						Input: json.RawMessage("{}"),
+					}))
+
+					// Emit initial arguments delta if present
+					if tc.Arguments != "" {
+						argEvent := StreamEvent{
+							Type:  EventTypeContentBlockDelta,
+							Index: a.contentIndex,
+							Delta: &ContentDelta{
+								Type:        "input_json_delta",
+								PartialJSON: tc.Arguments,
+							},
+						}
+						data, _ := json.Marshal(argEvent)
+						events = append(events, formatSSE(EventTypeContentBlockDelta, data))
+					}
+				} else {
+					// Continuing tool call - emit input_json_delta
+					argEvent := StreamEvent{
+						Type:  EventTypeContentBlockDelta,
+						Index: a.contentIndex,
+						Delta: &ContentDelta{
+							Type:        "input_json_delta",
+							PartialJSON: tc.Arguments,
+						},
+					}
+					data, _ := json.Marshal(argEvent)
+					events = append(events, formatSSE(EventTypeContentBlockDelta, data))
+				}
+			}
 		}
 
-		// Finish reason
-		if delta.FinishReason != nil {
+		// Handle finish reason
+		if delta.FinishReason != nil && !a.hasFinished {
+			a.hasFinished = true
+
+			// Close any open content block
+			events = append(events, a.emitContentBlockStop())
+
+			// Store stop reason for message_delta
 			stopReason := mapCanonicalFinishReasonToAnthropic(*delta.FinishReason)
-			event := StreamEvent{
-				Type: EventTypeMessageDelta,
-				DeltaMessage: &MessageDeltaRaw{
-					StopReason: stopReason,
-				},
-			}
-			data, _ := json.Marshal(event)
-			return formatSSE(EventTypeMessageDelta, data), nil
+			a.stopReason = &stopReason
 		}
 	}
 
-	// Usage chunk
-	if chunk.Usage != nil {
-		event := StreamEvent{
-			Type: EventTypeMessageDelta,
-			Usage: &Usage{
+	// When hasFinished and not yet stopped, emit message_delta + message_stop.
+	// We emit immediately rather than waiting for a separate usage chunk,
+	// because some providers (especially OpenAI-compatible) may not send
+	// a usage-only chunk — they send finish_reason and then [DONE].
+	// If usage is available (same chunk or separate), include it.
+	if a.hasFinished && !a.messageStopped {
+		a.messageStopped = true
+
+		// Build usage for message_delta (may be zero if no usage available)
+		usage := &Usage{}
+		if chunk.Usage != nil {
+			usage = &Usage{
 				InputTokens:  chunk.Usage.PromptTokens,
 				OutputTokens: chunk.Usage.CompletionTokens,
-			},
+			}
 		}
-		data, _ := json.Marshal(event)
-		return formatSSE(EventTypeMessageDelta, data), nil
+
+		// Emit message_delta with stop_reason and usage
+		msgDeltaEvent := StreamEvent{
+			Type:  EventTypeMessageDelta,
+			Usage: usage,
+		}
+		if a.stopReason != nil {
+			msgDeltaEvent.DeltaMessage = &MessageDeltaRaw{
+				StopReason: *a.stopReason,
+			}
+		}
+		data, _ := json.Marshal(msgDeltaEvent)
+		events = append(events, formatSSE(EventTypeMessageDelta, data))
+
+		// Emit message_stop
+		msgStopEvent := StreamEvent{Type: EventTypeMessageStop}
+		data, _ = json.Marshal(msgStopEvent)
+		events = append(events, formatSSE(EventTypeMessageStop, data))
 	}
 
-	// Empty chunk
-	return nil, nil
+	// If no events were generated, check if we have a finish without usage
+	// (some providers send finish_reason and usage in the same chunk)
+	if len(events) == 0 {
+		return nil, nil
+	}
+
+	// Concatenate all events
+	result := make([]byte, 0)
+	for _, event := range events {
+		result = append(result, event...)
+	}
+
+	return result, nil
+}
+
+// emitContentBlockStart generates a content_block_start SSE event.
+func (a *ClientAdapter) emitContentBlockStart(block *ContentBlock) []byte {
+	event := StreamEvent{
+		Type:         EventTypeContentBlockStart,
+		Index:        a.contentIndex,
+		ContentBlock: block,
+	}
+	data, _ := json.Marshal(event)
+	return formatSSE(EventTypeContentBlockStart, data)
+}
+
+// emitContentBlockStop generates a content_block_stop SSE event.
+func (a *ClientAdapter) emitContentBlockStop() []byte {
+	event := StreamEvent{
+		Type:  EventTypeContentBlockStop,
+		Index: a.contentIndex,
+	}
+	data, _ := json.Marshal(event)
+	return formatSSE(EventTypeContentBlockStop, data)
 }
 
 // formatSSE formats data as SSE event.

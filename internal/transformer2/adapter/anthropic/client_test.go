@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/bestruirui/octopus/internal/transformer2/canonical"
@@ -682,7 +683,7 @@ func TestStreamEventMarshalJSON(t *testing.T) {
 				Type:  EventTypeContentBlockDelta,
 				Index: 1,
 				Delta: &ContentDelta{
-					Type:       "input_json_delta",
+					Type:        "input_json_delta",
 					PartialJSON: `{"foo":`,
 				},
 			},
@@ -805,10 +806,10 @@ func TestAnthropicCachingUsageSemantics(t *testing.T) {
 			},
 		},
 		Usage: &canonical.Usage{
-			PromptTokens:              500,  // This should be the sum
-			CompletionTokens:          50,
-			CacheCreationInputTokens:  200,
-			CacheReadInputTokens:      100,
+			PromptTokens:               500, // This should be the sum
+			CompletionTokens:           50,
+			CacheCreationInputTokens:   200,
+			CacheReadInputTokens:       100,
 			InputTokensAfterBreakpoint: 200, // Original input_tokens from API
 		},
 	}
@@ -850,7 +851,7 @@ func TestFormatResponse_WithReasoningField(t *testing.T) {
 			{
 				Index: 0,
 				Message: canonical.Message{
-					Role: canonical.RoleAssistant,
+					Role:      canonical.RoleAssistant,
 					Reasoning: &reasoning,
 					Content: []canonical.ContentBlock{
 						{Type: canonical.ContentText, Text: "The answer is 42."},
@@ -912,7 +913,7 @@ func TestFormatResponse_ReasoningAlreadyInContent(t *testing.T) {
 			{
 				Index: 0,
 				Message: canonical.Message{
-					Role: canonical.RoleAssistant,
+					Role:      canonical.RoleAssistant,
 					Reasoning: &reasoning,
 					Content: []canonical.ContentBlock{
 						{Type: canonical.ContentThinking, Thinking: reasoning, Signature: "sig123"},
@@ -1022,6 +1023,248 @@ func TestAnthropicImageContent(t *testing.T) {
 		}
 		if req.Messages[0].Content[0].Media.Base64 != "iVBORw0KGgo=" {
 			t.Errorf("Expected base64 data, got '%s'", req.Messages[0].Content[0].Media.Base64)
+		}
+	})
+}
+
+func TestFormatStreamChunk_FullLifecycle(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("basic_text_stream", func(t *testing.T) {
+		adapter := NewClientAdapter()
+
+		// Chunk 1: first text delta (should trigger message_start + content_block_start + content_block_delta)
+		chunk1 := &canonical.Chunk{
+			ID:    "msg_123",
+			Model: "claude-sonnet-4-20250514",
+			Deltas: []canonical.ChoiceDelta{
+				{
+					Index: 0,
+					Delta: canonical.Message{
+						Content: []canonical.ContentBlock{{Type: canonical.ContentText, Text: "Hello"}},
+					},
+				},
+			},
+		}
+
+		out1, err := adapter.FormatStreamChunk(ctx, chunk1)
+		if err != nil {
+			t.Fatalf("FormatStreamChunk chunk1 failed: %v", err)
+		}
+		output := string(out1)
+
+		// Must contain message_start
+		if !strings.Contains(output, "event: message_start") {
+			t.Error("Missing message_start event")
+		}
+		// Must contain content_block_start
+		if !strings.Contains(output, "event: content_block_start") {
+			t.Error("Missing content_block_start event")
+		}
+		// Must contain text_delta
+		if !strings.Contains(output, "\"type\":\"text_delta\"") {
+			t.Error("Missing text_delta in content_block_delta")
+		}
+		// Must contain "Hello" text
+		if !strings.Contains(output, "\"text\":\"Hello\"") {
+			t.Error("Missing text content 'Hello'")
+		}
+
+		// Chunk 2: more text (should just be content_block_delta)
+		chunk2 := &canonical.Chunk{
+			ID: "msg_123",
+			Deltas: []canonical.ChoiceDelta{
+				{
+					Index: 0,
+					Delta: canonical.Message{
+						Content: []canonical.ContentBlock{{Type: canonical.ContentText, Text: " world!"}},
+					},
+				},
+			},
+		}
+
+		out2, err := adapter.FormatStreamChunk(ctx, chunk2)
+		if err != nil {
+			t.Fatalf("FormatStreamChunk chunk2 failed: %v", err)
+		}
+		output2 := string(out2)
+
+		// Should NOT contain another message_start
+		if strings.Contains(output2, "event: message_start") {
+			t.Error("Unexpected duplicate message_start")
+		}
+		// Should NOT contain another content_block_start
+		if strings.Contains(output2, "event: content_block_start") {
+			t.Error("Unexpected duplicate content_block_start")
+		}
+		// Should contain text delta
+		if !strings.Contains(output2, "\" world!\"") {
+			t.Error("Missing text content ' world!'")
+		}
+
+		// Chunk 3: finish_reason (should emit content_block_stop + message_delta + message_stop)
+		finishReason := "stop"
+		chunk3 := &canonical.Chunk{
+			ID: "msg_123",
+			Deltas: []canonical.ChoiceDelta{
+				{
+					Index:        0,
+					FinishReason: &finishReason,
+				},
+			},
+		}
+
+		out3, err := adapter.FormatStreamChunk(ctx, chunk3)
+		if err != nil {
+			t.Fatalf("FormatStreamChunk chunk3 failed: %v", err)
+		}
+		output3 := string(out3)
+
+		// Must contain content_block_stop
+		if !strings.Contains(output3, "event: content_block_stop") {
+			t.Error("Missing content_block_stop event")
+		}
+		// Must contain message_delta with stop_reason (emitted immediately with finish)
+		if !strings.Contains(output3, "event: message_delta") {
+			t.Error("Missing message_delta event")
+		}
+		if !strings.Contains(output3, "\"stop_reason\":\"end_turn\"") {
+			t.Error("Missing stop_reason in message_delta")
+		}
+		// Must contain message_stop
+		if !strings.Contains(output3, "event: message_stop") {
+			t.Error("Missing message_stop event")
+		}
+
+		// Chunk 4: usage after message_stop should return nil (already stopped)
+		chunk4 := &canonical.Chunk{
+			ID: "msg_123",
+			Usage: &canonical.Usage{
+				PromptTokens:     100,
+				CompletionTokens: 10,
+			},
+		}
+
+		out4, err := adapter.FormatStreamChunk(ctx, chunk4)
+		if err != nil {
+			t.Fatalf("FormatStreamChunk chunk4 failed: %v", err)
+		}
+		// Should return nil since message_stop was already sent
+		if out4 != nil {
+			t.Errorf("Expected nil output for usage after message_stop, got: %s", string(out4))
+		}
+	})
+
+	t.Run("finish_and_usage_same_chunk", func(t *testing.T) {
+		adapter := NewClientAdapter()
+
+		// Chunk 1: text delta
+		chunk1 := &canonical.Chunk{
+			ID:    "msg_456",
+			Model: "qwen3-max",
+			Deltas: []canonical.ChoiceDelta{
+				{
+					Index: 0,
+					Delta: canonical.Message{
+						Content: []canonical.ContentBlock{{Type: canonical.ContentText, Text: "Hi"}},
+					},
+				},
+			},
+		}
+		_, err := adapter.FormatStreamChunk(ctx, chunk1)
+		if err != nil {
+			t.Fatalf("chunk1 failed: %v", err)
+		}
+
+		// Chunk 2: finish_reason AND usage in the same chunk
+		finishReason := "stop"
+		chunk2 := &canonical.Chunk{
+			ID: "msg_456",
+			Deltas: []canonical.ChoiceDelta{
+				{
+					Index:        0,
+					FinishReason: &finishReason,
+				},
+			},
+			Usage: &canonical.Usage{
+				PromptTokens:     50,
+				CompletionTokens: 5,
+			},
+		}
+
+		out2, err := adapter.FormatStreamChunk(ctx, chunk2)
+		if err != nil {
+			t.Fatalf("chunk2 failed: %v", err)
+		}
+		output := string(out2)
+
+		// Should contain: content_block_stop + message_delta + message_stop
+		if !strings.Contains(output, "event: content_block_stop") {
+			t.Error("Missing content_block_stop")
+		}
+		if !strings.Contains(output, "event: message_delta") {
+			t.Error("Missing message_delta")
+		}
+		if !strings.Contains(output, "event: message_stop") {
+			t.Error("Missing message_stop")
+		}
+		if !strings.Contains(output, "\"stop_reason\":\"end_turn\"") {
+			t.Error("Missing stop_reason")
+		}
+	})
+
+	t.Run("finish_without_usage", func(t *testing.T) {
+		adapter := NewClientAdapter()
+
+		// Chunk 1: text delta
+		chunk1 := &canonical.Chunk{
+			ID:    "msg_789",
+			Model: "qwen3-max",
+			Deltas: []canonical.ChoiceDelta{
+				{
+					Index: 0,
+					Delta: canonical.Message{
+						Content: []canonical.ContentBlock{{Type: canonical.ContentText, Text: "Hi"}},
+					},
+				},
+			},
+		}
+		_, err := adapter.FormatStreamChunk(ctx, chunk1)
+		if err != nil {
+			t.Fatalf("chunk1 failed: %v", err)
+		}
+
+		// Chunk 2: finish_reason only, NO usage
+		finishReason := "stop"
+		chunk2 := &canonical.Chunk{
+			ID: "msg_789",
+			Deltas: []canonical.ChoiceDelta{
+				{
+					Index:        0,
+					FinishReason: &finishReason,
+				},
+			},
+			// No Usage field!
+		}
+
+		out2, err := adapter.FormatStreamChunk(ctx, chunk2)
+		if err != nil {
+			t.Fatalf("chunk2 failed: %v", err)
+		}
+		output := string(out2)
+
+		// Must still emit content_block_stop + message_delta + message_stop
+		if !strings.Contains(output, "event: content_block_stop") {
+			t.Error("Missing content_block_stop")
+		}
+		if !strings.Contains(output, "event: message_delta") {
+			t.Error("Missing message_delta")
+		}
+		if !strings.Contains(output, "event: message_stop") {
+			t.Error("Missing message_stop")
+		}
+		if !strings.Contains(output, "\"stop_reason\":\"end_turn\"") {
+			t.Error("Missing stop_reason in message_delta")
 		}
 	})
 }
