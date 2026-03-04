@@ -325,9 +325,9 @@ func fetchOAuthProviderModels(c *gin.Context) {
 		return
 	}
 
-	// If no API key, try to refresh first
-	if provider.APIKey == "" {
-		manager := oauth.GetManager()
+	// Refresh API key if needed (empty, expired, or within 1 hour of expiration)
+	manager := oauth.GetManager()
+	if manager.ShouldRefresh(provider) {
 		if err := manager.RefreshAPIKey(c.Request.Context(), provider); err != nil {
 			resp.Error(c, http.StatusBadRequest, "failed to refresh api key: "+err.Error())
 			return
