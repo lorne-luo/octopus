@@ -506,5 +506,32 @@
             "matchRegexPlaceholder": "可選：用於匹配請求模型名稱的正規表示式",
             "remark": "備註"
         }
+    },
+    "oauthProvider": {
+        "title": "OAuth 提供者",
+        "create": "建立",
+        "name": "名稱",
+        "namePlaceholder": "請輸入提供者名稱",
+        "type": "類型",
+        "lastRefresh": "上次重新整理",
+        "createdAt": "建立時間",
+        "enabled": "啟用",
+        "actions": "操作",
+        "confirmDelete": "確定要刪除此提供者嗎？",
+        "refresh": "重新整理",
+        "edit": "編輯",
+        "delete": "刪除",
+        "noData": "暫無提供者",
+        "editTitle": "編輯 OAuth 提供者",
+        "createTitle": "建立 OAuth 提供者",
+        "authJson": "認證 JSON",
+        "authJsonPlaceholder": "請輸入認證 JSON",
+        "cancel": "取消",
+        "saving": "儲存中...",
+        "update": "更新",
+        "modelRefreshNoProvider": "請先儲存提供者",
+        "modelRefreshSuccess": "模型列表獲取成功",
+        "modelRefreshEmpty": "未獲取到模型列表",
+        "modelRefreshFailed": "模型列表獲取失敗"
     }
 }
