@@ -159,10 +159,26 @@ type CacheControl struct {
 	Type string `json:"type"` // "ephemeral"
 }
 
+// Thinking type constants
+const (
+	ThinkingTypeEnabled  = "enabled"
+	ThinkingTypeDisabled = "disabled"
+	ThinkingTypeAdaptive = "adaptive"
+)
+
+// Effort level constants for OutputConfig
+const (
+	EffortMinimal = "minimal"
+	EffortLow     = "low"
+	EffortMedium  = "medium"
+	EffortHigh    = "high"
+	EffortMax     = "max"
+)
+
 // ThinkingConfig represents Anthropic thinking configuration.
 type ThinkingConfig struct {
-	Type         string `json:"type"` // "enabled" or "disabled"
-	BudgetTokens int64  `json:"budget_tokens,omitempty"`
+	Type         string  `json:"type"`                    // "enabled", "disabled", or "adaptive"
+	BudgetTokens *int64  `json:"budget_tokens,omitempty"` // pointer to distinguish nil from 0
 }
 
 // Tool represents an Anthropic tool definition.

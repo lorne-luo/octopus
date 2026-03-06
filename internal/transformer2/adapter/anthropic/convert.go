@@ -304,39 +304,47 @@ func convertCanonicalToAnthropicToolChoice(tc *canonical.ToolChoice) *ToolChoice
 
 // convertAnthropicThinkingToCanonical converts Anthropic ThinkingConfig to canonical ReasoningConfig.
 // Returns nil if thinking is disabled or not specified.
-func convertAnthropicThinkingToCanonical(thinking *ThinkingConfig) *canonical.ReasoningConfig {
+// The outputConfig parameter is used to extract effort for adaptive thinking mode.
+func convertAnthropicThinkingToCanonical(thinking *ThinkingConfig, outputConfig *AnthropicOutputConfig) *canonical.ReasoningConfig {
 	if thinking == nil {
 		return nil
 	}
 
 	switch thinking.Type {
-	case "adaptive":
-		// Adaptive mode: Enabled = nil
-		return &canonical.ReasoningConfig{}
-	case "enabled":
+	case ThinkingTypeAdaptive:
+		// Adaptive mode: Enabled = nil, effort from output_config
+		rc := &canonical.ReasoningConfig{}
+		if outputConfig != nil && outputConfig.Effort != "" {
+			rc.Effort = &outputConfig.Effort
+		} else {
+			// Default to high if no effort specified
+			rc.Effort = strPtr(EffortHigh)
+		}
+		return rc
+	case ThinkingTypeEnabled:
 		// Legacy mode: Enabled = true
 		enabled := true
 		rc := &canonical.ReasoningConfig{
 			Enabled: &enabled,
 		}
-		if thinking.BudgetTokens > 0 {
-			rc.BudgetTokens = &thinking.BudgetTokens
+		if thinking.BudgetTokens != nil && *thinking.BudgetTokens > 0 {
+			rc.BudgetTokens = thinking.BudgetTokens
 			// Map budget_tokens to effort level (per cross_cutting.md)
 			// minimal: ≤1024, low: ≤5000, medium: ≤15000, high: >15000
 			var effort string
-			if thinking.BudgetTokens <= 1024 {
-				effort = "minimal"
-			} else if thinking.BudgetTokens <= 5000 {
-				effort = "low"
-			} else if thinking.BudgetTokens <= 15000 {
-				effort = "medium"
+			if *thinking.BudgetTokens <= 1024 {
+				effort = EffortMinimal
+			} else if *thinking.BudgetTokens <= 5000 {
+				effort = EffortLow
+			} else if *thinking.BudgetTokens <= 15000 {
+				effort = EffortMedium
 			} else {
-				effort = "high"
+				effort = EffortHigh
 			}
 			rc.Effort = &effort
 		}
 		return rc
-	case "disabled":
+	case ThinkingTypeDisabled:
 		// Disabled: Enabled = false
 		enabled := false
 		return &canonical.ReasoningConfig{
@@ -356,37 +364,39 @@ func convertCanonicalToAnthropicThinking(rc *canonical.ReasoningConfig) *Thinkin
 
 	// Check for explicit disabled
 	if rc.Enabled != nil && !*rc.Enabled {
-		return &ThinkingConfig{Type: "disabled"}
+		return &ThinkingConfig{Type: ThinkingTypeDisabled}
 	}
 
 	// If Enabled is nil (adaptive mode), return adaptive
 	if rc.Enabled == nil {
-		return &ThinkingConfig{Type: "adaptive"}
+		return &ThinkingConfig{Type: ThinkingTypeAdaptive}
 	}
 
 	// Build thinking config (enabled mode)
-	tc := &ThinkingConfig{Type: "enabled"}
+	tc := &ThinkingConfig{Type: ThinkingTypeEnabled}
 
 	// Handle budget_tokens
 	if rc.BudgetTokens != nil && *rc.BudgetTokens > 0 {
-		tc.BudgetTokens = *rc.BudgetTokens
+		tc.BudgetTokens = rc.BudgetTokens
 	} else if rc.Effort != nil {
 		// Map reasoning_effort to budget_tokens (per cross_cutting.md)
 		// minimal→1024, low→5000, medium→15000, high→30000, xhigh→60000
+		var budget int64
 		switch *rc.Effort {
-		case "minimal":
-			tc.BudgetTokens = 1024
-		case "low":
-			tc.BudgetTokens = 5000
-		case "medium":
-			tc.BudgetTokens = 15000
-		case "high":
-			tc.BudgetTokens = 30000
-		case "xhigh", "max":
-			tc.BudgetTokens = 60000
+		case EffortMinimal:
+			budget = 1024
+		case EffortLow:
+			budget = 5000
+		case EffortMedium:
+			budget = 15000
+		case EffortHigh:
+			budget = 30000
+		case "xhigh", EffortMax:
+			budget = 60000
 		default:
-			tc.BudgetTokens = 15000
+			budget = 15000
 		}
+		tc.BudgetTokens = &budget
 	}
 
 	return tc

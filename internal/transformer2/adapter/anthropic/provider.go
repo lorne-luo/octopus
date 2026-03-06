@@ -193,7 +193,7 @@ func convertCanonicalToAnthropicRequest(req *canonical.Request) *MessageRequest 
 		areq.Thinking = convertCanonicalToAnthropicThinking(req.Reasoning)
 
 		// Emit output_config.effort for adaptive thinking mode
-		if areq.Thinking != nil && areq.Thinking.Type == "adaptive" && req.Reasoning.Effort != nil {
+		if areq.Thinking != nil && areq.Thinking.Type == ThinkingTypeAdaptive && req.Reasoning.Effort != nil {
 			effort := mapCanonicalEffortToAnthropic(*req.Reasoning.Effort)
 			if effort != "" {
 				areq.OutputConfig = &AnthropicOutputConfig{Effort: effort}
@@ -225,14 +225,14 @@ func convertCanonicalToAnthropicRequest(req *canonical.Request) *MessageRequest 
 // mapCanonicalEffortToAnthropic maps canonical reasoning effort to Anthropic output_config effort.
 func mapCanonicalEffortToAnthropic(effort string) string {
 	switch effort {
-	case "minimal", "low":
-		return "low"
-	case "medium":
-		return "medium"
-	case "high":
-		return "high"
-	case "xhigh", "max":
-		return "max"
+	case EffortMinimal, EffortLow:
+		return EffortLow
+	case EffortMedium:
+		return EffortMedium
+	case EffortHigh:
+		return EffortHigh
+	case "xhigh", EffortMax:
+		return EffortMax
 	case "none":
 		return "" // omit thinking entirely
 	default:

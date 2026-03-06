@@ -107,7 +107,7 @@ func (a *ClientAdapter) ParseRequest(ctx context.Context, body []byte, header ht
 
 	// Handle thinking config
 	if req.Thinking != nil {
-		creq.Reasoning = convertAnthropicThinkingToCanonical(req.Thinking)
+		creq.Reasoning = convertAnthropicThinkingToCanonical(req.Thinking, req.OutputConfig)
 	}
 
 	// Extract anthropic-beta and anthropic-version headers

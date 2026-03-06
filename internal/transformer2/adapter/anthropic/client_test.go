@@ -262,6 +262,63 @@ func TestAnthropicThinkingConfig(t *testing.T) {
 		}
 	})
 
+	t.Run("adaptive_mode_with_effort", func(t *testing.T) {
+		reqBody := []byte(`{
+			"model": "claude-sonnet-4-20250514",
+			"max_tokens": 1024,
+			"thinking": {"type": "adaptive"},
+			"output_config": {"effort": "high"},
+			"messages": [
+				{"role": "user", "content": "Hello"}
+			]
+		}`)
+
+		req, err := adapter.ParseRequest(ctx, reqBody, http.Header{})
+		if err != nil {
+			t.Fatalf("ParseRequest failed: %v", err)
+		}
+
+		if req.Reasoning == nil {
+			t.Fatal("Expected Reasoning config, got nil")
+		}
+		// Adaptive mode: Enabled = nil (not set)
+		if req.Reasoning.Enabled != nil {
+			t.Errorf("Expected Enabled=nil for adaptive, got %v", req.Reasoning.Enabled)
+		}
+		// Should have effort from output_config
+		if req.Reasoning.Effort == nil || *req.Reasoning.Effort != "high" {
+			t.Errorf("Expected Effort='high' from output_config, got %v", req.Reasoning.Effort)
+		}
+	})
+
+	t.Run("enabled_mode_without_budget_tokens", func(t *testing.T) {
+		// Test that enabled mode without budget_tokens doesn't crash
+		reqBody := []byte(`{
+			"model": "claude-sonnet-4-20250514",
+			"max_tokens": 1024,
+			"thinking": {"type": "enabled"},
+			"messages": [
+				{"role": "user", "content": "Hello"}
+			]
+		}`)
+
+		req, err := adapter.ParseRequest(ctx, reqBody, http.Header{})
+		if err != nil {
+			t.Fatalf("ParseRequest failed: %v", err)
+		}
+
+		if req.Reasoning == nil {
+			t.Fatal("Expected Reasoning config, got nil")
+		}
+		if req.Reasoning.Enabled == nil || !*req.Reasoning.Enabled {
+			t.Errorf("Expected Enabled=true, got %v", req.Reasoning.Enabled)
+		}
+		// BudgetTokens should be nil (not provided)
+		if req.Reasoning.BudgetTokens != nil {
+			t.Errorf("Expected BudgetTokens=nil (not provided), got %v", req.Reasoning.BudgetTokens)
+		}
+	})
+
 	t.Run("enabled_mode", func(t *testing.T) {
 		reqBody := []byte(`{
 			"model": "claude-sonnet-4-20250514",

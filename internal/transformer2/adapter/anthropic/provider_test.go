@@ -338,6 +338,51 @@ func TestBuildRequest_ThinkingConfig(t *testing.T) {
 		}
 	})
 
+	t.Run("adaptive_mode_with_effort", func(t *testing.T) {
+		effort := "high"
+		req := &canonical.Request{
+			Kind:  canonical.KindChat,
+			Model: "claude-sonnet-4-20250514",
+			Messages: []canonical.Message{
+				{Role: canonical.RoleUser, Content: []canonical.ContentBlock{{Type: canonical.ContentText, Text: "Hello"}}},
+			},
+			MaxTokens: int64Ptr(1024),
+			Reasoning: &canonical.ReasoningConfig{
+				// Enabled = nil means adaptive
+				Effort: &effort,
+			},
+		}
+
+		httpReq, err := adapter.BuildRequest(ctx, req, "https://api.anthropic.com", "test-key")
+		if err != nil {
+			t.Fatalf("BuildRequest failed: %v", err)
+		}
+
+		body, err := io.ReadAll(httpReq.Body)
+		if err != nil {
+			t.Fatalf("Failed to read request body: %v", err)
+		}
+
+		var areq MessageRequest
+		if err := json.Unmarshal(body, &areq); err != nil {
+			t.Fatalf("Failed to unmarshal request body: %v", err)
+		}
+
+		if areq.Thinking == nil {
+			t.Fatal("Expected thinking config, got nil")
+		}
+		if areq.Thinking.Type != "adaptive" {
+			t.Errorf("Expected thinking type 'adaptive', got '%s'", areq.Thinking.Type)
+		}
+		// Should have output_config with effort
+		if areq.OutputConfig == nil {
+			t.Fatal("Expected output_config, got nil")
+		}
+		if areq.OutputConfig.Effort != "high" {
+			t.Errorf("Expected output_config.effort 'high', got '%s'", areq.OutputConfig.Effort)
+		}
+	})
+
 	t.Run("enabled_mode", func(t *testing.T) {
 		enabled := true
 		budget := int64(10000)
@@ -375,8 +420,8 @@ func TestBuildRequest_ThinkingConfig(t *testing.T) {
 		if areq.Thinking.Type != "enabled" {
 			t.Errorf("Expected thinking type 'enabled', got '%s'", areq.Thinking.Type)
 		}
-		if areq.Thinking.BudgetTokens != 10000 {
-			t.Errorf("Expected budget_tokens 10000, got %d", areq.Thinking.BudgetTokens)
+		if areq.Thinking.BudgetTokens == nil || *areq.Thinking.BudgetTokens != 10000 {
+			t.Errorf("Expected budget_tokens 10000, got %v", areq.Thinking.BudgetTokens)
 		}
 	})
 
