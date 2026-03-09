@@ -50,7 +50,8 @@
         "key": "金鑰",
         "model": "價格",
         "log": "日誌",
-        "setting": "設定"
+        "setting": "設定",
+        "testmodel": "湋試模型"
     },
     "toolbar": {
         "popover": {
@@ -546,6 +547,32 @@
             "matchRegex": "匹配正規",
             "matchRegexPlaceholder": "可選：用於匹配請求模型名稱的正規表示式",
             "remark": "備註"
+        }
+    },
+    "testmodel": {
+        "configPanel": {
+            "selectChannel": "選擇供應源",
+            "orManual": "或手動填寫",
+            "baseUrl": "Base URL",
+            "apiKey": "API Key",
+            "model": "模型",
+            "testType": "湋試類型",
+            "textChat": "文本對話",
+            "visionChat": "視覺理解",
+            "toolChat": "工具呼叫",
+            "send": "發送",
+            "sending": "發送中...",
+            "clear": "清除",
+            "autoFill": "已從供應源自動填充"
+        },
+        "result": {
+            "title": "結果",
+            "empty": "點擊發送開始湋試",
+            "error": "錯誤",
+            "requestInfo": "請求資訊",
+            "responseInfo": "響應內容",
+            "elapsed": "耗時",
+            "streaming": "串流輸出中..."
         }
     }
 }

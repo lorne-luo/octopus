@@ -50,7 +50,8 @@
         "key": "Key",
         "model": "Price",
         "log": "Log",
-        "setting": "Setting"
+        "setting": "Setting",
+        "testmodel": "TestModel"
     },
     "toolbar": {
         "popover": {
@@ -546,6 +547,32 @@
             "matchRegex": "Match Regex",
             "matchRegexPlaceholder": "Optional: regex pattern to match request model names",
             "remark": "Remark"
+        }
+    },
+    "testmodel": {
+        "configPanel": {
+            "selectChannel": "Select Channel",
+            "orManual": "Or fill manually",
+            "baseUrl": "Base URL",
+            "apiKey": "API Key",
+            "model": "Model",
+            "testType": "Test Type",
+            "textChat": "Text Chat",
+            "visionChat": "Vision Chat",
+            "toolChat": "Tool Chat",
+            "send": "Send",
+            "sending": "Sending...",
+            "clear": "Clear",
+            "autoFill": "Auto-filled from channel"
+        },
+        "result": {
+            "title": "Result",
+            "empty": "Click Send to start test",
+            "error": "Error",
+            "requestInfo": "Request Info",
+            "responseInfo": "Response",
+            "elapsed": "Time",
+            "streaming": "Streaming..."
         }
     }
 }

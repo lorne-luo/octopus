@@ -50,7 +50,8 @@
         "key": "密钥",
         "model": "价格",
         "log": "日志",
-        "setting": "设置"
+        "setting": "设置",
+        "testmodel": "测试模型"
     },
     "toolbar": {
         "popover": {
@@ -546,6 +547,32 @@
             "matchRegex": "匹配正则",
             "matchRegexPlaceholder": "可选：用于匹配请求模型名称的正则表达式",
             "remark": "备注"
+        }
+    },
+    "testmodel": {
+        "configPanel": {
+            "selectChannel": "选择渠道",
+            "orManual": "或手动填写",
+            "baseUrl": "Base URL",
+            "apiKey": "API Key",
+            "model": "模型",
+            "testType": "测试类型",
+            "textChat": "文本对话",
+            "visionChat": "视觉理解",
+            "toolChat": "工具调用",
+            "send": "发送",
+            "sending": "发送中...",
+            "clear": "清除",
+            "autoFill": "已从渠道自动填充"
+        },
+        "result": {
+            "title": "结果",
+            "empty": "点击发送开始测试",
+            "error": "错误",
+            "requestInfo": "请求信息",
+            "responseInfo": "响应内容",
+            "elapsed": "耗时",
+            "streaming": "流式输出中..."
         }
     }
 }

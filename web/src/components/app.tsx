@@ -139,6 +139,15 @@ export function AppContainer() {
                             );
                             break;
                         }
+                        case 'testmodel': {
+                            prefetches.push(
+                                queryClient.prefetchQuery({
+                                    queryKey: ['channels', 'list'],
+                                    queryFn: async () => apiClient.get('/api/v1/channel/list'),
+                                })
+                            );
+                            break;
+                        }
                         case 'setting': {
                             prefetches.push(
                                 queryClient.prefetchQuery({
