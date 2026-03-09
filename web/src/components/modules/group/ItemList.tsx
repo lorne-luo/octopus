@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useId, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Layers, GripVertical, X, Trash2 } from 'lucide-react';
 import {
     DragDropContext,
@@ -61,7 +62,7 @@ function MemberItem({
     const [confirmDelete, setConfirmDelete] = useState(false);
     const isDisabled = member.enabled === false;
 
-    return (
+    const content = (
         <div
             // DnD libraries provide imperative refs/props; the hook lint rule (`react-hooks/refs`)
             // flags this pattern, but it's safe and required for correct drag behavior.
@@ -75,7 +76,7 @@ function MemberItem({
                 /* eslint-disable-next-line react-hooks/refs */
                 ...(dnd.draggableProps?.style ?? {}),
                 /* eslint-disable-next-line react-hooks/refs */
-                ...(dnd.isDragging ? { zIndex: 50, boxShadow: '0 8px 32px rgba(0,0,0,0.15)' } : null),
+                ...(dnd.isDragging ? { zIndex: 9999, boxShadow: '0 8px 32px rgba(0,0,0,0.15)' } : null),
             }}
         >
             <div className={cn(
@@ -175,6 +176,14 @@ function MemberItem({
             </div>
         </div>
     );
+
+    /* eslint-disable react-hooks/refs */
+    if (dnd.isDragging && typeof document !== 'undefined') {
+        return createPortal(content, document.body);
+    }
+    /* eslint-enable react-hooks/refs */
+
+    return content;
 }
 
 export interface MemberListProps {
