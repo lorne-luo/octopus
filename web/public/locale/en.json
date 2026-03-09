@@ -375,7 +375,8 @@
             "roundRobin": "Round Robin",
             "random": "Random",
             "failover": "Failover",
-            "weighted": "Weighted"
+            "weighted": "Weighted",
+            "successBoost": "Success Boost"
         },
         "empty": "No groups yet, click the button above to create one"
     },
@@ -424,6 +425,7 @@
             "totalTime": "Total",
             "input": "Input",
             "output": "Output",
+            "speed": "Speed",
             "cost": "Cost",
             "requestContent": "Request Content",
             "responseContent": "Response Content",

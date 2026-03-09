@@ -8,4 +8,5 @@ const (
 var NoMetadataProvider = []string{
 	"cerebras.ai",
 	"groq.com",
+	"edgefn.net",
 }
