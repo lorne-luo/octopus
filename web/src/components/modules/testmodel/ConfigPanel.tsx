@@ -18,9 +18,9 @@ import type { TestType } from './request-builder';
 
 interface ConfigPanelProps {
     onSend: (cfg: {
-        channelType: ChannelType;
-        baseUrl: string;
-        apiKey: string;
+        channelId: number;
+        keyIndex: number;
+        baseUrlIndex: number;
         model: string;
         testType: TestType;
     }) => void;
@@ -67,7 +67,7 @@ function ModelCombobox({
                 onClick={() => { setOpen((o) => !o); setSearch(''); }}
                 className={cn(
                     'flex w-full items-center justify-between',
-                    'rounded-xl border border-border bg-background px-3 py-2 text-sm',
+                    'rounded-xl border border-border bg-background px-3 py-2 text-xs',
                     'hover:bg-muted/30 transition-colors',
                     'focus:outline-none focus:ring-2 focus:ring-ring',
                     !value && 'text-muted-foreground'
@@ -89,14 +89,14 @@ function ModelCombobox({
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             placeholder="Search..."
-                            className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                            className="flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground"
                         />
                     </div>
 
                     {/* Options list */}
                     <div className="max-h-[50vh] overflow-y-auto py-1">
                         {filtered.length === 0 ? (
-                            <div className="px-3 py-2 text-sm text-muted-foreground text-center">No results</div>
+                            <div className="px-3 py-2 text-xs text-muted-foreground text-center">No results</div>
                         ) : (
                             filtered.map((o) => (
                                 <button
@@ -104,7 +104,7 @@ function ModelCombobox({
                                     type="button"
                                     onClick={() => { onChange(o); setOpen(false); }}
                                     className={cn(
-                                        'w-full flex items-center gap-2 px-3 py-2 text-sm text-left',
+                                        'w-full flex items-center gap-2 px-3 py-2 text-xs text-left',
                                         'hover:bg-muted/50 transition-colors',
                                         o === value && 'bg-muted/30'
                                     )}
@@ -266,7 +266,7 @@ export function ConfigPanel({ onSend, onClear, sending }: ConfigPanelProps) {
     }, [selectedChannelId]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const hasChannel = selectedChannelId !== '';
-    const canSend = !sending && !!baseUrl && !!apiKey && !!model;
+    const canSend = !sending && hasChannel && !!model;
 
     const testTypeLabels: Record<TestType, string> = {
         text_chat: t('textChat'),
@@ -412,8 +412,17 @@ export function ConfigPanel({ onSend, onClear, sending }: ConfigPanelProps) {
                 <Button
                     type="button"
                     onClick={() => {
-                        if (!canSend) return;
-                        onSend({ channelType, baseUrl, apiKey, model, testType });
+                        if (!canSend || typeof selectedChannelId !== 'number') return;
+                        // Find the key index and base URL index
+                        const keyIdx = selectedChannel?.keys?.findIndex((k) => k.channel_key === apiKey) ?? 0;
+                        const urlIdx = selectedChannel?.base_urls?.findIndex((u) => u.url === baseUrl) ?? 0;
+                        onSend({
+                            channelId: selectedChannelId as number,
+                            keyIndex: keyIdx >= 0 ? keyIdx : 0,
+                            baseUrlIndex: urlIdx >= 0 ? urlIdx : 0,
+                            model,
+                            testType,
+                        });
                     }}
                     disabled={!canSend}
                     className="w-full sm:flex-1 rounded-2xl h-12"

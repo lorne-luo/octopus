@@ -2,7 +2,6 @@
 
 import { useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
-import { ChannelType } from '@/api/endpoints/channel';
 import { ConfigPanel } from './ConfigPanel';
 import { ResultPanel } from './ResultPanel';
 import { buildRequest, type TestType, type BuiltRequest } from './request-builder';
@@ -32,9 +31,9 @@ export function TestModel() {
 
     const handleSend = useCallback(
         async (cfg: {
-            channelType: ChannelType;
-            baseUrl: string;
-            apiKey: string;
+            channelId: number;
+            keyIndex: number;
+            baseUrlIndex: number;
             model: string;
             testType: TestType;
         }) => {
@@ -107,118 +106,65 @@ export function TestModel() {
                                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                 const parsed = JSON.parse(jsonStr) as Record<string, any>;
 
-                                if (cfg.channelType === ChannelType.OpenAIChat || cfg.channelType === ChannelType.OpenAIResponse || cfg.channelType === ChannelType.Volcengine) {
-                                    if (!mergedObj) {
-                                        mergedObj = {
-                                            id: parsed.id,
-                                            object: 'chat.completion', // Force to chat.completion
-                                            created: parsed.created,
-                                            model: parsed.model,
-                                            choices: [{
-                                                index: 0,
-                                                message: {
-                                                    role: 'assistant',
-                                                    content: '',
-                                                },
-                                            }],
-                                        };
-                                        if (parsed.choices?.[0]?.delta?.tool_calls) {
-                                            mergedObj.choices[0].message.tool_calls = JSON.parse(JSON.stringify(parsed.choices[0].delta.tool_calls));
-                                        }
+                                // Backend always outputs OpenAI-compatible SSE format
+                                if (!mergedObj) {
+                                    mergedObj = {
+                                        id: parsed.id,
+                                        object: 'chat.completion',
+                                        created: parsed.created,
+                                        model: parsed.model,
+                                        choices: [{
+                                            index: 0,
+                                            message: {
+                                                role: 'assistant',
+                                                content: '',
+                                            },
+                                        }],
+                                    };
+                                    if (parsed.choices?.[0]?.delta?.tool_calls) {
+                                        mergedObj.choices[0].message.tool_calls = JSON.parse(JSON.stringify(parsed.choices[0].delta.tool_calls));
                                     }
+                                }
 
-                                    // Merge content
-                                    const deltaText = parsed.choices?.[0]?.delta?.content || '';
-                                    if (deltaText) {
-                                        mergedText += deltaText;
-                                        mergedObj.choices[0].message.content = mergedText;
-                                    }
+                                // Merge content
+                                const deltaText = parsed.choices?.[0]?.delta?.content || '';
+                                if (deltaText) {
+                                    mergedText += deltaText;
+                                    mergedObj.choices[0].message.content = mergedText;
+                                }
 
-                                    // Merge tool_calls
-                                    const deltaToolCalls = parsed.choices?.[0]?.delta?.tool_calls;
-                                    if (deltaToolCalls) {
-                                        mergedObj.choices[0].message.tool_calls = mergedObj.choices[0].message.tool_calls || [];
-                                        for (const tool of deltaToolCalls) {
-                                            const idx = tool.index;
-                                            if (!mergedObj.choices[0].message.tool_calls[idx]) {
-                                                mergedObj.choices[0].message.tool_calls[idx] = tool;
-                                            } else {
-                                                if (tool.function?.arguments) {
-                                                    mergedObj.choices[0].message.tool_calls[idx].function.arguments += tool.function.arguments;
-                                                }
-                                            }
-                                        }
-                                    }
+                                // Merge reasoning_content
+                                const deltaReasoning = parsed.choices?.[0]?.delta?.reasoning_content || '';
+                                if (deltaReasoning) {
+                                    mergedObj.choices[0].message.reasoning_content =
+                                        (mergedObj.choices[0].message.reasoning_content || '') + deltaReasoning;
+                                }
 
-                                    // Merge finish_reason
-                                    const finishReason = parsed.choices?.[0]?.finish_reason;
-                                    if (finishReason) {
-                                        mergedObj.choices[0].finish_reason = finishReason;
-                                    }
-
-                                    // Merge usage (usually in the last chunk)
-                                    if (parsed.usage) {
-                                        mergedObj.usage = parsed.usage;
-                                    }
-
-                                } else if (cfg.channelType === ChannelType.Anthropic) {
-                                    if (!mergedObj) {
-                                        // Anthropic's first chunk can be 'message_start' or 'content_block_start'
-                                        if (parsed.type === 'message_start' && parsed.message) {
-                                            mergedObj = JSON.parse(JSON.stringify(parsed.message)) as Record<string, unknown>;
-                                            if (mergedObj) mergedObj.content = (mergedObj.content as unknown[]) || [];
-                                        } else if (parsed.type === 'content_block_start' && parsed.content_block) {
-                                            mergedObj = { type: 'message', role: 'assistant', content: [JSON.parse(JSON.stringify(parsed.content_block))] };
+                                // Merge tool_calls
+                                const deltaToolCalls = parsed.choices?.[0]?.delta?.tool_calls;
+                                if (deltaToolCalls) {
+                                    mergedObj.choices[0].message.tool_calls = mergedObj.choices[0].message.tool_calls || [];
+                                    for (const tool of deltaToolCalls) {
+                                        const idx = tool.index;
+                                        if (!mergedObj.choices[0].message.tool_calls[idx]) {
+                                            mergedObj.choices[0].message.tool_calls[idx] = tool;
                                         } else {
-                                            // Fallback for unexpected first chunk, create a basic structure
-                                            mergedObj = { type: 'message', role: 'assistant', content: [] };
-                                        }
-                                    }
-
-                                    if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
-                                        mergedText += parsed.delta.text;
-                                        if (mergedObj) {
-                                            if (!mergedObj.content || mergedObj.content.length === 0) {
-                                                mergedObj.content = [{ type: 'text', text: mergedText }];
-                                            } else if (mergedObj.content[0]?.type === 'text') {
-                                                mergedObj.content[0].text = mergedText;
+                                            if (tool.function?.arguments) {
+                                                mergedObj.choices[0].message.tool_calls[idx].function.arguments += tool.function.arguments;
                                             }
                                         }
-                                    } else if (parsed.type === 'message_delta' && parsed.delta?.stop_reason && mergedObj) {
-                                        mergedObj.stop_reason = parsed.delta.stop_reason;
-                                    } else if (parsed.type === 'message_delta' && parsed.usage && mergedObj) {
-                                        mergedObj.usage = parsed.usage;
                                     }
+                                }
 
-                                } else if (cfg.channelType === ChannelType.Gemini) {
-                                    if (!mergedObj) {
-                                        // Initialize mergedObj with skeleton from the first chunk
-                                        mergedObj = {
-                                            candidates: [{
-                                                content: {
-                                                    parts: [{ text: '' }],
-                                                },
-                                            }],
-                                        };
-                                    }
+                                // Merge finish_reason
+                                const finishReason = parsed.choices?.[0]?.finish_reason;
+                                if (finishReason) {
+                                    mergedObj.choices[0].finish_reason = finishReason;
+                                }
 
-                                    // Merge content
-                                    const deltaText = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
-                                    if (deltaText) {
-                                        mergedText += deltaText;
-                                        mergedObj.candidates[0].content.parts[0].text = mergedText;
-                                    }
-
-                                    // Merge finish_reason
-                                    const finishReason = parsed.candidates?.[0]?.finishReason;
-                                    if (finishReason) {
-                                        mergedObj.candidates[0].finishReason = finishReason;
-                                    }
-
-                                    // Merge usage (usually in the last chunk)
-                                    if (parsed.usageMetadata) {
-                                        mergedObj.usageMetadata = parsed.usageMetadata;
-                                    }
+                                // Merge usage (usually in the last chunk)
+                                if (parsed.usage) {
+                                    mergedObj.usage = parsed.usage;
                                 }
 
                                 setResult((prev) => ({
