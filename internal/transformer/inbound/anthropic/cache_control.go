@@ -14,3 +14,14 @@ func convertToLLMCacheControl(c *CacheControl) *model.CacheControl {
 		TTL:  c.TTL,
 	}
 }
+
+func convertToAnthropicCacheControl(c *model.CacheControl) *CacheControl {
+	if c == nil {
+		return nil
+	}
+
+	return &CacheControl{
+		Type: c.Type,
+		TTL:  c.TTL,
+	}
+}

@@ -10,8 +10,8 @@ import (
 
 	"github.com/bestruirui/octopus/internal/helper"
 	"github.com/bestruirui/octopus/internal/op"
-	"github.com/bestruirui/octopus/internal/transformer/model"
-	"github.com/bestruirui/octopus/internal/transformer/outbound"
+	"github.com/bestruirui/octopus/internal/transformer2/adapter"
+	"github.com/bestruirui/octopus/internal/transformer2/canonical"
 	"github.com/bestruirui/octopus/internal/utils/log"
 	"github.com/gin-gonic/gin"
 	"github.com/tmaxmax/go-sse"
@@ -26,73 +26,79 @@ type TestRequest struct {
 	TestType     string `json:"test_type" binding:"required"` // text_chat, vision_chat, tool_chat
 }
 
-// testTemplates returns predefined OpenAI-format test payloads.
-func testTemplate(testType, modelName string) (*model.InternalLLMRequest, error) {
-	streamTrue := true
+// testTemplates returns predefined canonical test payloads.
+func testTemplate(testType, modelName string) (*canonical.Request, error) {
 	temp := float64(0.7)
 	topP := float64(1)
 
 	switch testType {
 	case "text_chat":
-		content := "Hi"
-		return &model.InternalLLMRequest{
+		return &canonical.Request{
+			Kind:        canonical.KindChat,
 			Model:       modelName,
 			Temperature: &temp,
 			TopP:        &topP,
-			Stream:      &streamTrue,
-			Messages: []model.Message{
-				{Role: "user", Content: model.MessageContent{Content: &content}},
+			Stream:      true,
+			Messages: []canonical.Message{
+				{
+					Role: "user",
+					Content: []canonical.ContentBlock{
+						{Type: canonical.ContentText, Text: "Hi"},
+					},
+				},
 			},
 		}, nil
 
 	case "vision_chat":
-		text := "What color is in this image?"
 		imgURL := "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg=="
-		textType := "text"
-		imgType := "image_url"
-		return &model.InternalLLMRequest{
+		return &canonical.Request{
+			Kind:        canonical.KindChat,
 			Model:       modelName,
 			Temperature: &temp,
 			TopP:        &topP,
-			Stream:      &streamTrue,
-			Messages: []model.Message{
+			Stream:      true,
+			Messages: []canonical.Message{
 				{
 					Role: "user",
-					Content: model.MessageContent{
-						MultipleContent: []model.MessageContentPart{
-							{Type: textType, Text: &text},
-							{Type: imgType, ImageURL: &model.ImageURL{URL: imgURL}},
-						},
+					Content: []canonical.ContentBlock{
+						{Type: canonical.ContentText, Text: "What color is in this image?"},
+						{Type: canonical.ContentImage, Media: &canonical.MediaContent{
+							URL:      imgURL,
+							MimeType: "image/png",
+						}},
 					},
 				},
 			},
 		}, nil
 
 	case "tool_chat":
-		content := "What is the weather in San Francisco?"
-		return &model.InternalLLMRequest{
+		return &canonical.Request{
+			Kind:        canonical.KindChat,
 			Model:       modelName,
 			Temperature: &temp,
 			TopP:        &topP,
-			Stream:      &streamTrue,
-			Messages: []model.Message{
-				{Role: "user", Content: model.MessageContent{Content: &content}},
-			},
-			Tools: []model.Tool{
+			Stream:      true,
+			Messages: []canonical.Message{
 				{
-					Type: "function",
-					Function: model.Function{
-						Name:        "get_weather",
-						Description: "Get the weather",
-						Parameters: json.RawMessage(`{
-							"type": "object",
-							"properties": {
-								"location": {"description": "City name", "type": "string"}
-							},
-							"required": ["location"],
-							"additionalProperties": false
-						}`),
+					Role: "user",
+					Content: []canonical.ContentBlock{
+						{Type: canonical.ContentText, Text: "What is the weather in San Francisco?"},
 					},
+				},
+			},
+			Tools: []canonical.Tool{
+				{
+					Type:        "function",
+					Name:        "get_weather",
+					Description: "Get the weather",
+					Parameters: json.RawMessage(`{
+						"type": "object",
+						"properties": {
+							"location": {"description": "City name", "type": "string"}
+						},
+						"required": ["location"],
+						"additionalProperties": false
+					}`),
 				},
 			},
 		}, nil
@@ -129,15 +135,15 @@ func TestHandler(c *gin.Context) {
 	}
 	usedKey := channel.Keys[keyIndex]
 
-	// 3. Get the outbound adapter
-	outAdapter := outbound.Get(channel.Type)
-	if outAdapter == nil {
+	// 3. Get the provider adapter
+	providerAdapter := adapter.GetProvider(adapter.ProviderType(channel.Type))
+	if providerAdapter == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("unsupported channel type: %d", channel.Type)})
 		return
 	}
 
-	// 4. Build the internal request from the test template
-	internalRequest, err := testTemplate(req.TestType, req.Model)
+	// 4. Build the canonical request from the test template
+	canonicalReq, err := testTemplate(req.TestType, req.Model)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -156,22 +162,22 @@ func TestHandler(c *gin.Context) {
 		return
 	}
 
-	// 6. Transform to outbound request
+	// 6. Build the outbound request
 	ctx := c.Request.Context()
-	outboundRequest, err := outAdapter.TransformRequest(ctx, internalRequest, baseUrl, usedKey.ChannelKey)
+	outboundRequest, err := providerAdapter.BuildRequest(ctx, canonicalReq, baseUrl, usedKey.ChannelKey)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to build outbound request: " + err.Error()})
 		return
 	}
 
-	// 6. Copy custom headers from channel
+	// 7. Copy custom headers from channel
 	if len(channel.CustomHeader) > 0 {
 		for _, header := range channel.CustomHeader {
 			outboundRequest.Header.Set(header.HeaderKey, header.HeaderValue)
 		}
 	}
 
-	// 7. Send the request using the channel's HTTP client
+	// 8. Send the request using the channel's HTTP client
 	httpClient, err := helper.ChannelHttpClient(channel)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create http client: " + err.Error()})
@@ -185,15 +191,15 @@ func TestHandler(c *gin.Context) {
 	}
 	defer response.Body.Close()
 
-	// 8. Check upstream response status
+	// 9. Check upstream response status
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		body, _ := io.ReadAll(response.Body)
 		c.JSON(response.StatusCode, gin.H{"error": fmt.Sprintf("upstream error %d: %s", response.StatusCode, string(body))})
 		return
 	}
 
-	// 9. Handle SSE stream or non-stream response
-	if internalRequest.Stream != nil && *internalRequest.Stream {
+	// 10. Handle SSE stream or non-stream response
+	if canonicalReq.Stream {
 		handleTestStreamResponse(c, response)
 	} else {
 		body, err := io.ReadAll(response.Body)
