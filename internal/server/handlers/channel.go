@@ -63,11 +63,28 @@ func init() {
 }
 
 func listChannel(c *gin.Context) {
-	channels, err := op.ChannelList(c.Request.Context())
+	// 获取查询参数
+	useOAuthParam := c.Query("use_oauth")
+
+	var channels []model.Channel
+	var err error
+
+	// 根据参数筛选
+	switch useOAuthParam {
+	case "true":
+		channels, err = op.ChannelListOAuth(c.Request.Context())
+	case "false":
+		channels, err = op.ChannelListRegular(c.Request.Context())
+	default:
+		// 向后兼容：不传参数返回所有渠道
+		channels, err = op.ChannelList(c.Request.Context())
+	}
+
 	if err != nil {
 		resp.Error(c, http.StatusInternalServerError, err.Error())
 		return
 	}
+
 	for i, channel := range channels {
 		stats := op.StatsChannelGet(channel.ID)
 		channels[i].Stats = &stats
@@ -81,6 +98,20 @@ func createChannel(c *gin.Context) {
 		resp.Error(c, http.StatusBadRequest, resp.ErrInvalidJSON)
 		return
 	}
+
+	// 数据一致性验证
+	if channel.UseOAuth {
+		if channel.OAuthProviderID == 0 {
+			resp.Error(c, http.StatusBadRequest, "OAuth channel must have oauth_provider_id")
+			return
+		}
+	} else {
+		if channel.OAuthProviderID != 0 {
+			resp.Error(c, http.StatusBadRequest, "regular channel cannot have oauth_provider_id")
+			return
+		}
+	}
+
 	if err := op.ChannelCreate(&channel, c.Request.Context()); err != nil {
 		resp.Error(c, http.StatusInternalServerError, err.Error())
 		return

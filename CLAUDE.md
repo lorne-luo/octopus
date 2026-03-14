@@ -52,3 +52,6 @@ It is built with Go (Backend) and React/Next.js (Frontend).
 1.  Add provider constant in `internal/conf/const.go` (if needed).
 2.  Implement transformer in `internal/transformer`.
 3.  Update relay logic to handle the new provider type.
+
+# currentDate
+Today's date is 2026-03-14.

@@ -6,10 +6,11 @@ echo "Building Frontend..."
 cd web
 pnpm install
 pnpm build
+
 cd ..
 rm -rf static/out
 mv -f web/out static/
-git co static/out/README.md
+git co internal/price/presets.go static/out/README.md
 
 # Start Backend
 echo "Starting Backend..."

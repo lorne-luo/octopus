@@ -1,0 +1,270 @@
+[
+  {
+    "name": "openai_chat_simple_text",
+    "description": "Minimal OpenAI chat request with a single user message and text response",
+    "inbound_format": "openai_chat",
+    "outbound_format": "openai_chat",
+    "client_request": {
+      "model": "gpt-4o",
+      "messages": [
+        { "role": "user", "content": "Hello" }
+      ]
+    },
+    "expected_internal_request": {
+      "model": "gpt-4o",
+      "messages": [
+        { "role": "user", "content": "Hello" }
+      ]
+    },
+    "provider_response": {
+      "id": "chatcmpl-abc123",
+      "object": "chat.completion",
+      "created": 1700000000,
+      "model": "gpt-4o",
+      "choices": [
+        {
+          "index": 0,
+          "message": { "role": "assistant", "content": "Hi there!" },
+          "finish_reason": "stop"
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 5,
+        "completion_tokens": 4,
+        "total_tokens": 9
+      }
+    },
+    "provider_status_code": 200,
+    "expected_internal_response": {
+      "id": "chatcmpl-abc123",
+      "object": "chat.completion",
+      "model": "gpt-4o",
+      "choices": [
+        {
+          "index": 0,
+          "message": { "role": "assistant", "content": "Hi there!" },
+          "finish_reason": "stop"
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 5,
+        "completion_tokens": 4,
+        "total_tokens": 9
+      }
+    }
+  },
+
+  {
+    "name": "openai_chat_multi_turn",
+    "description": "Multi-turn conversation preserves message ordering and roles",
+    "inbound_format": "openai_chat",
+    "outbound_format": "openai_chat",
+    "client_request": {
+      "model": "gpt-4o",
+      "messages": [
+        { "role": "system", "content": "You are a helpful assistant." },
+        { "role": "user", "content": "What is 2+2?" },
+        { "role": "assistant", "content": "4" },
+        { "role": "user", "content": "And 3+3?" }
+      ],
+      "temperature": 0.7,
+      "max_tokens": 100
+    },
+    "expected_internal_request": {
+      "model": "gpt-4o",
+      "messages": [
+        { "role": "system", "content": "You are a helpful assistant." },
+        { "role": "user", "content": "What is 2+2?" },
+        { "role": "assistant", "content": "4" },
+        { "role": "user", "content": "And 3+3?" }
+      ],
+      "temperature": 0.7,
+      "max_tokens": 100
+    }
+  },
+
+  {
+    "name": "openai_chat_with_all_params",
+    "description": "OpenAI chat with temperature, top_p, max_tokens, stop, frequency/presence penalty, seed",
+    "inbound_format": "openai_chat",
+    "outbound_format": "openai_chat",
+    "client_request": {
+      "model": "gpt-4o-mini",
+      "messages": [
+        { "role": "user", "content": "Tell me a joke" }
+      ],
+      "temperature": 0.9,
+      "top_p": 0.95,
+      "max_tokens": 256,
+      "max_completion_tokens": 256,
+      "frequency_penalty": 0.5,
+      "presence_penalty": 0.3,
+      "seed": 42,
+      "stop": ["\n\n", "END"],
+      "user": "user-123",
+      "logprobs": true,
+      "top_logprobs": 3
+    },
+    "expected_internal_request": {
+      "model": "gpt-4o-mini",
+      "temperature": 0.9,
+      "top_p": 0.95,
+      "max_tokens": 256,
+      "max_completion_tokens": 256,
+      "frequency_penalty": 0.5,
+      "presence_penalty": 0.3,
+      "seed": 42,
+      "stop": ["\n\n", "END"],
+      "user": "user-123",
+      "logprobs": true,
+      "top_logprobs": 3
+    }
+  },
+
+  {
+    "name": "anthropic_simple_text",
+    "description": "Anthropic Messages API simple text request converts to/from internal format",
+    "inbound_format": "anthropic",
+    "outbound_format": "openai_chat",
+    "client_request": {
+      "model": "claude-sonnet-4-20250514",
+      "max_tokens": 1024,
+      "messages": [
+        { "role": "user", "content": "Hello Claude" }
+      ]
+    },
+    "expected_internal_request": {
+      "model": "claude-sonnet-4-20250514",
+      "max_tokens": 1024,
+      "messages": [
+        { "role": "user", "content": "Hello Claude" }
+      ],
+      "raw_api_format": "anthropic/messages"
+    },
+    "expected_internal_response": {
+      "id": "chatcmpl-xyz",
+      "choices": [
+        {
+          "index": 0,
+          "message": { "role": "assistant", "content": "Hello! How can I help?" },
+          "finish_reason": "stop"
+        }
+      ]
+    },
+    "expected_client_response": {
+      "id": "chatcmpl-xyz",
+      "type": "message",
+      "role": "assistant",
+      "model": "",
+      "content": [
+        { "type": "text", "text": "Hello! How can I help?" }
+      ],
+      "stop_reason": "end_turn",
+      "usage": { "input_tokens": 10, "output_tokens": 8 }
+    }
+  },
+
+  {
+    "name": "anthropic_system_prompt_string",
+    "description": "Anthropic system prompt (string form) becomes a system message in internal format",
+    "inbound_format": "anthropic",
+    "outbound_format": "openai_chat",
+    "client_request": {
+      "model": "claude-sonnet-4-20250514",
+      "max_tokens": 1024,
+      "system": "You are a pirate.",
+      "messages": [
+        { "role": "user", "content": "Ahoy!" }
+      ]
+    },
+    "expected_internal_request": {
+      "model": "claude-sonnet-4-20250514",
+      "max_tokens": 1024,
+      "messages": [
+        { "role": "system", "content": "You are a pirate." },
+        { "role": "user", "content": "Ahoy!" }
+      ]
+    }
+  },
+
+  {
+    "name": "anthropic_system_prompt_array_with_cache",
+    "description": "Anthropic system prompt in array form with cache_control preserves metadata",
+    "inbound_format": "anthropic",
+    "outbound_format": "anthropic",
+    "client_request": {
+      "model": "claude-sonnet-4-20250514",
+      "max_tokens": 1024,
+      "system": [
+        { "type": "text", "text": "You are a helpful assistant.", "cache_control": { "type": "ephemeral" } },
+        { "type": "text", "text": "Always respond in JSON." }
+      ],
+      "messages": [
+        { "role": "user", "content": "Hello" }
+      ]
+    },
+    "expected_internal_request": {
+      "model": "claude-sonnet-4-20250514",
+      "messages_count": 3,
+      "first_message_role": "system",
+      "transformer_metadata": {
+        "anthropic_system_array_format": "true"
+      }
+    }
+  },
+
+  {
+    "name": "anthropic_finish_reason_mapping",
+    "description": "Anthropic stop_reason values map correctly to/from internal finish_reason",
+    "inbound_format": "anthropic",
+    "outbound_format": "anthropic",
+    "finish_reason_mappings": [
+      { "anthropic": "end_turn",      "internal": "stop" },
+      { "anthropic": "max_tokens",    "internal": "length" },
+      { "anthropic": "tool_use",      "internal": "tool_calls" },
+      { "anthropic": "stop_sequence", "internal": "stop" }
+    ]
+  },
+
+  {
+    "name": "openai_chat_stop_string_vs_array",
+    "description": "Stop parameter handles both single string and array forms",
+    "inbound_format": "openai_chat",
+    "outbound_format": "openai_chat",
+    "variants": [
+      {
+        "label": "single_string",
+        "client_request": {
+          "model": "gpt-4o",
+          "messages": [{ "role": "user", "content": "Hi" }],
+          "stop": "END"
+        },
+        "expected_stop": { "single": "END" }
+      },
+      {
+        "label": "array",
+        "client_request": {
+          "model": "gpt-4o",
+          "messages": [{ "role": "user", "content": "Hi" }],
+          "stop": ["END", "\n\n"]
+        },
+        "expected_stop": { "multiple": ["END", "\n\n"] }
+      }
+    ]
+  },
+
+  {
+    "name": "openai_chat_response_format_json",
+    "description": "response_format with json_object and json_schema are preserved",
+    "inbound_format": "openai_chat",
+    "outbound_format": "openai_chat",
+    "client_request": {
+      "model": "gpt-4o",
+      "messages": [{ "role": "user", "content": "List colors as JSON" }],
+      "response_format": { "type": "json_object" }
+    },
+    "expected_internal_request": {
+      "response_format": { "type": "json_object" }
+    }
+  }
+]

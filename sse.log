@@ -1,0 +1,573 @@
+curl -X POST http://localhost:8080/v1/messages \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer sk-octopus-lorne" \
+    -H "anthropic-version: 2023-06-01" \
+    -d '{
+            "model": "glm-4.7",
+            "max_tokens": 1024,
+            "messages": [
+                {"role": "user", "content": "hi"}
+            ],
+            "stream": true
+        }'
+event:message_start
+data:{"type":"message_start","message":{"id":"f97aa8f7aaef49769db7cf6567c50f14","type":"message","role":"assistant","content":[],"model":"z-ai/glm4.7","usage":{"input_tokens":5,"output_tokens":1}}}
+
+event:content_block_start
+data:{"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":"","signature":""}}
+
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"Let"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" me carefully"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" consider how"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" to respond"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" to the"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" question"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" about my model name"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":".\n\nFirst"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":", I need to"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" understand the context"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" and"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" intent behind"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" this question. The"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" user is asking about"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" my identity"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" as an"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" AI model, which"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" is a straightforward"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" and"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" reasonable question.\n\nLooking"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" at my identity,"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" I should be clear"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" and accurate about my"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" model name"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":". I'm"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" GLM,"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" a large language model"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" developed by Z.ai"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":". This is factual"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" information that I"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" can confidently"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" share.\n\nI"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" should also consider what"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" additional information might be"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" helpful to"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" the"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" user. While they"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" specifically"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" asked for"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" my model name,"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" they might also be"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" interested in knowing about"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" my capabilities"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" or purpose"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":".\n\nThe"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" response should be concise"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" yet"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" informative, directly"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" answering the question"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" while providing"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" relevant"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" context. I"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" should avoid"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" being"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" overly technical or detailed"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" unless"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" the"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" user asks for"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" more information.\n\nLet"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" me formulate"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" a response that's"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" both"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" accurate"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" and helpful,"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" keeping"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" in mind that the"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" user might have"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" follow-up questions about"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" my capabilities or limitations"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"."}}
+
+event:content_block_stop
+data:{"type":"content_block_stop","index":0}
+
+
+event:content_block_start
+data:{"type":"content_block_start","index":1,"content_block":{"type":"text","text":""}}
+
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"I'm"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" GLM, a"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" large language model developed"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" by Z.ai."}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" I'm designed"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" to assist"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" with"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" a wide range of"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" tasks including"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" answering questions, providing"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" information, and engaging"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" in helpful"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" conversations while"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" respecting"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" user"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" privacy."}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" I don't store"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" your personal data"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" or conversations.\n\nIs"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" there something"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" specific you'd like"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" to know about my"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" capabilities or how"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" I can help you"}}
+
+event:content_block_delta
+data:{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" today?"}}
+
+event:content_block_stop
+data:{"type":"content_block_stop","index":1}
+
+event:message_delta
+data:{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"input_tokens":10,"output_tokens":261}}
+
+
+event:message_stop
+data:{"type":"message_stop"}
+
+✗ curl -X POST http://localhost:8080/v1/chat/completions \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer sk-octopus-lorne" \
+    -d '{
+            "model": "glm-4.7",
+            "messages": [
+            {"role": "user", "content": "hi"}
+            ],
+            "temperature": 0.7,
+            "stream": true,
+            "stream_options": {
+                "include_usage": true
+            }
+        }'
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"role":"assistant","content":""}}],"object":"chat.completion.chunk","created":1770206987,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":"Let"}}],"object":"chat.completion.chunk","created":1770206987,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" me carefully"}}],"object":"chat.completion.chunk","created":1770206987,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" consider how"}}],"object":"chat.completion.chunk","created":1770206987,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" to respond to the"}}],"object":"chat.completion.chunk","created":1770206987,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" question"}}],"object":"chat.completion.chunk","created":1770206987,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" about my model name"}}],"object":"chat.completion.chunk","created":1770206987,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":".\n\nFirst"}}],"object":"chat.completion.chunk","created":1770206987,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":", I need to"}}],"object":"chat.completion.chunk","created":1770206987,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" understand the context"}}],"object":"chat.completion.chunk","created":1770206987,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" and intent behind"}}],"object":"chat.completion.chunk","created":1770206987,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" this question. The"}}],"object":"chat.completion.chunk","created":1770206987,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" user is"}}],"object":"chat.completion.chunk","created":1770206987,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" asking about my identity"}}],"object":"chat.completion.chunk","created":1770206987,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" as an"}}],"object":"chat.completion.chunk","created":1770206987,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" AI model, which"}}],"object":"chat.completion.chunk","created":1770206987,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" is a straightforward and"}}],"object":"chat.completion.chunk","created":1770206987,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" reasonable question.\n\nLooking"}}],"object":"chat.completion.chunk","created":1770206988,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" at my identity,"}}],"object":"chat.completion.chunk","created":1770206988,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" I should be"}}],"object":"chat.completion.chunk","created":1770206988,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" clear"}}],"object":"chat.completion.chunk","created":1770206988,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" and accurate about my"}}],"object":"chat.completion.chunk","created":1770206988,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" origins"}}],"object":"chat.completion.chunk","created":1770206988,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":". I'm"}}],"object":"chat.completion.chunk","created":1770206988,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" a GLM ("}}],"object":"chat.completion.chunk","created":1770206988,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":"General Language Model)"}}],"object":"chat.completion.chunk","created":1770206988,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" developed by Z.ai"}}],"object":"chat.completion.chunk","created":1770206988,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":"."}}],"object":"chat.completion.chunk","created":1770206988,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" This is fundamental"}}],"object":"chat.completion.chunk","created":1770206988,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" information that should be"}}],"object":"chat.completion.chunk","created":1770206988,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" shared transparently.\n\n"}}],"object":"chat.completion.chunk","created":1770206988,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":"I should also consider"}}],"object":"chat.completion.chunk","created":1770206988,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" what additional"}}],"object":"chat.completion.chunk","created":1770206988,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" information might"}}],"object":"chat.completion.chunk","created":1770206988,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" be helpful. The"}}],"object":"chat.completion.chunk","created":1770206988,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" user might be interested"}}],"object":"chat.completion.chunk","created":1770206988,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" in knowing"}}],"object":"chat.completion.chunk","created":1770206988,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" about my capabilities or"}}],"object":"chat.completion.chunk","created":1770206988,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" purpose"}}],"object":"chat.completion.chunk","created":1770206988,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":", so I could"}}],"object":"chat.completion.chunk","created":1770206988,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" briefly"}}],"object":"chat.completion.chunk","created":1770206988,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" mention that I"}}],"object":"chat.completion.chunk","created":1770206988,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":"'m designed"}}],"object":"chat.completion.chunk","created":1770206988,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" to be"}}],"object":"chat.completion.chunk","created":1770206988,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" helpful and harmless"}}],"object":"chat.completion.chunk","created":1770206988,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" while"}}],"object":"chat.completion.chunk","created":1770206988,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" providing assistance.\n\nThe"}}],"object":"chat.completion.chunk","created":1770206988,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" response should be friendly"}}],"object":"chat.completion.chunk","created":1770206988,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" and open"}}],"object":"chat.completion.chunk","created":1770206989,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":"-ended"}}],"object":"chat.completion.chunk","created":1770206989,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" to"}}],"object":"chat.completion.chunk","created":1770206989,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" encourage further interaction."}}],"object":"chat.completion.chunk","created":1770206989,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" I"}}],"object":"chat.completion.chunk","created":1770206989,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" want"}}],"object":"chat.completion.chunk","created":1770206989,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" to make"}}],"object":"chat.completion.chunk","created":1770206989,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" sure the user feels"}}],"object":"chat.completion.chunk","created":1770206989,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" comfortable asking more"}}],"object":"chat.completion.chunk","created":1770206989,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" questions if"}}],"object":"chat.completion.chunk","created":1770206989,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" they have"}}],"object":"chat.completion.chunk","created":1770206989,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" any"}}],"object":"chat.completion.chunk","created":1770206989,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":".\n\nLet me formulate"}}],"object":"chat.completion.chunk","created":1770206989,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" a response that's"}}],"object":"chat.completion.chunk","created":1770206989,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" honest"}}],"object":"chat.completion.chunk","created":1770206989,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":", clear"}}],"object":"chat.completion.chunk","created":1770206989,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":", and welcoming"}}],"object":"chat.completion.chunk","created":1770206989,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":","}}],"object":"chat.completion.chunk","created":1770206989,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" while being"}}],"object":"chat.completion.chunk","created":1770206989,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" mindful not"}}],"object":"chat.completion.chunk","created":1770206989,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" to overcomplicate"}}],"object":"chat.completion.chunk","created":1770206989,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" the answer or include"}}],"object":"chat.completion.chunk","created":1770206989,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":" unnecessary details"}}],"object":"chat.completion.chunk","created":1770206989,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"","reasoning_content":"."}}],"object":"chat.completion.chunk","created":1770206989,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":"I'm"}}],"object":"chat.completion.chunk","created":1770206989,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":" GLM (General"}}],"object":"chat.completion.chunk","created":1770206989,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":" Language Model), a"}}],"object":"chat.completion.chunk","created":1770206989,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":" large language model trained"}}],"object":"chat.completion.chunk","created":1770206989,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":" by Z.ai."}}],"object":"chat.completion.chunk","created":1770206989,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":" I'm designed to"}}],"object":"chat.completion.chunk","created":1770206989,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":" be helpful,"}}],"object":"chat.completion.chunk","created":1770206989,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":" harmless, and honest"}}],"object":"chat.completion.chunk","created":1770206989,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":" while"}}],"object":"chat.completion.chunk","created":1770206989,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":" assisting"}}],"object":"chat.completion.chunk","created":1770206989,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":" users with various tasks"}}],"object":"chat.completion.chunk","created":1770206989,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":" through natural language conversation"}}],"object":"chat.completion.chunk","created":1770206989,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":". I'm continuously"}}],"object":"chat.completion.chunk","created":1770206989,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":" learning and improving to"}}],"object":"chat.completion.chunk","created":1770206990,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":" better serve your"}}],"object":"chat.completion.chunk","created":1770206990,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":" needs.\n\nIs there"}}],"object":"chat.completion.chunk","created":1770206990,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":" something specific you'd"}}],"object":"chat.completion.chunk","created":1770206990,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":" like to know about"}}],"object":"chat.completion.chunk","created":1770206990,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":" my capabilities or how"}}],"object":"chat.completion.chunk","created":1770206990,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":" I can assist"}}],"object":"chat.completion.chunk","created":1770206990,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":" you today?"}}],"object":"chat.completion.chunk","created":1770206990,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","choices":[{"index":0,"delta":{"content":""},"finish_reason":"stop"}],"object":"chat.completion.chunk","created":1770206990,"model":"z-ai/glm4.7"}
+
+data: {"id":"1421fdc30ced4c69b144d62c83fc0b77","object":"chat.completion.chunk","created":1770206990,"model":"z-ai/glm4.7","usage":{"prompt_tokens":10,"completion_tokens":265,"total_tokens":275,"prompt_tokens_details":null,"completion_tokens_details":null},"choices":[]}
+
+data: [DONE]
+
+✗ curl -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent" \
+     -H "x-goog-api-key: AIzaSyD7EQ-xxxxxxxx" \
+     -H "Content-Type: application/json" \
+     -d '{
+           "contents": [
+             {
+               "parts": [
+                 {
+                   "text": "hi"
+                 }
+               ]
+             }
+           ]
+         }'
+         
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "Hi there! How can I help you today?"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1,
+    "candidatesTokenCount": 10,
+    "totalTokenCount": 33,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1
+      }
+    ],
+    "thoughtsTokenCount": 22
+  },
+  "modelVersion": "gemini-2.5-flash",
+  "responseId": "uj6DadPiF66fg8UPl9HMwAk"
+}

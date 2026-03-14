@@ -574,5 +574,32 @@
             "elapsed": "耗时",
             "streaming": "流式输出中..."
         }
+    },
+    "oauthProvider": {
+        "title": "OAuth 提供者",
+        "create": "创建",
+        "name": "名称",
+        "namePlaceholder": "请输入提供者名称",
+        "type": "类型",
+        "lastRefresh": "上次刷新",
+        "createdAt": "创建时间",
+        "enabled": "启用",
+        "actions": "操作",
+        "confirmDelete": "确定要删除此提供者吗？",
+        "refresh": "刷新",
+        "edit": "编辑",
+        "delete": "删除",
+        "noData": "暂无提供者",
+        "editTitle": "编辑 OAuth 提供者",
+        "createTitle": "创建 OAuth 提供者",
+        "authJson": "认证 JSON",
+        "authJsonPlaceholder": "请输入认证 JSON",
+        "cancel": "取消",
+        "saving": "保存中...",
+        "update": "更新",
+        "modelRefreshNoProvider": "请先保存提供者",
+        "modelRefreshSuccess": "模型列表获取成功",
+        "modelRefreshEmpty": "未获取到模型列表",
+        "modelRefreshFailed": "模型列表获取失败"
     }
 }

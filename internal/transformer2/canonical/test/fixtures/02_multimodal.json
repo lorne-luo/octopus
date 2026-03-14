@@ -1,0 +1,322 @@
+[
+  {
+    "name": "openai_image_url_inline",
+    "description": "OpenAI image_url content part (external URL) passes through to internal format",
+    "inbound_format": "openai_chat",
+    "outbound_format": "openai_chat",
+    "client_request": {
+      "model": "gpt-4o",
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            { "type": "text", "text": "What is in this image?" },
+            { "type": "image_url", "image_url": { "url": "https://example.com/cat.jpg", "detail": "high" } }
+          ]
+        }
+      ]
+    },
+    "expected_internal_request": {
+      "model": "gpt-4o",
+      "messages": [
+        {
+          "role": "user",
+          "content_type": "multiple",
+          "content_parts": [
+            { "type": "text", "text": "What is in this image?" },
+            { "type": "image_url", "url": "https://example.com/cat.jpg", "detail": "high" }
+          ]
+        }
+      ]
+    }
+  },
+
+  {
+    "name": "openai_image_base64",
+    "description": "Base64-encoded image in data URL format is preserved through internal format",
+    "inbound_format": "openai_chat",
+    "outbound_format": "openai_chat",
+    "client_request": {
+      "model": "gpt-4o",
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            { "type": "text", "text": "Describe this." },
+            { "type": "image_url", "image_url": { "url": "data:image/png;base64,iVBORw0KGgo=" } }
+          ]
+        }
+      ]
+    },
+    "expected_internal_request": {
+      "messages": [
+        {
+          "role": "user",
+          "content_parts": [
+            { "type": "text" },
+            { "type": "image_url", "url_prefix": "data:image/png;base64," }
+          ]
+        }
+      ]
+    }
+  },
+
+  {
+    "name": "anthropic_image_base64_to_internal",
+    "description": "Anthropic base64 image source converts to OpenAI image_url data URI in internal format",
+    "inbound_format": "anthropic",
+    "outbound_format": "openai_chat",
+    "client_request": {
+      "model": "claude-sonnet-4-20250514",
+      "max_tokens": 1024,
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            { "type": "text", "text": "What is this?" },
+            {
+              "type": "image",
+              "source": {
+                "type": "base64",
+                "media_type": "image/jpeg",
+                "data": "/9j/4AAQSkZJRg=="
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "expected_internal_request": {
+      "messages": [
+        {
+          "role": "user",
+          "content_parts": [
+            { "type": "text", "text": "What is this?" },
+            { "type": "image_url", "url": "data:image/jpeg;base64,/9j/4AAQSkZJRg==" }
+          ]
+        }
+      ]
+    }
+  },
+
+  {
+    "name": "anthropic_image_url_source",
+    "description": "Anthropic URL image source converts to image_url in internal format",
+    "inbound_format": "anthropic",
+    "outbound_format": "openai_chat",
+    "client_request": {
+      "model": "claude-sonnet-4-20250514",
+      "max_tokens": 1024,
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            { "type": "text", "text": "Describe." },
+            {
+              "type": "image",
+              "source": { "type": "url", "url": "https://example.com/photo.png" }
+            }
+          ]
+        }
+      ]
+    },
+    "expected_internal_request": {
+      "messages": [
+        {
+          "role": "user",
+          "content_parts": [
+            { "type": "text", "text": "Describe." },
+            { "type": "image_url", "url": "https://example.com/photo.png" }
+          ]
+        }
+      ]
+    }
+  },
+
+  {
+    "name": "internal_to_gemini_image",
+    "description": "Internal image_url (base64 data URI) converts to Gemini inlineData",
+    "inbound_format": "openai_chat",
+    "outbound_format": "gemini",
+    "client_request": {
+      "model": "gemini-2.0-flash",
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            { "type": "text", "text": "What is this?" },
+            { "type": "image_url", "image_url": { "url": "data:image/png;base64,iVBORw0KGgo=" } }
+          ]
+        }
+      ]
+    },
+    "expected_provider_request": {
+      "contents": [
+        {
+          "role": "user",
+          "parts": [
+            { "text": "What is this?" },
+            { "inlineData": { "mimeType": "image/png", "data": "iVBORw0KGgo=" } }
+          ]
+        }
+      ]
+    }
+  },
+
+  {
+    "name": "internal_to_anthropic_image_response",
+    "description": "Internal response with base64 image converts back to Anthropic image source format",
+    "inbound_format": "anthropic",
+    "outbound_format": "openai_chat",
+    "expected_internal_response": {
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": [
+              { "type": "text", "text": "Here is the image:" },
+              { "type": "image_url", "image_url": { "url": "data:image/png;base64,iVBORw0KGgo=" } }
+            ]
+          }
+        }
+      ]
+    },
+    "expected_client_response_contains": {
+      "content": [
+        { "type": "text", "text": "Here is the image:" },
+        {
+          "type": "image",
+          "source": { "type": "base64", "media_type": "image/png", "data": "iVBORw0KGgo=" }
+        }
+      ]
+    }
+  },
+
+  {
+    "name": "openai_input_audio",
+    "description": "OpenAI input_audio content part is preserved in internal format",
+    "inbound_format": "openai_chat",
+    "outbound_format": "openai_chat",
+    "client_request": {
+      "model": "gpt-4o-audio-preview",
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            { "type": "text", "text": "Transcribe this audio" },
+            { "type": "input_audio", "input_audio": { "format": "wav", "data": "UklGRg==" } }
+          ]
+        }
+      ]
+    },
+    "expected_internal_request": {
+      "messages": [
+        {
+          "role": "user",
+          "content_parts": [
+            { "type": "text" },
+            { "type": "input_audio", "format": "wav" }
+          ]
+        }
+      ]
+    }
+  },
+
+  {
+    "name": "internal_audio_to_gemini",
+    "description": "Internal audio content converts to Gemini inlineData with correct MIME type",
+    "inbound_format": "openai_chat",
+    "outbound_format": "gemini",
+    "client_request": {
+      "model": "gemini-2.0-flash",
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            { "type": "input_audio", "input_audio": { "format": "mp3", "data": "AAAA" } }
+          ]
+        }
+      ]
+    },
+    "expected_provider_request": {
+      "contents": [
+        {
+          "role": "user",
+          "parts": [
+            { "inlineData": { "mimeType": "audio/mp3", "data": "AAAA" } }
+          ]
+        }
+      ]
+    }
+  },
+
+  {
+    "name": "openai_file_content",
+    "description": "File content part is preserved in internal format and converted for Gemini",
+    "inbound_format": "openai_chat",
+    "outbound_format": "gemini",
+    "client_request": {
+      "model": "gemini-2.0-flash",
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            { "type": "text", "text": "Summarize this PDF." },
+            { "type": "file", "file": { "filename": "doc.pdf", "file_data": "data:application/pdf;base64,JVBER" } }
+          ]
+        }
+      ]
+    },
+    "expected_provider_request": {
+      "contents": [
+        {
+          "role": "user",
+          "parts": [
+            { "text": "Summarize this PDF." },
+            { "inlineData": { "mimeType": "application/pdf", "data": "JVBER" } }
+          ]
+        }
+      ]
+    }
+  },
+
+  {
+    "name": "gemini_image_generation_response",
+    "description": "Gemini image generation response (inlineData) converts to internal image_url format",
+    "inbound_format": "openai_chat",
+    "outbound_format": "gemini",
+    "client_request": {
+      "model": "gemini-2.0-flash",
+      "messages": [{ "role": "user", "content": "Draw a cat" }],
+      "modalities": ["text", "image"]
+    },
+    "provider_response_gemini": {
+      "candidates": [
+        {
+          "content": {
+            "parts": [
+              { "text": "Here is a cat:" },
+              { "inlineData": { "mimeType": "image/png", "data": "iVBORw0KGgo=" } }
+            ],
+            "role": "model"
+          },
+          "finishReason": "STOP"
+        }
+      ]
+    },
+    "expected_internal_response": {
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content_type": "multiple",
+            "has_image": true
+          },
+          "finish_reason": "stop"
+        }
+      ]
+    }
+  }
+]

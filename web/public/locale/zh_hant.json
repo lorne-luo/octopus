@@ -51,7 +51,7 @@
         "model": "價格",
         "log": "日誌",
         "setting": "設定",
-        "testmodel": "湋試模型"
+        "testmodel": "測試模型"
     },
     "toolbar": {
         "popover": {
@@ -556,7 +556,7 @@
             "baseUrl": "Base URL",
             "apiKey": "API Key",
             "model": "模型",
-            "testType": "湋試類型",
+            "testType": "測試類型",
             "textChat": "文本對話",
             "visionChat": "視覺理解",
             "toolChat": "工具呼叫",
@@ -567,12 +567,39 @@
         },
         "result": {
             "title": "結果",
-            "empty": "點擊發送開始湋試",
+            "empty": "點擊發送開始測試",
             "error": "錯誤",
             "requestInfo": "請求資訊",
             "responseInfo": "響應內容",
             "elapsed": "耗時",
             "streaming": "串流輸出中..."
         }
+    },
+    "oauthProvider": {
+        "title": "OAuth 提供者",
+        "create": "建立",
+        "name": "名稱",
+        "namePlaceholder": "請輸入提供者名稱",
+        "type": "類型",
+        "lastRefresh": "上次重新整理",
+        "createdAt": "建立時間",
+        "enabled": "啟用",
+        "actions": "操作",
+        "confirmDelete": "確定要刪除此提供者嗎？",
+        "refresh": "重新整理",
+        "edit": "編輯",
+        "delete": "刪除",
+        "noData": "暫無提供者",
+        "editTitle": "編輯 OAuth 提供者",
+        "createTitle": "建立 OAuth 提供者",
+        "authJson": "認證 JSON",
+        "authJsonPlaceholder": "請輸入認證 JSON",
+        "cancel": "取消",
+        "saving": "儲存中...",
+        "update": "更新",
+        "modelRefreshNoProvider": "請先儲存提供者",
+        "modelRefreshSuccess": "模型列表獲取成功",
+        "modelRefreshEmpty": "未獲取到模型列表",
+        "modelRefreshFailed": "模型列表獲取失敗"
     }
 }

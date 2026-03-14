@@ -1,0 +1,573 @@
+[
+  {
+    "name": "openai_tool_definition",
+    "description": "OpenAI function tool definitions pass through to internal format",
+    "inbound_format": "openai_chat",
+    "outbound_format": "openai_chat",
+    "client_request": {
+      "model": "gpt-4o",
+      "messages": [{ "role": "user", "content": "What's the weather?" }],
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "get_weather",
+            "description": "Get weather for a location",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "location": { "type": "string", "description": "City name" },
+                "unit": { "type": "string", "enum": ["celsius", "fahrenheit"] }
+              },
+              "required": ["location"]
+            }
+          }
+        }
+      ],
+      "tool_choice": "auto"
+    },
+    "expected_internal_request": {
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "get_weather",
+            "description": "Get weather for a location"
+          }
+        }
+      ],
+      "tool_choice": "auto"
+    }
+  },
+
+  {
+    "name": "openai_tool_call_response",
+    "description": "OpenAI response with tool_calls is preserved in internal format",
+    "inbound_format": "openai_chat",
+    "outbound_format": "openai_chat",
+    "provider_response": {
+      "id": "chatcmpl-tool1",
+      "object": "chat.completion",
+      "model": "gpt-4o",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": null,
+            "tool_calls": [
+              {
+                "id": "call_abc123",
+                "type": "function",
+                "function": {
+                  "name": "get_weather",
+                  "arguments": "{\"location\": \"Tokyo\", \"unit\": \"celsius\"}"
+                }
+              }
+            ]
+          },
+          "finish_reason": "tool_calls"
+        }
+      ],
+      "usage": { "prompt_tokens": 50, "completion_tokens": 20, "total_tokens": 70 }
+    },
+    "expected_internal_response": {
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "tool_calls": [
+              {
+                "id": "call_abc123",
+                "type": "function",
+                "function": {
+                  "name": "get_weather",
+                  "arguments": "{\"location\": \"Tokyo\", \"unit\": \"celsius\"}"
+                }
+              }
+            ]
+          },
+          "finish_reason": "tool_calls"
+        }
+      ]
+    }
+  },
+
+  {
+    "name": "openai_tool_result_round_trip",
+    "description": "Full tool calling round-trip: user → assistant(tool_call) → tool(result) → assistant",
+    "inbound_format": "openai_chat",
+    "outbound_format": "openai_chat",
+    "client_request": {
+      "model": "gpt-4o",
+      "messages": [
+        { "role": "user", "content": "What's the weather in Tokyo?" },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "call_abc123",
+              "type": "function",
+              "function": { "name": "get_weather", "arguments": "{\"location\":\"Tokyo\"}" }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "call_abc123",
+          "content": "{\"temperature\": 22, \"unit\": \"celsius\", \"condition\": \"sunny\"}"
+        }
+      ]
+    },
+    "expected_internal_request": {
+      "messages_count": 3,
+      "messages": [
+        { "role": "user", "content": "What's the weather in Tokyo?" },
+        { "role": "assistant", "tool_calls_count": 1 },
+        { "role": "tool", "tool_call_id": "call_abc123" }
+      ]
+    }
+  },
+
+  {
+    "name": "anthropic_tool_definition_inbound",
+    "description": "Anthropic tool definition converts to internal function tool format",
+    "inbound_format": "anthropic",
+    "outbound_format": "openai_chat",
+    "client_request": {
+      "model": "claude-sonnet-4-20250514",
+      "max_tokens": 1024,
+      "messages": [{ "role": "user", "content": "Get weather" }],
+      "tools": [
+        {
+          "name": "get_weather",
+          "description": "Get weather for a location",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "location": { "type": "string" }
+            },
+            "required": ["location"]
+          }
+        }
+      ]
+    },
+    "expected_internal_request": {
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "get_weather",
+            "description": "Get weather for a location"
+          }
+        }
+      ]
+    }
+  },
+
+  {
+    "name": "anthropic_tool_use_in_content",
+    "description": "Anthropic assistant message with tool_use content block converts to internal tool_calls",
+    "inbound_format": "anthropic",
+    "outbound_format": "openai_chat",
+    "client_request": {
+      "model": "claude-sonnet-4-20250514",
+      "max_tokens": 1024,
+      "messages": [
+        { "role": "user", "content": "Check weather" },
+        {
+          "role": "assistant",
+          "content": [
+            { "type": "text", "text": "I'll check the weather for you." },
+            {
+              "type": "tool_use",
+              "id": "toolu_01abc",
+              "name": "get_weather",
+              "input": { "location": "Tokyo" }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01abc",
+              "content": "22°C, sunny"
+            }
+          ]
+        }
+      ]
+    },
+    "expected_internal_request": {
+      "messages": [
+        { "role": "user", "content": "Check weather" },
+        {
+          "role": "assistant",
+          "content": "I'll check the weather for you.",
+          "tool_calls": [
+            {
+              "id": "toolu_01abc",
+              "type": "function",
+              "function": { "name": "get_weather", "arguments": "{\"location\":\"Tokyo\"}" }
+            }
+          ]
+        },
+        { "role": "tool", "tool_call_id": "toolu_01abc", "content": "22°C, sunny" }
+      ]
+    }
+  },
+
+  {
+    "name": "anthropic_tool_result_with_error",
+    "description": "Anthropic tool_result with is_error flag preserves error status in internal format",
+    "inbound_format": "anthropic",
+    "outbound_format": "openai_chat",
+    "client_request": {
+      "model": "claude-sonnet-4-20250514",
+      "max_tokens": 1024,
+      "messages": [
+        { "role": "user", "content": "Run query" },
+        {
+          "role": "assistant",
+          "content": [
+            { "type": "tool_use", "id": "toolu_err", "name": "run_sql", "input": { "query": "SELECT *" } }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_err",
+              "is_error": true,
+              "content": "Error: table not found"
+            }
+          ]
+        }
+      ]
+    },
+    "expected_internal_request": {
+      "messages": [
+        { "role": "user" },
+        { "role": "assistant", "tool_calls_count": 1 },
+        { "role": "tool", "tool_call_id": "toolu_err", "is_error": true }
+      ]
+    }
+  },
+
+  {
+    "name": "internal_tool_call_to_anthropic_response",
+    "description": "Internal response with tool_calls converts to Anthropic content blocks with tool_use",
+    "inbound_format": "anthropic",
+    "outbound_format": "openai_chat",
+    "expected_internal_response": {
+      "id": "resp-1",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "Let me check.",
+            "tool_calls": [
+              {
+                "id": "call_1",
+                "type": "function",
+                "function": { "name": "search", "arguments": "{\"q\":\"weather\"}" }
+              }
+            ]
+          },
+          "finish_reason": "tool_calls"
+        }
+      ],
+      "usage": { "prompt_tokens": 20, "completion_tokens": 15, "total_tokens": 35 }
+    },
+    "expected_client_response": {
+      "type": "message",
+      "content": [
+        { "type": "text", "text": "Let me check." },
+        { "type": "tool_use", "id": "call_1", "name": "search", "input": { "q": "weather" } }
+      ],
+      "stop_reason": "tool_use"
+    }
+  },
+
+  {
+    "name": "internal_to_gemini_tool_definition",
+    "description": "Internal tool definitions convert to Gemini functionDeclarations with schema cleaning",
+    "inbound_format": "openai_chat",
+    "outbound_format": "gemini",
+    "client_request": {
+      "model": "gemini-2.0-flash",
+      "messages": [{ "role": "user", "content": "Search" }],
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "search",
+            "description": "Search the web",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "query": { "type": "string" },
+                "count": { "type": "integer", "default": 10 }
+              },
+              "required": ["query"],
+              "additionalProperties": false
+            }
+          }
+        }
+      ],
+      "tool_choice": "auto"
+    },
+    "expected_provider_request": {
+      "tools": [
+        {
+          "functionDeclarations": [
+            {
+              "name": "search",
+              "description": "Search the web",
+              "parameters": {
+                "type": "OBJECT",
+                "properties": {
+                  "query": { "type": "STRING" },
+                  "count": { "type": "INTEGER" }
+                },
+                "required": ["query"]
+              }
+            }
+          ]
+        }
+      ],
+      "toolConfig": {
+        "functionCallingConfig": { "mode": "AUTO" }
+      }
+    },
+    "notes": "additionalProperties and default should be removed; types uppercased"
+  },
+
+  {
+    "name": "gemini_function_call_response",
+    "description": "Gemini functionCall response converts to internal tool_calls format",
+    "inbound_format": "openai_chat",
+    "outbound_format": "gemini",
+    "provider_response_gemini": {
+      "candidates": [
+        {
+          "content": {
+            "parts": [
+              { "functionCall": { "name": "get_weather", "args": { "location": "Tokyo" } } }
+            ],
+            "role": "model"
+          },
+          "finishReason": "STOP"
+        }
+      ]
+    },
+    "expected_internal_response": {
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "tool_calls": [
+              {
+                "type": "function",
+                "function": {
+                  "name": "get_weather",
+                  "arguments": "{\"location\":\"Tokyo\"}"
+                }
+              }
+            ]
+          },
+          "finish_reason": "tool_calls"
+        }
+      ]
+    }
+  },
+
+  {
+    "name": "internal_tool_result_to_gemini",
+    "description": "Internal tool result message converts to Gemini functionResponse part",
+    "inbound_format": "openai_chat",
+    "outbound_format": "gemini",
+    "client_request": {
+      "model": "gemini-2.0-flash",
+      "messages": [
+        { "role": "user", "content": "Weather?" },
+        {
+          "role": "assistant",
+          "tool_calls": [
+            { "id": "call_1", "type": "function", "function": { "name": "get_weather", "arguments": "{\"location\":\"Tokyo\"}" } }
+          ]
+        },
+        { "role": "tool", "tool_call_id": "call_1", "content": "{\"temp\":22}" }
+      ]
+    },
+    "expected_provider_request": {
+      "contents_includes": [
+        {
+          "role": "user",
+          "parts": [{ "functionResponse": { "name": "call_1", "response": { "temp": 22 } } }]
+        }
+      ]
+    }
+  },
+
+  {
+    "name": "tool_choice_named_function",
+    "description": "Named tool_choice (specific function) converts correctly across formats",
+    "inbound_format": "openai_chat",
+    "outbound_format": "gemini",
+    "client_request": {
+      "model": "gemini-2.0-flash",
+      "messages": [{ "role": "user", "content": "Do it" }],
+      "tools": [
+        { "type": "function", "function": { "name": "my_func", "parameters": {} } }
+      ],
+      "tool_choice": { "type": "function", "function": { "name": "my_func" } }
+    },
+    "expected_provider_request": {
+      "toolConfig": {
+        "functionCallingConfig": {
+          "mode": "ANY",
+          "allowedFunctionNames": ["my_func"]
+        }
+      }
+    }
+  },
+
+  {
+    "name": "tool_choice_none_and_required",
+    "description": "tool_choice 'none' and 'required' map correctly to Gemini modes",
+    "inbound_format": "openai_chat",
+    "outbound_format": "gemini",
+    "variants": [
+      {
+        "label": "none",
+        "tool_choice": "none",
+        "expected_gemini_mode": "NONE"
+      },
+      {
+        "label": "required",
+        "tool_choice": "required",
+        "expected_gemini_mode": "ANY"
+      }
+    ]
+  },
+
+  {
+    "name": "anthropic_tool_with_cache_control",
+    "description": "Anthropic tool definitions with cache_control are preserved through round-trip",
+    "inbound_format": "anthropic",
+    "outbound_format": "anthropic",
+    "client_request": {
+      "model": "claude-sonnet-4-20250514",
+      "max_tokens": 1024,
+      "messages": [{ "role": "user", "content": "Use tool" }],
+      "tools": [
+        {
+          "name": "cached_tool",
+          "description": "A cached tool",
+          "input_schema": { "type": "object", "properties": {} },
+          "cache_control": { "type": "ephemeral" }
+        }
+      ]
+    },
+    "expected_internal_request": {
+      "tools": [
+        {
+          "type": "function",
+          "function": { "name": "cached_tool" },
+          "cache_control": { "type": "ephemeral" }
+        }
+      ]
+    }
+  },
+
+  {
+    "name": "multiple_parallel_tool_calls",
+    "description": "Multiple parallel tool calls in a single assistant message are preserved",
+    "inbound_format": "openai_chat",
+    "outbound_format": "openai_chat",
+    "provider_response": {
+      "id": "resp-multi",
+      "object": "chat.completion",
+      "model": "gpt-4o",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "tool_calls": [
+              {
+                "id": "call_1",
+                "type": "function",
+                "index": 0,
+                "function": { "name": "get_weather", "arguments": "{\"location\":\"Tokyo\"}" }
+              },
+              {
+                "id": "call_2",
+                "type": "function",
+                "index": 1,
+                "function": { "name": "get_weather", "arguments": "{\"location\":\"London\"}" }
+              }
+            ]
+          },
+          "finish_reason": "tool_calls"
+        }
+      ]
+    },
+    "expected_internal_response": {
+      "choices": [
+        {
+          "message": {
+            "tool_calls_count": 2,
+            "tool_calls": [
+              { "id": "call_1", "function": { "name": "get_weather" } },
+              { "id": "call_2", "function": { "name": "get_weather" } }
+            ]
+          }
+        }
+      ]
+    }
+  },
+
+  {
+    "name": "missing_tool_call_ids_filled_from_tool_messages",
+    "description": "Assistant tool_calls with missing IDs are backfilled from subsequent tool messages",
+    "inbound_format": "openai_chat",
+    "outbound_format": "openai_chat",
+    "client_request": {
+      "model": "gpt-4o",
+      "messages": [
+        { "role": "user", "content": "Do two things" },
+        {
+          "role": "assistant",
+          "tool_calls": [
+            { "type": "function", "function": { "name": "func_a", "arguments": "{}" } },
+            { "type": "function", "function": { "name": "func_b", "arguments": "{}" } }
+          ]
+        },
+        { "role": "tool", "tool_call_id": "id_a", "content": "result_a" },
+        { "role": "tool", "tool_call_id": "id_b", "content": "result_b" }
+      ]
+    },
+    "expected_internal_request": {
+      "messages": [
+        { "role": "user" },
+        {
+          "role": "assistant",
+          "tool_calls": [
+            { "id": "id_a", "function": { "name": "func_a" } },
+            { "id": "id_b", "function": { "name": "func_b" } }
+          ]
+        },
+        { "role": "tool", "tool_call_id": "id_a" },
+        { "role": "tool", "tool_call_id": "id_b" }
+      ]
+    }
+  }
+]

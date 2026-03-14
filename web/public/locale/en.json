@@ -574,5 +574,32 @@
             "elapsed": "Time",
             "streaming": "Streaming..."
         }
+    },
+    "oauthProvider": {
+        "title": "OAuth Providers",
+        "create": "Create",
+        "name": "Name",
+        "namePlaceholder": "Enter provider name",
+        "type": "Type",
+        "lastRefresh": "Last Refresh",
+        "createdAt": "Created At",
+        "enabled": "Enabled",
+        "actions": "Actions",
+        "confirmDelete": "Are you sure you want to delete this provider?",
+        "refresh": "Refresh",
+        "edit": "Edit",
+        "delete": "Delete",
+        "noData": "No providers",
+        "editTitle": "Edit OAuth Provider",
+        "createTitle": "Create OAuth Provider",
+        "authJson": "Auth JSON",
+        "authJsonPlaceholder": "Enter auth JSON",
+        "cancel": "Cancel",
+        "saving": "Saving...",
+        "update": "Update",
+        "modelRefreshNoProvider": "Please save the provider first",
+        "modelRefreshSuccess": "Models fetched successfully",
+        "modelRefreshEmpty": "No models found",
+        "modelRefreshFailed": "Failed to fetch models"
     }
 }

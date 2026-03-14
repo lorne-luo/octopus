@@ -10,7 +10,7 @@ import (
 	"github.com/bestruirui/octopus/internal/model"
 	"github.com/bestruirui/octopus/internal/op"
 	"github.com/bestruirui/octopus/internal/price"
-	transformerModel "github.com/bestruirui/octopus/internal/transformer/model"
+	"github.com/bestruirui/octopus/internal/transformer2/canonical"
 	"github.com/bestruirui/octopus/internal/utils/log"
 	"github.com/bestruirui/octopus/internal/utils/tokenizer"
 )
@@ -25,25 +25,26 @@ type RelayMetrics struct {
 	FirstTokenTime time.Time
 
 	// 请求和响应内容
-	InternalRequest  *transformerModel.InternalLLMRequest
-	InternalResponse *transformerModel.InternalLLMResponse
+	CanonicalReq  *canonical.Request
+	CanonicalResp *canonical.Response
 
 	// 原始请求和响应（用于调试）
-	RawRequest  string
-	RawResponse *strings.Builder
+	RawRequest    string
+	RawResponse   *strings.Builder
+	FinalResponse string // passthrough 模式的响应内容
 
 	// 统计指标
 	ActualModel string
 	Stats       model.StatsMetrics
 }
 
-func NewRelayMetrics(apiKeyID int, requestModel string, req *transformerModel.InternalLLMRequest) *RelayMetrics {
+func NewRelayMetrics(apiKeyID int, requestModel string, req *canonical.Request) *RelayMetrics {
 	return &RelayMetrics{
-		APIKeyID:        apiKeyID,
-		RequestModel:    requestModel,
-		StartTime:       time.Now(),
-		InternalRequest: req,
-		RawResponse:     &strings.Builder{},
+		APIKeyID:     apiKeyID,
+		RequestModel: requestModel,
+		StartTime:    time.Now(),
+		CanonicalReq: req,
+		RawResponse:  &strings.Builder{},
 	}
 }
 
@@ -60,8 +61,14 @@ func (m *RelayMetrics) AppendRawResponse(resp string) {
 	m.RawResponse.WriteString(resp)
 }
 
-func (m *RelayMetrics) SetInternalResponse(resp *transformerModel.InternalLLMResponse, actualModel string) {
-	m.InternalResponse = resp
+// SetFinalResponse sets the final response string for passthrough mode
+func (m *RelayMetrics) SetFinalResponse(raw string) {
+	m.FinalResponse = raw
+}
+
+// SetCanonicalResponse sets the canonical response and calculates metrics
+func (m *RelayMetrics) SetCanonicalResponse(resp *canonical.Response, actualModel string) {
+	m.CanonicalResp = resp
 	m.ActualModel = actualModel
 
 	if resp != nil && resp.Usage != nil {
@@ -89,7 +96,7 @@ func (m *RelayMetrics) SetInternalResponse(resp *transformerModel.InternalLLMRes
 		if resp.Usage.PromptTokensDetails != nil {
 			cachedTokens = resp.Usage.PromptTokensDetails.CachedTokens
 		}
-		anthropicUsage = resp.Usage.AnthropicUsage
+		anthropicUsage = resp.Usage.IsAnthropicUsage
 		cacheCreationInputTokens = resp.Usage.CacheCreationInputTokens
 	}
 
@@ -113,48 +120,34 @@ func (m *RelayMetrics) SetInternalResponse(resp *transformerModel.InternalLLMRes
 
 // calcInputTokens 计算输入 Token
 func (m *RelayMetrics) calcInputTokens() int {
-	if m.InternalRequest == nil {
+	if m.CanonicalReq == nil {
 		return 0
 	}
-	// 手动拼接内容进行计算，或者使用 GetFullContent (如果已实现)
-	// 这里根据 022/023 的描述，我们手动遍历拼接
+	// 遍历 canonical messages 计算文本内容
 	var contentBuilder strings.Builder
-	for _, msg := range m.InternalRequest.Messages {
-		if msg.Content.Content != nil && *msg.Content.Content != "" {
-			contentBuilder.WriteString(*msg.Content.Content)
-		}
-		for _, part := range msg.Content.MultipleContent {
-			if part.Type == "text" && part.Text != nil {
-				contentBuilder.WriteString(*part.Text)
+	for _, msg := range m.CanonicalReq.Messages {
+		for _, block := range msg.Content {
+			if block.Type == canonical.ContentText {
+				contentBuilder.WriteString(block.Text)
 			}
 		}
 		// TODO: Tool Calls 等其他内容是否计入取决于 Tokenizer 实现和模型特性
 	}
-	// 这里简单起见，只计算文本内容。如果 GetFullContent 已实现，应优先使用。
-	// 但鉴于我尚未实现 GetFullContent，这里做简单处理。
-	// 为了更准确，应该包含 System Prompt 等。
-
-	// 修正：023 提到 "Use GetFullContent". 我将在 internal/model/metrics.go 中不实现 GetFullContent，而是依赖 calcInputTokens 的逻辑。
-	// 但是 024 是 "Refactor: Use GetFullContent".
-	// 我在 Phase 3 中，024 不在 Prompt List 中。
-	// 所以我在这里实现逻辑。
 
 	return int(tokenizer.CountTokens(contentBuilder.String(), m.ActualModel))
 }
 
 // calcOutputTokens 计算输出 Token
 func (m *RelayMetrics) calcOutputTokens() int {
-	if m.InternalResponse == nil {
+	if m.CanonicalResp == nil {
 		return 0
 	}
 	var contentBuilder strings.Builder
-	for _, choice := range m.InternalResponse.Choices {
-		if choice.Message != nil && choice.Message.Content.Content != nil {
-			contentBuilder.WriteString(*choice.Message.Content.Content)
-			// Handle multiple content if needed
-		}
-		if choice.Delta != nil && choice.Delta.Content.Content != nil {
-			contentBuilder.WriteString(*choice.Delta.Content.Content)
+	for _, choice := range m.CanonicalResp.Choices {
+		for _, block := range choice.Message.Content {
+			if block.Type == canonical.ContentText {
+				contentBuilder.WriteString(block.Text)
+			}
 		}
 	}
 	return int(tokenizer.CountTokens(contentBuilder.String(), m.ActualModel))
@@ -253,27 +246,29 @@ func (m *RelayMetrics) saveLog(ctx context.Context, err error, duration time.Dur
 	// 优先使用 RawRequest
 	if m.RawRequest != "" {
 		relayLog.RequestContent = strings.ReplaceAll(m.RawRequest, "\n", " ")
-	} else if m.InternalRequest != nil {
-		if reqJSON, jsonErr := json.Marshal(m.InternalRequest); jsonErr == nil {
+	} else if m.CanonicalReq != nil {
+		if reqJSON, jsonErr := json.Marshal(m.CanonicalReq); jsonErr == nil {
 			relayLog.RequestContent = string(reqJSON)
 		}
 	}
 
 	// 响应内容
-	if m.InternalResponse != nil {
-		// 如果有 InternalResponse，使用过滤后的 JSON
-		respForLog := m.filterResponseForLog(m.InternalResponse)
+	if m.FinalResponse != "" {
+		relayLog.ResponseContent = m.FinalResponse
+	} else if m.CanonicalResp != nil {
+		// 如果有 CanonicalResp，使用过滤后的 JSON
+		respForLog := m.filterResponseForLog(m.CanonicalResp)
 		if respJSON, jsonErr := json.Marshal(respForLog); jsonErr == nil {
-			if m.InternalResponse.Usage != nil && m.InternalResponse.Usage.AnthropicUsage {
+			if m.CanonicalResp.Usage != nil && m.CanonicalResp.Usage.IsAnthropicUsage {
 				respStr := string(respJSON)
 				old := `"usage":{`
-				insert := fmt.Sprintf(`"usage":{"cache_creation_input_tokens":%d,`, m.InternalResponse.Usage.CacheCreationInputTokens)
+				insert := fmt.Sprintf(`"usage":{"cache_creation_input_tokens":%d,`, m.CanonicalResp.Usage.CacheCreationInputTokens)
 				respJSON = []byte(strings.Replace(respStr, old, insert, 1))
 			}
 			relayLog.ResponseContent = string(respJSON)
 		}
 	} else if m.RawResponse.Len() > 0 {
-		// 如果没有 InternalResponse (例如直接透传或失败)，尝试使用 RawResponse
+		// 如果没有 CanonicalResp (例如直接透传或失败)，尝试使用 RawResponse
 		relayLog.ResponseContent = m.RawResponse.String()
 	}
 
@@ -287,46 +282,49 @@ func (m *RelayMetrics) saveLog(ctx context.Context, err error, duration time.Dur
 	}
 }
 
-// filterResponseForLog 创建响应的浅拷贝，过滤掉 images、MultipleContent 中的图片数据和 Audio.Data 以减少存储压力
-func (m *RelayMetrics) filterResponseForLog(resp *transformerModel.InternalLLMResponse) *transformerModel.InternalLLMResponse {
+// filterResponseForLog 创建响应的浅拷贝，过滤掉 images、Media 中的图片数据和音频数据以减少存储压力
+func (m *RelayMetrics) filterResponseForLog(resp *canonical.Response) *canonical.Response {
 	if resp == nil {
 		return nil
 	}
 
-	filterMsg := func(msg *transformerModel.Message) *transformerModel.Message {
-		if msg == nil {
-			return nil
-		}
-		c := *msg
+	filterMsg := func(msg canonical.Message) canonical.Message {
+		c := msg
 		c.Images = nil
-		if len(c.Content.MultipleContent) > 0 {
-			parts := make([]transformerModel.MessageContentPart, 0, len(c.Content.MultipleContent))
-			for _, p := range c.Content.MultipleContent {
-				if p.Type == "image_url" && p.ImageURL != nil {
-					parts = append(parts, transformerModel.MessageContentPart{
-						Type:     "image_url",
-						ImageURL: &transformerModel.ImageURL{URL: "[image data omitted for storage]"},
-					})
+
+		// Filter content blocks with media data
+		if len(c.Content) > 0 {
+			filteredBlocks := make([]canonical.ContentBlock, 0, len(c.Content))
+			for _, block := range c.Content {
+				if block.Type == canonical.ContentImage && block.Media != nil {
+					// Replace image data with placeholder
+					filteredBlock := block
+					filteredBlock.Media = &canonical.MediaContent{
+						URL:      "[image data omitted for storage]",
+						MimeType: block.Media.MimeType,
+					}
+					filteredBlocks = append(filteredBlocks, filteredBlock)
+				} else if block.Type == canonical.ContentAudio && block.Media != nil {
+					// Replace audio data with placeholder
+					filteredBlock := block
+					filteredBlock.Media = &canonical.MediaContent{
+						MimeType: block.Media.MimeType,
+					}
+					filteredBlocks = append(filteredBlocks, filteredBlock)
 				} else {
-					parts = append(parts, p)
+					filteredBlocks = append(filteredBlocks, block)
 				}
 			}
-			c.Content = transformerModel.MessageContent{Content: c.Content.Content, MultipleContent: parts}
+			c.Content = filteredBlocks
 		}
-		if c.Audio != nil && c.Audio.Data != "" {
-			a := *c.Audio
-			a.Data = "[audio data omitted for storage]"
-			c.Audio = &a
-		}
-		return &c
+		return c
 	}
 
 	filtered := *resp
-	filtered.Choices = make([]transformerModel.Choice, len(resp.Choices))
+	filtered.Choices = make([]canonical.Choice, len(resp.Choices))
 	for i, choice := range resp.Choices {
 		filtered.Choices[i] = choice
 		filtered.Choices[i].Message = filterMsg(choice.Message)
-		filtered.Choices[i].Delta = filterMsg(choice.Delta)
 	}
 	return &filtered
 }
