@@ -12,7 +12,8 @@ type OAuthProviderType int
 
 const (
 	OAuthProviderTypeIFlow OAuthProviderType = iota + 1
-	OAuthProviderTypeKiro  // Future: Kiro OAuth
+	OAuthProviderTypeKiro
+	OAuthProviderTypeCodex
 )
 
 // String returns the string representation of the provider type
@@ -22,6 +23,8 @@ func (t OAuthProviderType) String() string {
 		return "iflow"
 	case OAuthProviderTypeKiro:
 		return "kiro"
+	case OAuthProviderTypeCodex:
+		return "codex"
 	default:
 		return "unknown"
 	}
@@ -34,6 +37,8 @@ func ParseOAuthProviderType(s string) (OAuthProviderType, error) {
 		return OAuthProviderTypeIFlow, nil
 	case "kiro":
 		return OAuthProviderTypeKiro, nil
+	case "codex":
+		return OAuthProviderTypeCodex, nil
 	default:
 		return 0, fmt.Errorf("unknown oauth provider type: %s", s)
 	}
@@ -124,6 +129,48 @@ func (aj *AuthJson) GetRegion() string {
 		return "us-east-1"
 	}
 	return data.Region
+}
+
+// GetCodexAccessToken extracts AccessToken from Content for Codex provider
+func (aj *AuthJson) GetCodexAccessToken() string {
+	if aj.Content == "" {
+		return ""
+	}
+	var data struct {
+		AccessToken string `json:"AccessToken"`
+	}
+	if err := json.Unmarshal([]byte(aj.Content), &data); err != nil {
+		return ""
+	}
+	return data.AccessToken
+}
+
+// GetCodexRefreshToken extracts RefreshToken from Content for Codex provider
+func (aj *AuthJson) GetCodexRefreshToken() string {
+	if aj.Content == "" {
+		return ""
+	}
+	var data struct {
+		RefreshToken string `json:"RefreshToken"`
+	}
+	if err := json.Unmarshal([]byte(aj.Content), &data); err != nil {
+		return ""
+	}
+	return data.RefreshToken
+}
+
+// GetCodexEmail extracts Email from Content for Codex provider
+func (aj *AuthJson) GetCodexEmail() string {
+	if aj.Content == "" {
+		return ""
+	}
+	var data struct {
+		Email string `json:"Email"`
+	}
+	if err := json.Unmarshal([]byte(aj.Content), &data); err != nil {
+		return ""
+	}
+	return data.Email
 }
 
 type OAuthProvider struct {
@@ -244,8 +291,9 @@ func (p *OAuthProvider) GetBaseURL() string {
 	case OAuthProviderTypeIFlow:
 		return "https://apis.iflow.cn/v1"
 	case OAuthProviderTypeKiro:
-		// Default Kiro base URL, region-specific URLs can be set via BaseURL field
 		return "https://q.us-east-1.amazonaws.com"
+	case OAuthProviderTypeCodex:
+		return "https://api.openai.com/v1"
 	default:
 		return ""
 	}

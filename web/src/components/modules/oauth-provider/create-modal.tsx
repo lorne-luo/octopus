@@ -13,9 +13,9 @@ import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { useForm } from "react-hook-form"
 import { useEffect, useState, useRef } from "react"
-import { useCreateOAuthProvider, useUpdateOAuthProvider, useFetchOAuthModel, OAuthProvider, type AuthJsonAddRequest } from "@/api/endpoints/oauthProvider"
+import { useCreateOAuthProvider, useUpdateOAuthProvider, useFetchOAuthModel, useGetOAuthAuthURL, useHandleOAuthCallback, useOAuthCallbackStatus, OAuthProvider, type AuthJsonAddRequest } from "@/api/endpoints/oauthProvider"
 import { useTranslations } from "next-intl"
-import { RefreshCw, X, Plus } from "lucide-react"
+import { RefreshCw, X, Plus, ExternalLink, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "@/components/common/Toast"
 
@@ -49,6 +49,15 @@ const authJsonPlaceholders: Record<string, string> = {
     kiro: '{"refreshToken": "your_refresh_token", "region": "us-east-1"}',
 }
 
+// Provider types that use OAuth flow (not AuthJson)
+const oauthProviderTypes = ["codex"] as const
+type OAuthProviderType = typeof oauthProviderTypes[number]
+
+// Check if provider type uses OAuth flow
+function isOAuthProvider(type: string): type is OAuthProviderType {
+    return oauthProviderTypes.includes(type as OAuthProviderType)
+}
+
 export function CreateEditOAuthProviderModal({
     open,
     onOpenChange,
@@ -57,8 +66,33 @@ export function CreateEditOAuthProviderModal({
     const createMutation = useCreateOAuthProvider()
     const updateMutation = useUpdateOAuthProvider()
     const fetchModel = useFetchOAuthModel()
+    const getAuthURL = useGetOAuthAuthURL()
+    const handleCallback = useHandleOAuthCallback()
     const t = useTranslations("oauthProvider")
     const tChannel = useTranslations("channel.form")
+
+    // OAuth flow state
+    const [oauthStep, setOauthStep] = useState<"init" | "authorizing" | "callback">("init")
+    const [oauthState, setOauthState] = useState<string | null>(null)
+    const [oauthCallbackMode, setOauthCallbackMode] = useState<"auto" | "manual">("auto")
+    const [oauthCallbackUrl, setOauthCallbackUrl] = useState("")
+    const [oauthProviderName, setOauthProviderName] = useState("")
+
+    // Poll for OAuth callback status in auto mode
+    const callbackStatus = useOAuthCallbackStatus(oauthCallbackMode === "auto" ? oauthState : null)
+
+    // Handle auto mode completion
+    useEffect(() => {
+        if (
+            callbackStatus.data &&
+            "status" in callbackStatus.data &&
+            callbackStatus.data.status === "completed" &&
+            "provider" in callbackStatus.data
+        ) {
+            onOpenChange(false)
+            reset()
+        }
+    }, [callbackStatus.data, onOpenChange])
 
     const { register, handleSubmit, reset, setValue, watch } = useForm<FormData>({
         defaultValues: {
@@ -167,6 +201,46 @@ export function CreateEditOAuthProviderModal({
         const current = watch("auth_jsons") || []
         if (current.length <= 1) return
         setValue("auth_jsons", current.filter((_, i) => i !== idx))
+    }
+
+    // OAuth flow handlers
+    const handleStartOAuth = async () => {
+        try {
+            const result = await getAuthURL.mutateAsync({
+                type: providerType,
+            })
+            setOauthState(result.state)
+            setOauthCallbackMode(result.callback_mode)
+            setOauthStep("authorizing")
+            window.open(result.auth_url, "_blank")
+            toast.info(result.instructions)
+        } catch (error) {
+            toast.error("Failed to start OAuth flow")
+        }
+    }
+
+    const handleManualOAuthCallback = async () => {
+        if (!oauthCallbackUrl.trim()) {
+            toast.error("Please paste the callback URL")
+            return
+        }
+        try {
+            const result = await handleCallback.mutateAsync({
+                callback_url: oauthCallbackUrl,
+                name: oauthProviderName || undefined,
+            })
+            onOpenChange(false)
+            reset()
+        } catch (error) {
+            // Error handled by mutation
+        }
+    }
+
+    const resetOAuth = () => {
+        setOauthStep("init")
+        setOauthState(null)
+        setOauthCallbackUrl("")
+        setOauthProviderName("")
     }
 
     useEffect(() => {
@@ -306,11 +380,16 @@ export function CreateEditOAuthProviderModal({
                     <div className="space-y-2">
                         <Label>{t("type")}</Label>
                         <div className="flex gap-1">
-                            {(["iflow", "kiro"] as const).map((type) => (
+                            {(["iflow", "kiro", "codex"] as const).map((type) => (
                                 <button
                                     key={type}
                                     type="button"
-                                    onClick={() => setValue("provider_type", type)}
+                                    onClick={() => {
+                                        setValue("provider_type", type)
+                                        if (isOAuthProvider(type)) {
+                                            resetOAuth()
+                                        }
+                                    }}
                                     className={cn(
                                         "flex-1 py-1.5 text-sm rounded-lg transition-colors",
                                         providerType === type
@@ -318,68 +397,157 @@ export function CreateEditOAuthProviderModal({
                                             : "bg-muted hover:bg-muted/80"
                                     )}
                                 >
-                                    {type === "iflow" ? "iFlow" : "Kiro"}
+                                    {type === "iflow" ? "iFlow" : type === "kiro" ? "Kiro" : "Codex"}
                                 </button>
                             ))}
                         </div>
                     </div>
 
-                    {/* Auth JSON management section (similar to ChannelKey pattern) */}
-                    <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                            <Label>{t("authJson")} {authJsons.length > 0 ? `(${authJsons.length})` : ''}</Label>
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={handleAddAuthJson}
-                                className="h-6 px-2 text-xs text-muted-foreground/70 hover:text-muted-foreground hover:bg-transparent"
-                            >
-                                <Plus className="h-3 w-3 mr-1" />
-                                {tChannel("add")}
-                            </Button>
-                        </div>
-                        <div className="space-y-2">
-                            {authJsons.map((aj, idx) => (
-                                <div key={aj.id ?? `new-${idx}`} className="flex flex-col gap-2 p-3 border rounded-xl bg-muted/20">
-                                    <div className="flex items-center gap-2">
-                                        <Textarea
-                                            value={aj.content}
-                                            onChange={(e) => handleUpdateAuthJson(idx, { content: e.target.value })}
-                                            placeholder={authJsonPlaceholders[providerType] || t("authJsonPlaceholder")}
-                                            className="min-h-[60px] font-mono text-sm flex-1"
+                    {/* Auth JSON management section or OAuth flow */}
+                    {isOAuthProvider(providerType) ? (
+                        // OAuth flow for Codex
+                        <div className="space-y-4">
+                            <Label>Codex OAuth</Label>
+                            {oauthStep === "init" && (
+                                <div className="space-y-3">
+                                    <p className="text-sm text-muted-foreground">
+                                        Click the button below to start OAuth authorization. You will be redirected to OpenAI to log in.
+                                    </p>
+                                    <div className="space-y-2">
+                                        <Label>Provider Name (optional)</Label>
+                                        <Input
+                                            value={oauthProviderName}
+                                            onChange={(e) => setOauthProviderName(e.target.value)}
+                                            placeholder="My Codex Provider"
                                         />
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <Input
-                                            type="text"
-                                            value={aj.remark}
-                                            onChange={(e) => handleUpdateAuthJson(idx, { remark: e.target.value })}
-                                            placeholder={tChannel("remark")}
-                                            className="rounded-xl flex-1"
-                                        />
+                                    <Button
+                                        type="button"
+                                        onClick={handleStartOAuth}
+                                        disabled={getAuthURL.isPending}
+                                        className="w-full"
+                                    >
+                                        {getAuthURL.isPending ? (
+                                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                        ) : (
+                                            <ExternalLink className="h-4 w-4 mr-2" />
+                                        )}
+                                        Start OAuth Authorization
+                                    </Button>
+                                </div>
+                            )}
+                            {oauthStep === "authorizing" && (
+                                <div className="space-y-3">
+                                    <div className="rounded-md bg-blue-50 p-3 dark:bg-blue-950">
+                                        <p className="text-sm text-blue-700 dark:text-blue-300">
+                                            {oauthCallbackMode === "auto" ? (
+                                                <>
+                                                    <strong>Automatic mode:</strong> Waiting for authorization...
+                                                    <br />
+                                                    <span className="text-xs">The page will update automatically when complete.</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <strong>Manual mode:</strong> After authorizing, copy the URL from your browser and paste it below.
+                                                </>
+                                            )}
+                                        </p>
+                                    </div>
+                                    {oauthCallbackMode === "auto" && (
+                                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                            Polling for authorization...
+                                        </div>
+                                    )}
+                                    {oauthCallbackMode === "manual" && (
+                                        <>
+                                            <Input
+                                                value={oauthCallbackUrl}
+                                                onChange={(e) => setOauthCallbackUrl(e.target.value)}
+                                                placeholder="http://localhost:xxxx/callback?code=xxx&state=xxx"
+                                            />
+                                            <Button
+                                                type="button"
+                                                onClick={handleManualOAuthCallback}
+                                                disabled={handleCallback.isPending || !oauthCallbackUrl.trim()}
+                                                className="w-full"
+                                            >
+                                                {handleCallback.isPending && (
+                                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                                )}
+                                                Complete Login
+                                            </Button>
+                                        </>
+                                    )}
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={resetOAuth}
+                                        className="w-full"
+                                    >
+                                        Cancel
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        // AuthJson for iFlow/Kiro
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                                <Label>{t("authJson")} {authJsons.length > 0 ? `(${authJsons.length})` : ''}</Label>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={handleAddAuthJson}
+                                    className="h-6 px-2 text-xs text-muted-foreground/70 hover:text-muted-foreground hover:bg-transparent"
+                                >
+                                    <Plus className="h-3 w-3 mr-1" />
+                                    {tChannel("add")}
+                                </Button>
+                            </div>
+                            <div className="space-y-2">
+                                {authJsons.map((aj, idx) => (
+                                    <div key={aj.id ?? `new-${idx}`} className="flex flex-col gap-2 p-3 border rounded-xl bg-muted/20">
                                         <div className="flex items-center gap-2">
-                                            <Switch
-                                                checked={aj.enabled}
-                                                onCheckedChange={(checked) => handleUpdateAuthJson(idx, { enabled: checked })}
+                                            <Textarea
+                                                value={aj.content}
+                                                onChange={(e) => handleUpdateAuthJson(idx, { content: e.target.value })}
+                                                placeholder={authJsonPlaceholders[providerType] || t("authJsonPlaceholder")}
+                                                className="min-h-[60px] font-mono text-sm flex-1"
                                             />
                                         </div>
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => handleRemoveAuthJson(idx)}
-                                            disabled={authJsons.length <= 1}
-                                            className="h-8 w-8 p-0 rounded-xl text-muted-foreground hover:text-destructive hover:bg-transparent disabled:opacity-40"
-                                            title="Remove"
-                                        >
-                                            <X className="h-4 w-4" />
-                                        </Button>
+                                        <div className="flex items-center gap-2">
+                                            <Input
+                                                type="text"
+                                                value={aj.remark}
+                                                onChange={(e) => handleUpdateAuthJson(idx, { remark: e.target.value })}
+                                                placeholder={tChannel("remark")}
+                                                className="rounded-xl flex-1"
+                                            />
+                                            <div className="flex items-center gap-2">
+                                                <Switch
+                                                    checked={aj.enabled}
+                                                    onCheckedChange={(checked) => handleUpdateAuthJson(idx, { enabled: checked })}
+                                                />
+                                            </div>
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => handleRemoveAuthJson(idx)}
+                                                disabled={authJsons.length <= 1}
+                                                className="h-8 w-8 p-0 rounded-xl text-muted-foreground hover:text-destructive hover:bg-transparent disabled:opacity-40"
+                                                title="Remove"
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </Button>
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
+                                ))}
+                            </div>
                         </div>
-                    </div>
+                    )}
 
                     {/* Model management section */}
                     <div className="space-y-2">

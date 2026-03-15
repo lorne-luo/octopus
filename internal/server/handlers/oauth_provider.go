@@ -10,6 +10,7 @@ import (
 	"github.com/bestruirui/octopus/internal/model"
 	"github.com/bestruirui/octopus/internal/oauth"
 	"github.com/bestruirui/octopus/internal/oauth/iflow"
+	"github.com/bestruirui/octopus/internal/oauth/session"
 	"github.com/bestruirui/octopus/internal/op"
 	"github.com/bestruirui/octopus/internal/server/middleware"
 	"github.com/bestruirui/octopus/internal/server/resp"
@@ -46,6 +47,18 @@ func init() {
 		AddRoute(
 			router.NewRoute("/fetch-model", http.MethodPost).
 				Handle(fetchOAuthProviderModels),
+		).
+		AddRoute(
+			router.NewRoute("/auth-url", http.MethodGet).
+				Handle(getOAuthAuthURL),
+		).
+		AddRoute(
+			router.NewRoute("/callback", http.MethodPost).
+				Handle(handleOAuthCallback),
+		).
+		AddRoute(
+			router.NewRoute("/callback-status", http.MethodGet).
+				Handle(getOAuthCallbackStatus),
 		)
 }
 
@@ -352,4 +365,148 @@ func fetchOAuthProviderModels(c *gin.Context) {
 	}
 
 	resp.Success(c, models)
+}
+
+// getOAuthAuthURL returns the OAuth authorization URL for the user to visit
+// GET /api/v1/oauth-provider/auth-url?type=codex&mode=auto|manual
+func getOAuthAuthURL(c *gin.Context) {
+	providerTypeStr := c.Query("type")
+	if providerTypeStr == "" {
+		resp.Error(c, http.StatusBadRequest, "missing provider type")
+		return
+	}
+
+	providerType, err := model.ParseOAuthProviderType(providerTypeStr)
+	if err != nil {
+		resp.Error(c, http.StatusBadRequest, "invalid provider type: "+providerTypeStr)
+		return
+	}
+
+	// Determine callback mode
+	modeStr := c.Query("mode")
+	var mode session.CallbackMode
+	switch modeStr {
+	case "auto":
+		mode = session.CallbackModeAuto
+	case "manual":
+		mode = session.CallbackModeManual
+	default:
+		// Auto-detect: try auto mode first
+		mode = session.CallbackModeAuto
+	}
+
+	manager := oauth.GetManager()
+	flowInfo, err := manager.InitiateOAuthFlow(c.Request.Context(), providerType, mode)
+	if err != nil {
+		resp.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	resp.Success(c, flowInfo)
+}
+
+// HandleCallbackRequest represents the request body for handleOAuthCallback
+type HandleCallbackRequest struct {
+	CallbackURL string `json:"callback_url" binding:"required"`
+	Name        string `json:"name"`
+}
+
+// handleOAuthCallback handles the OAuth callback URL (manual mode)
+// POST /api/v1/oauth-provider/callback
+func handleOAuthCallback(c *gin.Context) {
+	var req HandleCallbackRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		resp.Error(c, http.StatusBadRequest, resp.ErrInvalidJSON)
+		return
+	}
+
+	manager := oauth.GetManager()
+	provider, err := manager.HandleOAuthCallback(c.Request.Context(), req.CallbackURL, req.Name)
+	if err != nil {
+		resp.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	// Save the provider to database
+	createReq := &op.OAuthProviderCreateRequest{
+		Provider: provider,
+	}
+	if err := op.OAuthProviderCreate(createReq, c.Request.Context()); err != nil {
+		resp.Error(c, http.StatusInternalServerError, "failed to save provider: "+err.Error())
+		return
+	}
+
+	resp.Success(c, gin.H{
+		"provider": provider,
+		"message":  "OAuth provider created successfully",
+	})
+}
+
+// getOAuthCallbackStatus returns the status of an OAuth session (for auto mode polling)
+// GET /api/v1/oauth-provider/callback-status?state=xxx
+func getOAuthCallbackStatus(c *gin.Context) {
+	state := c.Query("state")
+	if state == "" {
+		resp.Error(c, http.StatusBadRequest, "missing state parameter")
+		return
+	}
+
+	manager := oauth.GetManager()
+	sess, err := manager.GetSessionStatus(state)
+	if err != nil {
+		resp.Success(c, gin.H{
+			"status": "expired",
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	// Check if this is auto mode and callback has been received
+	if sess.CallbackMode == session.CallbackModeAuto {
+		completed, code, callbackErr := manager.GetCallbackResult(state)
+		if completed {
+			if callbackErr != "" {
+				resp.Success(c, gin.H{
+					"status": "error",
+					"error":  callbackErr,
+				})
+				return
+			}
+
+			// Exchange code for provider
+			provider, err := manager.HandleAutoCallback(c.Request.Context(), state, code)
+			if err != nil {
+				resp.Success(c, gin.H{
+					"status": "error",
+					"error":  err.Error(),
+				})
+				return
+			}
+
+			// Save the provider to database
+			createReq := &op.OAuthProviderCreateRequest{
+				Provider: provider,
+			}
+			if err := op.OAuthProviderCreate(createReq, c.Request.Context()); err != nil {
+				resp.Success(c, gin.H{
+					"status": "error",
+					"error":  "failed to save provider: " + err.Error(),
+				})
+				return
+			}
+
+			resp.Success(c, gin.H{
+				"status":   "completed",
+				"provider": provider,
+			})
+			return
+		}
+	}
+
+	// Session is still pending
+	resp.Success(c, gin.H{
+		"status":        "pending",
+		"provider_type": sess.ProviderType.String(),
+		"expires_at":    sess.ExpiresAt.Unix(),
+	})
 }

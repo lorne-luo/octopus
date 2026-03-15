@@ -183,3 +183,86 @@ export function useFetchOAuthModel() {
     },
   });
 }
+
+// OAuth Flow Types
+export type OAuthFlowInfo = {
+  auth_url: string;
+  state: string;
+  callback_mode: "auto" | "manual";
+  callback_port?: number;
+  expires_in: number;
+  instructions: string;
+};
+
+export type HandleCallbackRequest = {
+  callback_url: string;
+  name?: string;
+};
+
+export type CallbackStatusResponse = {
+  status: "pending" | "completed" | "expired" | "error";
+  provider_type?: string;
+  expires_at?: number;
+  error?: string;
+};
+
+// OAuth Flow API
+export function useGetOAuthAuthURL() {
+  return useMutation({
+    mutationFn: async (params: {
+      type: string;
+      mode?: "auto" | "manual";
+    }) => {
+      const query = new URLSearchParams({ type: params.type });
+      if (params.mode) {
+        query.append("mode", params.mode);
+      }
+      return apiClient.get<OAuthFlowInfo>(
+        `/api/v1/oauth-provider/auth-url?${query.toString()}`,
+      );
+    },
+  });
+}
+
+export function useHandleOAuthCallback() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: HandleCallbackRequest) => {
+      return apiClient.post<{ provider: OAuthProvider; message: string }>(
+        "/api/v1/oauth-provider/callback",
+        data,
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["oauth-provider", "list"] });
+      toast.success("OAuth provider created successfully");
+    },
+    onError: (error: any) => {
+      logger.error("Failed to handle OAuth callback:", error);
+      const errorMessage =
+        error?.message || "Failed to complete OAuth login";
+      toast.error(errorMessage);
+    },
+  });
+}
+
+export function useOAuthCallbackStatus(state: string | null) {
+  return useQuery({
+    queryKey: ["oauth-callback-status", state],
+    queryFn: async () => {
+      if (!state) return null;
+      return apiClient.get<CallbackStatusResponse>(
+        `/api/v1/oauth-provider/callback-status?state=${state}`,
+      );
+    },
+    enabled: !!state,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (data && "status" in data && data.status === "pending") {
+        return 2000; // Poll every 2 seconds
+      }
+      return false;
+    },
+  });
+}
