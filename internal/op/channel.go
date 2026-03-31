@@ -3,6 +3,7 @@ package op
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/bestruirui/octopus/internal/db"
@@ -23,6 +24,27 @@ func ChannelList(ctx context.Context) ([]model.Channel, error) {
 		channels = append(channels, channel)
 	}
 	return channels, nil
+}
+
+// ChannelListByOAuthType 根据UseOAuth筛选渠道列表
+func ChannelListByOAuthType(ctx context.Context, useOAuth bool) ([]model.Channel, error) {
+	channels := make([]model.Channel, 0)
+	for _, channel := range channelCache.GetAll() {
+		if channel.UseOAuth == useOAuth {
+			channels = append(channels, channel)
+		}
+	}
+	return channels, nil
+}
+
+// ChannelListRegular 获取普通渠道列表 (UseOAuth=false)
+func ChannelListRegular(ctx context.Context) ([]model.Channel, error) {
+	return ChannelListByOAuthType(ctx, false)
+}
+
+// ChannelListOAuth 获取OAuth渠道列表 (UseOAuth=true)
+func ChannelListOAuth(ctx context.Context) ([]model.Channel, error) {
+	return ChannelListByOAuthType(ctx, true)
 }
 
 func ChannelCreate(channel *model.Channel, ctx context.Context) error {
@@ -335,6 +357,42 @@ func ChannelDel(id int, ctx context.Context) error {
 func ChannelLLMList(ctx context.Context) ([]model.LLMChannel, error) {
 	models := []model.LLMChannel{}
 	for _, channel := range channelCache.GetAll() {
+		// Skip channels without valid credentials
+		if channel.UseOAuth {
+			// For OAuth channels, skip if OAuthProvider has no enabled AuthJsons with content
+			if channel.OAuthProvider == nil || len(channel.OAuthProvider.AuthJsons) == 0 {
+				continue
+			}
+			hasValidAuthJson := false
+			for _, aj := range channel.OAuthProvider.AuthJsons {
+				if aj.Enabled && aj.Content != "" {
+					hasValidAuthJson = true
+					break
+				}
+			}
+			if !hasValidAuthJson {
+				continue
+			}
+		} else {
+			// For regular channels, skip if no enabled keys with valid channel_key
+			hasValidKey := false
+			for _, key := range channel.Keys {
+				if key.Enabled && key.ChannelKey != "" {
+					hasValidKey = true
+					break
+				}
+			}
+			if !hasValidKey {
+				continue
+			}
+		}
+
+		// Get channel name, strip "OAuth-" prefix for OAuth channels
+		channelName := channel.Name
+		if channel.UseOAuth && strings.HasPrefix(channelName, "OAuth-") {
+			channelName = strings.TrimPrefix(channelName, "OAuth-")
+		}
+
 		modelNames := xstrings.SplitTrimCompact(",", channel.Model, channel.CustomModel)
 		for _, modelName := range modelNames {
 			if modelName == "" {
@@ -344,7 +402,8 @@ func ChannelLLMList(ctx context.Context) ([]model.LLMChannel, error) {
 				Name:        modelName,
 				Enabled:     channel.Enabled,
 				ChannelID:   channel.ID,
-				ChannelName: channel.Name,
+				ChannelName: channelName,
+				UseOAuth:    channel.UseOAuth,
 			})
 		}
 	}
@@ -359,11 +418,54 @@ func ChannelGet(id int, ctx context.Context) (*model.Channel, error) {
 	return &channel, nil
 }
 
+// ChannelGetByOAuthProviderID returns a channel by its OAuthProviderID
+func ChannelGetByOAuthProviderID(oauthProviderID int, ctx context.Context) (*model.Channel, error) {
+	var channel model.Channel
+	if err := db.GetDB().WithContext(ctx).
+		Where("o_auth_provider_id = ?", oauthProviderID).
+		Preload("Keys").
+		Preload("OAuthProvider").
+		First(&channel).Error; err != nil {
+		return nil, err
+	}
+	return &channel, nil
+}
+
+// ChannelGetOAuthByModel finds an OAuth channel that supports the given model name.
+// This is used for backward compatibility when group items have channel_id = 0.
+func ChannelGetOAuthByModel(modelName string, ctx context.Context) (*model.Channel, error) {
+	// Search through cached channels for an OAuth channel that supports this model
+	for _, channel := range channelCache.GetAll() {
+		if !channel.UseOAuth || !channel.Enabled {
+			continue
+		}
+		// Check if the model is supported by this channel
+		if channel.Model != "" {
+			models := strings.Split(channel.Model, ",")
+			for _, m := range models {
+				if strings.TrimSpace(m) == modelName {
+					return &channel, nil
+				}
+			}
+		}
+		if channel.CustomModel != "" {
+			models := strings.Split(channel.CustomModel, ",")
+			for _, m := range models {
+				if strings.TrimSpace(m) == modelName {
+					return &channel, nil
+				}
+			}
+		}
+	}
+	return nil, fmt.Errorf("no oauth channel found for model %s", modelName)
+}
+
 func channelRefreshCache(ctx context.Context) error {
 	channels := []model.Channel{}
 	if err := db.GetDB().WithContext(ctx).
 		Preload("Keys").
 		Preload("Stats").
+		Preload("OAuthProvider.AuthJsons").
 		Find(&channels).Error; err != nil {
 		log.Warnf("failed to get channels: %v", err)
 		return err
@@ -395,6 +497,7 @@ func channelRefreshCacheByID(id int, ctx context.Context) error {
 	if err := db.GetDB().WithContext(ctx).
 		Preload("Keys").
 		Preload("Stats").
+		Preload("OAuthProvider.AuthJsons").
 		First(&channel, id).Error; err != nil {
 		return err
 	}

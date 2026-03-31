@@ -380,7 +380,10 @@ func (i *ResponseInbound) handleToolCalls(toolCalls []model.ToolCall) [][]byte {
 		}
 
 		// Accumulate arguments
+		fmt.Printf("[handleToolCalls3] existing.Arguments(before): %v\n", i.toolCalls[toolCallIndex].Function.Arguments)
 		i.toolCalls[toolCallIndex].Function.Arguments += tc.Function.Arguments
+		// 打印 delta.Function.Arguments 和 toolCalls[i].Function.Arguments 到日志
+		fmt.Printf("[handleToolCalls3] delta.Function.Arguments: %v, existing.Arguments(after): %v\n", tc.Function.Arguments, i.toolCalls[toolCallIndex].Function.Arguments)
 
 		// Emit function_call_arguments.delta
 		if tc.Function.Arguments != "" {

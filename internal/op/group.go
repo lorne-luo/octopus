@@ -396,3 +396,38 @@ func groupRefreshCacheByIDs(ids []int, ctx context.Context) error {
 	}
 	return nil
 }
+
+// GroupItemPromote 提升项的优先级（减小 Priority 值）
+func GroupItemPromote(groupID int, channelID int, modelName string, ctx context.Context) error {
+	tx := db.GetDB().WithContext(ctx).Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	var item model.GroupItem
+	if err := tx.Where("group_id = ? AND channel_id = ? AND model_name = ?", groupID, channelID, modelName).
+		First(&item).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// 如果优先级已经是最优（比如 <= 1），则不调整
+	if item.Priority <= 1 {
+		tx.Rollback()
+		return nil
+	}
+
+	// 提升优先级：Priority - 1
+	if err := tx.Model(&item).Update("priority", item.Priority-1).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	return groupRefreshCacheByID(groupID, ctx)
+}

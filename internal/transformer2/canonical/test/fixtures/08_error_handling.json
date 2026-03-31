@@ -1,0 +1,218 @@
+[
+  {
+    "name": "openai_error_response_passthrough",
+    "description": "OpenAI error response (status >= 400) converts to ResponseError in internal format",
+    "inbound_format": "openai_chat",
+    "outbound_format": "openai_chat",
+    "provider_status_code": 429,
+    "provider_response": {
+      "error": {
+        "message": "Rate limit exceeded",
+        "type": "rate_limit_error",
+        "code": "rate_limit_exceeded"
+      }
+    },
+    "expected_internal_response": {
+      "error": {
+        "status_code": 429,
+        "detail": {
+          "message": "Rate limit exceeded",
+          "type": "rate_limit_error",
+          "code": "rate_limit_exceeded"
+        }
+      }
+    }
+  },
+
+  {
+    "name": "anthropic_error_response",
+    "description": "Anthropic error response converts to internal ResponseError format",
+    "inbound_format": "openai_chat",
+    "outbound_format": "anthropic",
+    "provider_status_code": 400,
+    "provider_response_anthropic": {
+      "type": "error",
+      "error": {
+        "type": "invalid_request_error",
+        "message": "max_tokens must be greater than 0"
+      }
+    },
+    "expected_error": {
+      "status_code": 400,
+      "message": "max_tokens must be greater than 0",
+      "type": "invalid_request_error"
+    }
+  },
+
+  {
+    "name": "anthropic_error_overloaded",
+    "description": "Anthropic 529 overloaded error is properly captured",
+    "inbound_format": "openai_chat",
+    "outbound_format": "anthropic",
+    "provider_status_code": 529,
+    "provider_response_anthropic": {
+      "type": "error",
+      "error": {
+        "type": "overloaded_error",
+        "message": "Overloaded"
+      }
+    },
+    "expected_error": {
+      "status_code": 529,
+      "message": "Overloaded",
+      "type": "overloaded_error"
+    }
+  },
+
+  {
+    "name": "anthropic_error_to_client",
+    "description": "Internal error converts back to Anthropic error format for Anthropic inbound client",
+    "inbound_format": "anthropic",
+    "outbound_format": "openai_chat",
+    "internal_error": {
+      "status_code": 400,
+      "detail": {
+        "message": "Invalid request",
+        "type": "invalid_request_error",
+        "code": "invalid_param"
+      }
+    },
+    "notes": "Anthropic inbound should convert internal error back to Anthropic error structure"
+  },
+
+  {
+    "name": "invalid_json_request_body",
+    "description": "Malformed JSON request body returns parse error",
+    "inbound_format": "openai_chat",
+    "client_request_raw": "{ invalid json }",
+    "expected_error_type": "json_parse_error"
+  },
+
+  {
+    "name": "anthropic_invalid_json_request",
+    "description": "Malformed JSON in Anthropic request returns parse error",
+    "inbound_format": "anthropic",
+    "client_request_raw": "not json at all",
+    "expected_error_type": "json_parse_error"
+  },
+
+  {
+    "name": "empty_response_body",
+    "description": "Empty response body from provider returns error",
+    "inbound_format": "openai_chat",
+    "outbound_format": "anthropic",
+    "provider_status_code": 200,
+    "provider_response_raw": "",
+    "expected_error_contains": "response body is empty"
+  },
+
+  {
+    "name": "nil_response_handling",
+    "description": "Nil HTTP response returns error",
+    "outbound_format": "anthropic",
+    "provider_response": null,
+    "expected_error_contains": "response is nil"
+  },
+
+  {
+    "name": "nil_request_handling",
+    "description": "Nil internal request to outbound returns error",
+    "outbound_format": "anthropic",
+    "internal_request": null,
+    "expected_error_contains": "request is nil"
+  },
+
+  {
+    "name": "tool_call_invalid_json_arguments",
+    "description": "Tool call with invalid JSON arguments falls back to empty object in Anthropic response",
+    "inbound_format": "anthropic",
+    "outbound_format": "openai_chat",
+    "expected_internal_response": {
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "tool_calls": [
+              {
+                "id": "call_bad",
+                "type": "function",
+                "function": {
+                  "name": "broken_func",
+                  "arguments": "not valid json {"
+                }
+              }
+            ]
+          },
+          "finish_reason": "tool_calls"
+        }
+      ]
+    },
+    "expected_client_response": {
+      "content": [
+        { "type": "tool_use", "id": "call_bad", "name": "broken_func", "input": {} }
+      ]
+    },
+    "notes": "Invalid JSON arguments should fall back to empty object {}"
+  },
+
+  {
+    "name": "gemini_safety_filter_error",
+    "description": "Gemini SAFETY finish reason converts to content_filter in internal format",
+    "inbound_format": "openai_chat",
+    "outbound_format": "gemini",
+    "provider_response_gemini": {
+      "candidates": [
+        {
+          "content": { "parts": [], "role": "model" },
+          "finishReason": "SAFETY"
+        }
+      ]
+    },
+    "expected_internal_response": {
+      "choices": [
+        { "finish_reason": "content_filter" }
+      ]
+    }
+  },
+
+  {
+    "name": "gemini_recitation_filter",
+    "description": "Gemini RECITATION finish reason converts to content_filter",
+    "inbound_format": "openai_chat",
+    "outbound_format": "gemini",
+    "provider_response_gemini": {
+      "candidates": [
+        {
+          "content": { "parts": [{ "text": "Some text" }], "role": "model" },
+          "finishReason": "RECITATION"
+        }
+      ]
+    },
+    "expected_internal_response": {
+      "choices": [
+        { "finish_reason": "content_filter" }
+      ]
+    }
+  },
+
+  {
+    "name": "validation_no_messages_no_input",
+    "description": "Request with neither messages nor embedding input fails validation",
+    "validation_test": true,
+    "internal_request": {
+      "model": "gpt-4o"
+    },
+    "expected_validation_error": "either messages or input is required"
+  },
+
+  {
+    "name": "validation_no_model",
+    "description": "Request without model fails validation",
+    "validation_test": true,
+    "internal_request": {
+      "messages": [{ "role": "user", "content": "Hi" }]
+    },
+    "expected_validation_error": "model is required"
+  }
+]

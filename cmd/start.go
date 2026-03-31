@@ -17,8 +17,8 @@ var startCmd = &cobra.Command{
 	Use:   "start",
 	Short: "Start " + conf.APP_NAME,
 	PreRun: func(cmd *cobra.Command, args []string) {
-		conf.PrintBanner()
 		conf.Load(cfgFile)
+		conf.PrintBanner()
 		log.SetLevel(conf.AppConfig.Log.Level)
 	},
 	Run: func(cmd *cobra.Command, args []string) {

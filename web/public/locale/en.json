@@ -50,7 +50,8 @@
         "key": "Key",
         "model": "Price",
         "log": "Log",
-        "setting": "Setting"
+        "setting": "Setting",
+        "testmodel": "TestModel"
     },
     "toolbar": {
         "popover": {
@@ -117,6 +118,7 @@
         "chart": {
             "title": "Trend",
             "totalRequests": "Total Requests",
+            "totalToken": "Total Tokens",
             "totalCost": "Total Cost",
             "totalTokens": "Total Tokens",
             "timePeriod": "Time Period",
@@ -386,7 +388,8 @@
             "roundRobin": "Round Robin",
             "random": "Random",
             "failover": "Failover",
-            "weighted": "Weighted"
+            "weighted": "Weighted",
+            "successBoost": "Success Boost"
         },
         "empty": "No groups yet, click the button above to create one"
     },
@@ -435,6 +438,7 @@
             "totalTime": "Total",
             "input": "Input",
             "output": "Output",
+            "speed": "Speed",
             "cost": "Cost",
             "requestContent": "Request Content",
             "responseContent": "Response Content",
@@ -451,6 +455,7 @@
     "channel": {
         "card": {
             "requestCount": "Requests",
+            "totalToken": "Total Tokens",
             "totalCost": "Total Cost",
             "toast": {
                 "enabled": "Channel enabled",
@@ -543,5 +548,58 @@
             "matchRegexPlaceholder": "Optional: regex pattern to match request model names",
             "remark": "Remark"
         }
+    },
+    "testmodel": {
+        "configPanel": {
+            "selectChannel": "Select Channel",
+            "orManual": "Or fill manually",
+            "baseUrl": "Base URL",
+            "apiKey": "API Key",
+            "model": "Model",
+            "testType": "Test Type",
+            "textChat": "Text Chat",
+            "visionChat": "Vision Chat",
+            "toolChat": "Tool Chat",
+            "send": "Send",
+            "sending": "Sending...",
+            "clear": "Clear",
+            "autoFill": "Auto-filled from channel"
+        },
+        "result": {
+            "title": "Result",
+            "empty": "Click Send to start test",
+            "error": "Error",
+            "requestInfo": "Request Info",
+            "responseInfo": "Response",
+            "elapsed": "Time",
+            "streaming": "Streaming..."
+        }
+    },
+    "oauthProvider": {
+        "title": "OAuth Providers",
+        "create": "Create",
+        "name": "Name",
+        "namePlaceholder": "Enter provider name",
+        "type": "Type",
+        "lastRefresh": "Last Refresh",
+        "createdAt": "Created At",
+        "enabled": "Enabled",
+        "actions": "Actions",
+        "confirmDelete": "Are you sure you want to delete this provider?",
+        "refresh": "Refresh",
+        "edit": "Edit",
+        "delete": "Delete",
+        "noData": "No providers",
+        "editTitle": "Edit OAuth Provider",
+        "createTitle": "Create OAuth Provider",
+        "authJson": "Auth JSON",
+        "authJsonPlaceholder": "Enter auth JSON",
+        "cancel": "Cancel",
+        "saving": "Saving...",
+        "update": "Update",
+        "modelRefreshNoProvider": "Please save the provider first",
+        "modelRefreshSuccess": "Models fetched successfully",
+        "modelRefreshEmpty": "No models found",
+        "modelRefreshFailed": "Failed to fetch models"
     }
 }

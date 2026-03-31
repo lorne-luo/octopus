@@ -66,6 +66,8 @@ func InitDB(dbType, dsn string, debug bool) error {
 		&model.StatsModel{},
 		&model.StatsChannel{},
 		&model.StatsAPIKey{},
+		&model.OAuthProvider{},
+		&model.AuthJson{},
 		&model.RelayLog{},
 		&migrate.MigrationRecord{},
 	); err != nil {
@@ -120,4 +122,15 @@ func Close() error {
 
 func GetDB() *gorm.DB {
 	return db
+}
+
+func Vacuum() error {
+	if db == nil {
+		return fmt.Errorf("database not initialized")
+	}
+
+	if db.Dialector.Name() == "sqlite" {
+		return db.Exec("VACUUM").Error
+	}
+	return nil
 }

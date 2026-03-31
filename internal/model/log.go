@@ -15,6 +15,8 @@ type ChannelAttempt struct {
 	ChannelID    int           `json:"channel_id"`
 	ChannelKeyID int           `json:"channel_key_id,omitempty"`
 	ChannelName  string        `json:"channel_name"`
+	ChannelType  int           `json:"channel_type"`
+	ApiKeySuffix string        `json:"api_key_suffix,omitempty"`
 	ModelName    string        `json:"model_name"`
 	AttemptNum   int           `json:"attempt_num"`
 	Status       AttemptStatus `json:"status"`

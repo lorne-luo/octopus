@@ -3,6 +3,7 @@ package openai
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/bestruirui/octopus/internal/transformer/model"
 )
@@ -211,11 +212,23 @@ func mergeToolCall(toolCalls []model.ToolCall, delta model.ToolCall) []model.Too
 			if delta.Type != "" {
 				toolCalls[i].Type = delta.Type
 			}
-			if delta.Function.Name != "" {
-				toolCalls[i].Function.Name += delta.Function.Name
+			// Only set name if not already set to avoid duplication
+			if delta.Function.Name != "" && toolCalls[i].Function.Name == "" {
+				toolCalls[i].Function.Name = delta.Function.Name
 			}
 			if delta.Function.Arguments != "" {
+				fmt.Printf("[mergeToolCall2] existing.Arguments(before): %v\n", toolCalls[i].Function.Arguments)
 				toolCalls[i].Function.Arguments += delta.Function.Arguments
+				// 打印 delta.Function.Arguments 和 toolCalls[i].Function.Arguments 到日志
+				fmt.Printf("[mergeToolCall2] delta.Function.Arguments2: %v, existing.Arguments(after): %v\n", delta.Function.Arguments, toolCalls[i].Function.Arguments)
+			}
+			// Preserve CacheControl from delta
+			if delta.CacheControl != nil {
+				toolCalls[i].CacheControl = delta.CacheControl
+			}
+			// Preserve CacheControl from delta
+			if delta.CacheControl != nil {
+				toolCalls[i].CacheControl = delta.CacheControl
 			}
 			return toolCalls
 		}
