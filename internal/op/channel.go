@@ -324,6 +324,11 @@ func ChannelDel(id int, ctx context.Context) error {
 		tx.Rollback()
 		return fmt.Errorf("failed to delete channel stats: %w", err)
 	}
+	// 删除速度测试记录
+	if err := tx.Where("channel_id = ?", id).Delete(&model.GroupChannelModelSpeed{}).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to delete channel speed records: %w", err)
+	}
 
 	// 删除渠道
 	if err := tx.Delete(&model.Channel{}, id).Error; err != nil {
