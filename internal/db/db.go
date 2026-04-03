@@ -69,6 +69,7 @@ func InitDB(dbType, dsn string, debug bool) error {
 		&model.OAuthProvider{},
 		&model.AuthJson{},
 		&model.RelayLog{},
+		&model.GroupChannelModelSpeed{},
 		&migrate.MigrationRecord{},
 	); err != nil {
 		return err

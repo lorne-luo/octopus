@@ -12,12 +12,13 @@ import (
 )
 
 const (
-	TaskPriceUpdate  = "price_update"
-	TaskStatsSave    = "stats_save"
-	TaskRelayLogSave = "relay_log_save"
-	TaskSyncLLM      = "sync_llm"
-	TaskCleanLLM     = "clean_llm"
-	TaskBaseUrlDelay = "base_url_delay"
+	TaskPriceUpdate     = "price_update"
+	TaskStatsSave       = "stats_save"
+	TaskRelayLogSave    = "relay_log_save"
+	TaskSyncLLM         = "sync_llm"
+	TaskCleanLLM        = "clean_llm"
+	TaskBaseUrlDelay    = "base_url_delay"
+	TaskGroupSpeedTest  = "group_speed_test"
 )
 
 func Init() {
@@ -36,6 +37,9 @@ func Init() {
 
 	// 注册基础URL延迟任务
 	Register(TaskBaseUrlDelay, 1*time.Hour, true, ChannelBaseUrlDelayTask)
+
+	// 注册分组速度测试任务 (每2小时)
+	Register(TaskGroupSpeedTest, 2*time.Hour, false, GroupSpeedTestTask)
 
 	// 注册LLM同步任务
 	syncLLMIntervalHours, err := op.SettingGetInt(model.SettingKeySyncLLMInterval)
