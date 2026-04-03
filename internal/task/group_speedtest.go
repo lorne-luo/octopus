@@ -58,18 +58,16 @@ func processGroupSpeedTest(ctx context.Context, group *model.Group) {
 
 		// Persist the result
 		speed := &model.GroupChannelModelSpeed{
-			GroupID:        group.ID,
-			ChannelID:      item.ChannelID,
-			ModelName:      item.ModelName,
+			GroupID:       group.ID,
+			ChannelID:     item.ChannelID,
+			ModelName:     item.ModelName,
 			ResponseTimeMs: result.ResponseTimeMs,
-			Status:         model.SpeedTestStatusSuccess,
+			Status:        model.SpeedTestStatusSuccess,
 		}
-
 		if !result.Success {
 			speed.Status = model.SpeedTestStatusFailed
 			speed.LastError = result.Error
 		}
-
 		if err := op.UpsertGroupChannelModelSpeed(ctx, speed); err != nil {
 			log.Warnf("failed to upsert speed for group=%d channel=%d model=%s: %v",
 				group.ID, item.ChannelID, item.ModelName, err)
@@ -82,21 +80,17 @@ func processGroupSpeedTest(ctx context.Context, group *model.Group) {
 func runSpeedTestWithRetry(ctx context.Context, channel *model.Channel, modelName string, maxAttempts int) helper.SpeedTestResult {
 	var lastResult helper.SpeedTestResult
 	excludeKeyIDs := make([]int, 0, maxAttempts)
-
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		result := helper.RunGroupSpeedTest(ctx, helper.SpeedTestConfig{
 			Channel:       channel,
 			ModelName:     modelName,
 			ExcludeKeyIDs: excludeKeyIDs,
 		})
-
 		if result.Success {
 			return result
 		}
-
 		lastResult = result
-		log.Debugf("speed test attempt %d/%d failed for channel=%d model=%s: %s",
-			attempt, maxAttempts, channel.ID, modelName, result.Error)
+		log.Debugf("speed test attempt %d/%d failed for channel=%d model=%s: %s", attempt, maxAttempts, channel.ID, modelName, result.Error)
 
 		// For OAuth channels, no point in retrying with different keys
 		if channel.UseOAuth {
@@ -104,10 +98,10 @@ func runSpeedTestWithRetry(ctx context.Context, channel *model.Channel, modelNam
 		}
 
 		// Add the failed key ID to exclusion list for next attempt
-		// Note: We can't get the key ID from the result, so we need to track it differently
-		// For now, we'll just try different keys by excluding previously tried ones
+		if result.KeyID > 0 {
+			excludeKeyIDs = append(excludeKeyIDs, result.KeyID)
+		}
 	}
-
 	return lastResult
 }
 
@@ -118,14 +112,14 @@ func RunGroupSpeedTestManual(ctx context.Context, groupID int) error {
 	if err != nil {
 		return err
 	}
-
 	if len(group.Items) == 0 {
 		return nil
 	}
-
 	go func() {
-		processGroupSpeedTest(ctx, group)
+		// Use a new context for the async operation to avoid cancellation when request ends
+		bgCtx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		defer cancel()
+		processGroupSpeedTest(bgCtx, group)
 	}()
-
 	return nil
 }

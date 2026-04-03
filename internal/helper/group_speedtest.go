@@ -15,9 +15,10 @@ import (
 
 // SpeedTestResult contains the outcome of a speed test.
 type SpeedTestResult struct {
-	Success       bool
+	Success        bool
 	ResponseTimeMs int
-	Error         string
+	Error          string
+	KeyID          int // Key ID used for this attempt (0 for OAuth keys)
 }
 
 // SpeedTestConfig configures a speed test run.
@@ -92,6 +93,7 @@ func RunGroupSpeedTest(ctx context.Context, cfg SpeedTestConfig) SpeedTestResult
 		body, _ := io.ReadAll(io.LimitReader(response.Body, 4*1024))
 		return SpeedTestResult{
 			Success: false,
+			KeyID:   keyID,
 			Error:   fmt.Sprintf("upstream error %d: %s", response.StatusCode, string(body)),
 		}
 	}
@@ -108,6 +110,7 @@ func RunGroupSpeedTest(ctx context.Context, cfg SpeedTestConfig) SpeedTestResult
 	if !hasToolCallInResponse(body) {
 		return SpeedTestResult{
 			Success: false,
+			KeyID:   keyID,
 			Error:   "response did not contain a tool call",
 		}
 	}
@@ -116,8 +119,9 @@ func RunGroupSpeedTest(ctx context.Context, cfg SpeedTestConfig) SpeedTestResult
 		cfg.Channel.ID, cfg.ModelName, keyID, responseTimeMs)
 
 	return SpeedTestResult{
-		Success:        true,
+		Success:       true,
 		ResponseTimeMs: responseTimeMs,
+		KeyID:         keyID,
 	}
 }
 
