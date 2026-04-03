@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { Trash2, X, Pencil } from 'lucide-react';
+import { Trash2, X, Pencil, Gauge } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { type Group, useDeleteGroup, useUpdateGroup } from '@/api/endpoints/group';
+import { type Group, useDeleteGroup, useUpdateGroup, useTriggerGroupSpeedTest } from '@/api/endpoints/group';
 import { useModelChannelList } from '@/api/endpoints/model';
 import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
@@ -73,6 +73,7 @@ export function GroupCard({ group }: { group: Group }) {
     const updateGroup = useUpdateGroup();
     const deleteGroup = useDeleteGroup();
     const { data: modelChannels = [] } = useModelChannelList();
+  const triggerSpeedTest = useTriggerGroupSpeedTest();
 
     const [confirmDelete, setConfirmDelete] = useState(false);
     const [members, setMembers] = useState<SelectedMember[]>([]);
@@ -100,6 +101,7 @@ export function GroupCard({ group }: { group: Group }) {
                 channel_name: channelNameByKey.get(modelChannelKey(item.channel_id, item.model_name)) ?? `Channel ${item.channel_id}`,
                 item_id: item.id,
                 weight: item.weight,
+        speed: item.speed,
             })),
         [group.items, channelNameByKey, enabledByKey]
     );
@@ -286,6 +288,27 @@ export function GroupCard({ group }: { group: Group }) {
                         </TooltipTrigger>
                         <TooltipContent>{t('detail.actions.copyName')}</TooltipContent>
                     </Tooltip>
+
+      <Tooltip side="top" sideOffset={10} align="center">
+        <TooltipTrigger>
+          <button
+            type="button"
+            onClick={() => group.id && triggerSpeedTest.mutate(group.id)}
+            disabled={triggerSpeedTest.isPending || !group.id}
+            className={cn(
+              "p-1.5 rounded-lg transition-colors",
+              triggerSpeedTest.isPending
+                ? "bg-primary/20 text-primary animate-pulse"
+                : "hover:bg-muted text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Gauge className="size-4" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>
+          {triggerSpeedTest.isPending ? t('detail.actions.speedTestRunning') : t('detail.actions.speedTest')}
+        </TooltipContent>
+      </Tooltip>
                     {!confirmDelete && (
                         <Tooltip side="top" sideOffset={10} align="center">
                             <TooltipTrigger>

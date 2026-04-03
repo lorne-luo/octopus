@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Layers, GripVertical, X, Trash2 } from 'lucide-react';
+import { Layers, GripVertical, X, Trash2, AlertCircle } from 'lucide-react';
 import {
     DragDropContext,
     Draggable,
@@ -14,6 +14,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
 import { getModelIcon } from '@/lib/model-icons';
 import type { LLMChannel } from '@/api/endpoints/model';
+import type { GroupItemSpeed } from '@/api/endpoints/group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/animate-ui/components/animate/tooltip';
 import { useTranslations } from 'next-intl';
 
@@ -21,6 +22,7 @@ export interface SelectedMember extends LLMChannel {
     id: string;
     item_id?: number;
     weight?: number;
+  speed?: GroupItemSpeed;
 }
 
 function reorderList<T>(list: T[], startIndex: number, endIndex: number): T[] {
@@ -120,6 +122,37 @@ function MemberItem({
                     </Tooltip>
                     <span className="text-[10px] text-muted-foreground truncate leading-tight">{member.channel_name}</span>
                 </div>
+
+        {/* Speed badge */}
+        {member.speed && (
+          <Tooltip side="top" sideOffset={10} align="center">
+            <TooltipTrigger>
+              <span
+                className={cn(
+                  "text-[10px] px-1.5 py-0.5 rounded font-medium shrink-0",
+                  member.speed.status === "success"
+                    ? member.speed.response_time_ms < 1000
+                      ? "bg-green-500/20 text-green-600 dark:text-green-400"
+                      : member.speed.response_time_ms < 3000
+                        ? "bg-yellow-500/20 text-yellow-600 dark:text-yellow-400"
+                        : "bg-orange-500/20 text-orange-600 dark:text-orange-400"
+                    : "bg-red-500/20 text-red-600 dark:text-red-400"
+                )}
+              >
+                {member.speed.status === "success"
+                  ? `${member.speed.response_time_ms}ms`
+                  : <AlertCircle className="size-3 inline" />
+                }
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              {member.speed.status === "success"
+                ? `${member.speed.response_time_ms}ms response time`
+                : member.speed.last_error || "Speed test failed"
+              }
+            </TooltipContent>
+          </Tooltip>
+        )}
 
                 {showWeight && (
                     <input

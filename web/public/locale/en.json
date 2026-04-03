@@ -365,7 +365,9 @@
                 "save": "Save",
                 "copyName": "Copy Name",
                 "delete": "Delete",
-                "confirmDelete": "Confirm Delete"
+                "confirmDelete": "Confirm Delete",
+        "speedTest": "Speed Test",
+        "speedTestRunning": "Testing..."
             }
         },
         "form": {
@@ -420,6 +422,8 @@
             "cancel": "Cancel",
             "deleting": "Deleting...",
             "confirmDelete": "Confirm Delete",
+        "speedTest": "Speed Test",
+        "speedTestRunning": "Testing...",
             "input": "Input",
             "output": "Output",
             "cacheRead": "Cache Read",
@@ -495,6 +499,8 @@
                 "saving": "Saving...",
                 "delete": "Delete",
                 "confirmDelete": "Confirm Delete",
+        "speedTest": "Speed Test",
+        "speedTestRunning": "Testing...",
                 "deleting": "Deleting..."
             }
         },

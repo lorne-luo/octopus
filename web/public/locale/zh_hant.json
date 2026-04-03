@@ -365,7 +365,9 @@
                 "save": "儲存",
                 "copyName": "複製名稱",
                 "delete": "刪除",
-                "confirmDelete": "確認刪除"
+                "confirmDelete": "確認刪除",
+        "speedTest": "測速",
+        "speedTestRunning": "測速中..."
             }
         },
         "form": {
@@ -420,6 +422,8 @@
             "cancel": "取消",
             "deleting": "刪除中...",
             "confirmDelete": "確認刪除",
+        "speedTest": "測速",
+        "speedTestRunning": "測速中...",
             "input": "輸入",
             "output": "輸出",
             "cacheRead": "快取讀取",
@@ -495,6 +499,8 @@
                 "saving": "儲存中...",
                 "delete": "刪除",
                 "confirmDelete": "確認刪除",
+        "speedTest": "測速",
+        "speedTestRunning": "測速中...",
                 "deleting": "刪除中..."
             }
         },
