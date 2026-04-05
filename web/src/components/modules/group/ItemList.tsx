@@ -32,6 +32,13 @@ function reorderList<T>(list: T[], startIndex: number, endIndex: number): T[] {
     return result;
 }
 
+function formatSpeedDuration(responseTimeMs: number): string {
+    if (responseTimeMs >= 1000) {
+        return `${(responseTimeMs / 1000).toFixed(2).replace(/\.0+$/, '').replace(/(\.\d*[1-9])0+$/, '$1')}s`;
+    }
+    return `${responseTimeMs}ms`;
+}
+
 type MemberItemDnd = {
     innerRef: DraggableProvided['innerRef'];
     draggableProps: DraggableProvided['draggableProps'];
@@ -140,14 +147,14 @@ function MemberItem({
                 )}
               >
                 {member.speed.status === "success"
-                  ? `${member.speed.response_time_ms}ms`
+                  ? formatSpeedDuration(member.speed.response_time_ms)
                   : <AlertCircle className="size-3 inline" />
                 }
               </span>
             </TooltipTrigger>
             <TooltipContent>
               {member.speed.status === "success"
-                ? `${member.speed.response_time_ms}ms response time`
+                ? `${formatSpeedDuration(member.speed.response_time_ms)} response time`
                 : member.speed.last_error || "Speed test failed"
               }
             </TooltipContent>
