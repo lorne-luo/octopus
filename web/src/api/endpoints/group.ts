@@ -204,7 +204,8 @@ export function useTriggerGroupSpeedTest() {
   return useMutation({
     mutationFn: async (groupId: number) => {
       return apiClient.post<{ message: string; group_id: number }>(
-        `/api/v1/group/speed-test/${groupId}`
+        `/api/v1/group/speed-test/${groupId}`,
+        {}
       );
     },
     onSuccess: (data) => {

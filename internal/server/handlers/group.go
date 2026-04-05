@@ -28,10 +28,15 @@ type GroupItemWithSpeed struct {
 	Speed *GroupListItemSpeed `json:"speed,omitempty"`
 }
 
-// GroupWithSpeed extends Group with speed data for items.
+// GroupWithSpeed is the group list response payload including per-item speed data.
 type GroupWithSpeed struct {
-	model.Group
-	Items []GroupItemWithSpeed `json:"items,omitempty"`
+	ID                int                  `json:"id"`
+	Name              string               `json:"name"`
+	Mode              model.GroupMode      `json:"mode"`
+	MatchRegex        string               `json:"match_regex"`
+	FirstTokenTimeOut int                  `json:"first_token_time_out"`
+	SessionKeepTime   int                  `json:"session_keep_time"`
+	Items             []GroupItemWithSpeed `json:"items,omitempty"`
 }
 
 func init() {
@@ -82,8 +87,13 @@ func getGroupList(c *gin.Context) {
 	result := make([]GroupWithSpeed, 0, len(groups))
 	for _, group := range groups {
 		gws := GroupWithSpeed{
-			Group: group,
-			Items: make([]GroupItemWithSpeed, 0, len(group.Items)),
+			ID:                group.ID,
+			Name:              group.Name,
+			Mode:              group.Mode,
+			MatchRegex:        group.MatchRegex,
+			FirstTokenTimeOut: group.FirstTokenTimeOut,
+			SessionKeepTime:   group.SessionKeepTime,
+			Items:             make([]GroupItemWithSpeed, 0, len(group.Items)),
 		}
 
 		for _, item := range group.Items {
@@ -173,14 +183,14 @@ func triggerGroupSpeedTest(c *gin.Context) {
 		return
 	}
 
-	// Trigger the speed test asynchronously
+	// Execute speed test and return after latest results are persisted.
 	if err := task.RunGroupSpeedTestManual(c.Request.Context(), idNum); err != nil {
 		resp.Error(c, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	resp.Success(c, gin.H{
-		"message":  "speed test triggered",
+		"message":  "speed test completed",
 		"group_id": idNum,
 	})
 }

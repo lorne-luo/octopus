@@ -115,11 +115,11 @@ func RunGroupSpeedTestManual(ctx context.Context, groupID int) error {
 	if len(group.Items) == 0 {
 		return nil
 	}
-	go func() {
-		// Use a new context for the async operation to avoid cancellation when request ends
-		bgCtx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-		defer cancel()
-		processGroupSpeedTest(bgCtx, group)
-	}()
+
+	// Execute synchronously so the API response returns after latest results are persisted.
+	bgCtx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	processGroupSpeedTest(bgCtx, group)
+
 	return nil
 }

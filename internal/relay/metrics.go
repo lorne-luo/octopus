@@ -224,7 +224,6 @@ func (m *RelayMetrics) saveLog(ctx context.Context, err error, duration time.Dur
 		RequestModelName: m.RequestModel,
 		ChannelName:      channelName,
 		ChannelId:        channelID,
-		ChannelType:      channelType,
 		ActualModelName:  actualModel,
 		UseTime:          int(duration.Milliseconds()),
 		Attempts:         attempts,
@@ -242,8 +241,8 @@ func (m *RelayMetrics) saveLog(ctx context.Context, err error, duration time.Dur
 
 	// Usage
 	// 使用 Metrics 中的统计值，因为可能来自估算
-	relayLog.InputTokens = m.Stats.InputToken
-	relayLog.OutputTokens = m.Stats.OutputToken
+	relayLog.InputTokens = int(m.Stats.InputToken)
+	relayLog.OutputTokens = int(m.Stats.OutputToken)
 	relayLog.Cost = m.Stats.InputCost + m.Stats.OutputCost
 
 	// 请求内容

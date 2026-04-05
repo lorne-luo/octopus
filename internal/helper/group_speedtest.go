@@ -3,6 +3,7 @@ package helper
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -26,6 +27,15 @@ type SpeedTestConfig struct {
 	Channel       *model.Channel
 	ModelName     string
 	ExcludeKeyIDs []int // Key IDs to exclude (already tried)
+}
+
+const speedTestAttemptTimeout = 10 * time.Second
+
+func speedTestAttemptContext(parent context.Context) (context.Context, context.CancelFunc) {
+	if parent == nil {
+		parent = context.Background()
+	}
+	return context.WithTimeout(parent, speedTestAttemptTimeout)
 }
 
 // RunGroupSpeedTest executes a tool-call speed test for a channel/model pair.
@@ -61,8 +71,11 @@ func RunGroupSpeedTest(ctx context.Context, cfg SpeedTestConfig) SpeedTestResult
 		return SpeedTestResult{Success: false, Error: "channel has no base URL configured"}
 	}
 
-	// 5. Build outbound request
-	outboundRequest, err := providerAdapter.BuildRequest(ctx, canonicalReq, baseUrl, apiKey)
+	// 5. Build outbound request with per-attempt timeout context
+	attemptCtx, cancel := speedTestAttemptContext(ctx)
+	defer cancel()
+
+	outboundRequest, err := providerAdapter.BuildRequest(attemptCtx, canonicalReq, baseUrl, apiKey)
 	if err != nil {
 		return SpeedTestResult{Success: false, Error: "failed to build outbound request: " + err.Error()}
 	}
@@ -84,7 +97,10 @@ func RunGroupSpeedTest(ctx context.Context, cfg SpeedTestConfig) SpeedTestResult
 	startTime := time.Now()
 	response, err := httpClient.Do(outboundRequest)
 	if err != nil {
-		return SpeedTestResult{Success: false, Error: "request failed: " + err.Error()}
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(attemptCtx.Err(), context.DeadlineExceeded) {
+			return SpeedTestResult{Success: false, KeyID: keyID, Error: "request timed out after 10s"}
+		}
+		return SpeedTestResult{Success: false, KeyID: keyID, Error: "request failed: " + err.Error()}
 	}
 	defer response.Body.Close()
 
