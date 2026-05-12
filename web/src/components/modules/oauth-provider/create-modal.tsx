@@ -73,12 +73,16 @@ export function CreateEditOAuthProviderModal({
     // OAuth flow state
     const [oauthStep, setOauthStep] = useState<"init" | "authorizing" | "callback">("init")
     const [oauthState, setOauthState] = useState<string | null>(null)
-    const [oauthCallbackMode, setOauthCallbackMode] = useState<"auto" | "manual">("auto")
+    const [oauthCallbackMode, setOauthCallbackMode] = useState<"auto" | "manual" | "device">("auto")
     const [oauthCallbackUrl, setOauthCallbackUrl] = useState("")
     const [oauthProviderName, setOauthProviderName] = useState("")
+    const [deviceCode, setDeviceCode] = useState<string | null>(null)
+    const [verificationUrl, setVerificationUrl] = useState<string | null>(null)
 
-    // Poll for OAuth callback status in auto mode
-    const callbackStatus = useOAuthCallbackStatus(oauthCallbackMode === "auto" ? oauthState : null)
+    // Poll for OAuth callback status in auto or device mode
+    const callbackStatus = useOAuthCallbackStatus(
+        (oauthCallbackMode === "auto" || oauthCallbackMode === "device") ? oauthState : null
+    )
 
     // Handle auto mode completion
     useEffect(() => {
@@ -210,8 +214,14 @@ export function CreateEditOAuthProviderModal({
             })
             setOauthState(result.state)
             setOauthCallbackMode(result.callback_mode)
+            setDeviceCode(result.device_code || null)
+            setVerificationUrl(result.verification_url || null)
             setOauthStep("authorizing")
-            window.open(result.auth_url, "_blank")
+            if (result.callback_mode === "device") {
+                window.open(result.verification_url, "_blank")
+            } else {
+                window.open(result.auth_url, "_blank")
+            }
             toast.info(result.instructions)
         } catch (error) {
             toast.error("Failed to start OAuth flow")
@@ -240,6 +250,8 @@ export function CreateEditOAuthProviderModal({
         setOauthState(null)
         setOauthCallbackUrl("")
         setOauthProviderName("")
+        setDeviceCode(null)
+        setVerificationUrl(null)
     }
 
     useEffect(() => {
@@ -437,26 +449,57 @@ export function CreateEditOAuthProviderModal({
                             )}
                             {oauthStep === "authorizing" && (
                                 <div className="space-y-3">
-                                    <div className="rounded-md bg-blue-50 p-3 dark:bg-blue-950">
-                                        <p className="text-sm text-blue-700 dark:text-blue-300">
-                                            {oauthCallbackMode === "auto" ? (
-                                                <>
-                                                    <strong>Automatic mode:</strong> Waiting for authorization...
-                                                    <br />
-                                                    <span className="text-xs">The page will update automatically when complete.</span>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <strong>Manual mode:</strong> After authorizing, copy the URL from your browser and paste it below.
-                                                </>
-                                            )}
-                                        </p>
-                                    </div>
-                                    {oauthCallbackMode === "auto" && (
-                                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                            <Loader2 className="h-4 w-4 animate-spin" />
-                                            Polling for authorization...
+                                    {oauthCallbackMode === "device" && deviceCode ? (
+                                        <div className="rounded-md bg-blue-50 p-4 dark:bg-blue-950 space-y-3">
+                                            <p className="text-sm text-blue-700 dark:text-blue-300">
+                                                <strong>Device Flow:</strong> Visit the URL below and enter the device code to authorize.
+                                            </p>
+                                            <div className="space-y-2">
+                                                <div className="text-xs text-muted-foreground">Verification URL:</div>
+                                                <a
+                                                    href={verificationUrl || "#"}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-sm font-mono text-blue-600 underline dark:text-blue-400 break-all"
+                                                >
+                                                    {verificationUrl}
+                                                </a>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <div className="text-xs text-muted-foreground">Device Code:</div>
+                                                <div className="text-2xl font-bold font-mono tracking-widest text-center py-2 bg-white rounded border dark:bg-gray-900">
+                                                    {deviceCode}
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                                Waiting for authorization...
+                                            </div>
                                         </div>
+                                    ) : (
+                                        <>
+                                            <div className="rounded-md bg-blue-50 p-3 dark:bg-blue-950">
+                                                <p className="text-sm text-blue-700 dark:text-blue-300">
+                                                    {oauthCallbackMode === "auto" ? (
+                                                        <>
+                                                            <strong>Automatic mode:</strong> Waiting for authorization...
+                                                            <br />
+                                                            <span className="text-xs">The page will update automatically when complete.</span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <strong>Manual mode:</strong> After authorizing, copy the URL from your browser and paste it below.
+                                                        </>
+                                                    )}
+                                                </p>
+                                            </div>
+                                            {oauthCallbackMode === "auto" && (
+                                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                    Polling for authorization...
+                                                </div>
+                                            )}
+                                        </>
                                     )}
                                     {oauthCallbackMode === "manual" && (
                                         <>

@@ -188,10 +188,12 @@ export function useFetchOAuthModel() {
 export type OAuthFlowInfo = {
   auth_url: string;
   state: string;
-  callback_mode: "auto" | "manual";
+  callback_mode: "auto" | "manual" | "device";
   callback_port?: number;
   expires_in: number;
   instructions: string;
+  device_code?: string;
+  verification_url?: string;
 };
 
 export type HandleCallbackRequest = {
@@ -204,6 +206,7 @@ export type CallbackStatusResponse = {
   provider_type?: string;
   expires_at?: number;
   error?: string;
+  provider?: OAuthProvider;
 };
 
 // OAuth Flow API

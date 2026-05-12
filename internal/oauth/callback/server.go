@@ -50,7 +50,7 @@ func (s *Server) Start(ctx context.Context) (callbackURL string, err error) {
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/callback", s.handleCallback)
+	mux.HandleFunc("/auth/callback", s.handleCallback)
 	mux.HandleFunc("/", s.handleCallback) // Also handle root for flexibility
 
 	addr := fmt.Sprintf(":%d", s.port)
@@ -67,7 +67,7 @@ func (s *Server) Start(ctx context.Context) (callbackURL string, err error) {
 	}()
 
 	s.started = true
-	return fmt.Sprintf("http://localhost:%d/callback", s.port), nil
+	return fmt.Sprintf("http://localhost:%d/auth/callback", s.port), nil
 }
 
 // handleCallback handles the OAuth callback request
