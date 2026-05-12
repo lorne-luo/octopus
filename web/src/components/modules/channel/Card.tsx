@@ -6,13 +6,30 @@ import {
 } from '@/components/ui/morphing-dialog';
 import { CheckCircle2, DollarSign, Key, Layers, MessageSquare, XCircle } from 'lucide-react';
 import { type StatsMetricsFormatted } from '@/api/endpoints/stats';
-import { type Channel, useEnableChannel } from '@/api/endpoints/channel';
+import { type Channel, ChannelType, useEnableChannel } from '@/api/endpoints/channel';
 import { CardContent } from './CardContent';
 import { useTranslations } from 'next-intl';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/animate-ui/components/animate/tooltip';
 import { Switch } from '@/components/ui/switch';
 import { toast } from '@/components/common/Toast';
 import { useChannelName } from '@/hooks/use-channel-name';
+
+function ApiFormatIcon({ type }: { type: ChannelType }) {
+    const config = {
+        [ChannelType.OpenAIChat]: { label: 'OpenAI', color: 'bg-emerald-500/10 text-emerald-600' },
+        [ChannelType.OpenAIResponse]: { label: 'OpenAI', color: 'bg-emerald-500/10 text-emerald-600' },
+        [ChannelType.OpenAIEmbedding]: { label: 'OpenAI', color: 'bg-emerald-500/10 text-emerald-600' },
+        [ChannelType.Anthropic]: { label: 'Claude', color: 'bg-orange-500/10 text-orange-600' },
+        [ChannelType.Gemini]: { label: 'Gemini', color: 'bg-blue-500/10 text-blue-600' },
+        [ChannelType.Volcengine]: { label: '火山', color: 'bg-purple-500/10 text-purple-600' },
+    };
+    const { label, color } = config[type] ?? { label: '?', color: 'bg-gray-500/10 text-gray-600' };
+    return (
+        <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium ${color}`}>
+            {label}
+        </span>
+    );
+}
 
 export function Card({ channel, stats, layout = 'grid' }: { channel: Channel; stats: StatsMetricsFormatted; layout?: 'grid' | 'list' }) {
     const t = useTranslations('channel.card');
@@ -62,12 +79,15 @@ export function Card({ channel, stats, layout = 'grid' }: { channel: Channel; st
                             </TooltipTrigger>
                             <TooltipContent key={channelName}>{channelName}</TooltipContent>
                         </Tooltip>
-                        <Switch
-                            checked={channel.enabled}
-                            onCheckedChange={handleEnableChange}
-                            disabled={enableChannel.isPending}
-                            onClick={(e) => e.stopPropagation()}
-                        />
+                        <div className="flex items-center gap-2">
+                            <ApiFormatIcon type={channel.type} />
+                            <Switch
+                                checked={channel.enabled}
+                                onCheckedChange={handleEnableChange}
+                                disabled={enableChannel.isPending}
+                                onClick={(e) => e.stopPropagation()}
+                            />
+                        </div>
                     </header>
 
                     {isListLayout ? (

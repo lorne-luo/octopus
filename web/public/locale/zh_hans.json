@@ -51,7 +51,8 @@
         "model": "价格",
         "log": "日志",
         "setting": "设置",
-        "testmodel": "测试模型"
+        "testmodel": "测试模型",
+        "oauth": "OAuth"
     },
     "toolbar": {
         "popover": {

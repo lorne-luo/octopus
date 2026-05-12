@@ -51,7 +51,8 @@
         "model": "Price",
         "log": "Log",
         "setting": "Setting",
-        "testmodel": "TestModel"
+        "testmodel": "TestModel",
+        "oauth": "OAuth"
     },
     "toolbar": {
         "popover": {
