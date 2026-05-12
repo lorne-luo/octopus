@@ -407,8 +407,8 @@ export function CreateEditOAuthProviderModal({
                     </div>
 
                     {/* Auth JSON management section or OAuth flow */}
-                    {isOAuthProvider(providerType) ? (
-                        // OAuth flow for Codex
+                    {isOAuthProvider(providerType) && !provider ? (
+                        // OAuth flow for new Codex provider only
                         <div className="space-y-4">
                             <Label>Codex OAuth</Label>
                             {oauthStep === "init" && (
