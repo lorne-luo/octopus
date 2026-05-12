@@ -149,6 +149,10 @@ func (m *Manager) recordAuthJsonFailure(authJson *model.AuthJson) {
 	db.GetDB().Save(authJson)
 }
 
+// codexCallbackPort is the fixed port for Codex OAuth callbacks.
+// OpenAI only accepts redirect_uri with this port.
+const codexCallbackPort = 1455
+
 // InitiateOAuthFlow initiates a new OAuth flow for the given provider type
 // Returns OAuthFlowInfo containing auth URL and session info
 func (m *Manager) InitiateOAuthFlow(ctx context.Context, providerType model.OAuthProviderType, mode session.CallbackMode) (*OAuthFlowInfo, error) {
@@ -164,28 +168,22 @@ func (m *Manager) InitiateOAuthFlow(ctx context.Context, providerType model.OAut
 
 	// Determine callback mode
 	if mode == session.CallbackModeAuto {
-		// Find available port
-		port, err = callback.FindAvailablePort(14000, 15000)
+		// Use fixed port 1455 for Codex (OpenAI requires this specific redirect_uri)
+		port = codexCallbackPort
+		callbackURL = fmt.Sprintf("http://localhost:%d/auth/callback", port)
+
+		// Create and start callback server
+		cbServer = callback.NewServer(port)
+		_, err = cbServer.Start(ctx)
 		if err != nil {
 			// Fall back to manual mode
 			mode = session.CallbackModeManual
-			log.Warnf("failed to find available port, falling back to manual mode: %v", err)
+			log.Warnf("failed to start callback server, falling back to manual mode: %v", err)
 		} else {
-			callbackURL = fmt.Sprintf("http://localhost:%d/callback", port)
-
-			// Create and start callback server
-			cbServer = callback.NewServer(port)
-			_, err = cbServer.Start(ctx)
-			if err != nil {
-				// Fall back to manual mode
-				mode = session.CallbackModeManual
-				log.Warnf("failed to start callback server, falling back to manual mode: %v", err)
-			} else {
-				// Store the server for later cleanup
-				m.serversMu.Lock()
-				m.callbackServers[port] = cbServer
-				m.serversMu.Unlock()
-			}
+			// Store the server for later cleanup
+			m.serversMu.Lock()
+			m.callbackServers[port] = cbServer
+			m.serversMu.Unlock()
 		}
 	}
 
@@ -212,7 +210,7 @@ func (m *Manager) InitiateOAuthFlow(ctx context.Context, providerType model.OAut
 	case model.OAuthProviderTypeCodex:
 		codexAuth := codex.NewAuth()
 		if callbackURL == "" {
-			callbackURL = "http://localhost:1455/callback"
+			callbackURL = "http://localhost:1455/auth/callback"
 		}
 		authURL := codexAuth.GetAuthURL(sess.State, pkceCodes.CodeChallenge, callbackURL)
 
@@ -367,10 +365,7 @@ func (m *Manager) GetCallbackResult(state string) (bool, string, string) {
 func (m *Manager) exchangeCodexCode(ctx context.Context, sess *session.OAuthSession, code string) (*model.OAuthProvider, error) {
 	codexAuth := codex.NewAuth()
 
-	redirectURI := "http://localhost:1455/callback"
-	if sess.CallbackMode == session.CallbackModeAuto && sess.CallbackPort > 0 {
-		redirectURI = fmt.Sprintf("http://localhost:%d/callback", sess.CallbackPort)
-	}
+	redirectURI := fmt.Sprintf("http://localhost:%d/auth/callback", codexCallbackPort)
 
 	tokenResp, err := codexAuth.ExchangeCode(ctx, code, sess.PKCECodes.CodeVerifier, redirectURI)
 	if err != nil {

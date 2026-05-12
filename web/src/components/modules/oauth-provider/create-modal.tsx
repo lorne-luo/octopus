@@ -266,7 +266,7 @@ export function CreateEditOAuthProviderModal({
             } else {
                 reset({
                     name: "",
-                    provider_type: "kiro",
+                    provider_type: "codex",
                     status: "1",
                     model: "",
                     custom_model: "",
@@ -379,24 +379,28 @@ export function CreateEditOAuthProviderModal({
                     <div className="space-y-2">
                         <Label>{t("type")}</Label>
                         <div className="flex gap-1">
-                            {(["kiro", "codex"] as const).map((type) => (
+                            {(["codex", "kiro"] as const).map((type) => (
                                 <button
                                     key={type}
                                     type="button"
                                     onClick={() => {
-                                        setValue("provider_type", type)
-                                        if (isOAuthProvider(type)) {
-                                            resetOAuth()
+                                        if (!provider) {
+                                            setValue("provider_type", type)
+                                            if (isOAuthProvider(type)) {
+                                                resetOAuth()
+                                            }
                                         }
                                     }}
+                                    disabled={!!provider}
                                     className={cn(
                                         "flex-1 py-1.5 text-sm rounded-lg transition-colors",
                                         providerType === type
                                             ? "bg-primary text-primary-foreground"
-                                            : "bg-muted hover:bg-muted/80"
+                                            : "bg-muted hover:bg-muted/80",
+                                        provider && "opacity-70 cursor-not-allowed"
                                     )}
                                 >
-                                    {type === "kiro" ? "Kiro" : "Codex"}
+                                    {type === "codex" ? "Codex" : "Kiro"}
                                 </button>
                             ))}
                         </div>
@@ -458,26 +462,25 @@ export function CreateEditOAuthProviderModal({
                                             Polling for authorization...
                                         </div>
                                     )}
-                                    {oauthCallbackMode === "manual" && (
-                                        <>
-                                            <Input
-                                                value={oauthCallbackUrl}
-                                                onChange={(e) => setOauthCallbackUrl(e.target.value)}
-                                                placeholder="http://localhost:xxxx/callback?code=xxx&state=xxx"
-                                            />
-                                            <Button
-                                                type="button"
-                                                onClick={handleManualOAuthCallback}
-                                                disabled={handleCallback.isPending || !oauthCallbackUrl.trim()}
-                                                className="w-full"
-                                            >
-                                                {handleCallback.isPending && (
-                                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                                )}
-                                                Complete Login
-                                            </Button>
-                                        </>
-                                    )}
+                                    <div className="space-y-2">
+                                        <div className="text-xs text-muted-foreground">Paste callback URL:</div>
+                                        <Input
+                                            value={oauthCallbackUrl}
+                                            onChange={(e) => setOauthCallbackUrl(e.target.value)}
+                                            placeholder="http://localhost:xxxx/auth/callback?code=xxx&state=xxx"
+                                        />
+                                        <Button
+                                            type="button"
+                                            onClick={handleManualOAuthCallback}
+                                            disabled={handleCallback.isPending || !oauthCallbackUrl.trim()}
+                                            className="w-full"
+                                        >
+                                            {handleCallback.isPending && (
+                                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                            )}
+                                            Complete Login
+                                        </Button>
+                                    </div>
                                     <Button
                                         type="button"
                                         variant="outline"
