@@ -1,0 +1,475 @@
+[
+  {
+    "name": "content_string_vs_array_single_text",
+    "description": "Anthropic single text content block simplifies to string content in internal format",
+    "inbound_format": "anthropic",
+    "outbound_format": "openai_chat",
+    "client_request": {
+      "model": "claude-sonnet-4-20250514",
+      "max_tokens": 100,
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            { "type": "text", "text": "Just one block." }
+          ]
+        }
+      ]
+    },
+    "expected_internal_request": {
+      "messages": [
+        {
+          "role": "user",
+          "content_type": "string",
+          "content": "Just one block."
+        }
+      ]
+    },
+    "notes": "Single text block in array form should be simplified to string content for compatibility"
+  },
+
+  {
+    "name": "content_multiple_text_blocks_stay_as_array",
+    "description": "Multiple text content blocks remain as MultipleContent in internal format",
+    "inbound_format": "anthropic",
+    "outbound_format": "openai_chat",
+    "client_request": {
+      "model": "claude-sonnet-4-20250514",
+      "max_tokens": 100,
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            { "type": "text", "text": "First paragraph." },
+            { "type": "text", "text": "Second paragraph." }
+          ]
+        }
+      ]
+    },
+    "expected_internal_request": {
+      "messages": [
+        {
+          "role": "user",
+          "content_type": "multiple",
+          "content_parts_count": 2
+        }
+      ]
+    }
+  },
+
+  {
+    "name": "message_content_serialization_string",
+    "description": "MessageContent with string serializes as plain string JSON",
+    "serialization_test": true,
+    "input": { "content": "Hello" },
+    "expected_json": "\"Hello\""
+  },
+
+  {
+    "name": "message_content_serialization_array",
+    "description": "MessageContent with multiple parts serializes as JSON array",
+    "serialization_test": true,
+    "input": {
+      "multiple_content": [
+        { "type": "text", "text": "Hello" },
+        { "type": "text", "text": "World" }
+      ]
+    },
+    "expected_json_type": "array"
+  },
+
+  {
+    "name": "message_content_serialization_single_text_array",
+    "description": "MessageContent with single text part in array serializes as string (optimization)",
+    "serialization_test": true,
+    "input": {
+      "multiple_content": [
+        { "type": "text", "text": "Hello" }
+      ]
+    },
+    "expected_json": "\"Hello\"",
+    "notes": "MarshalJSON optimizes single text part to plain string"
+  },
+
+  {
+    "name": "message_content_serialization_null",
+    "description": "MessageContent with no content serializes as null",
+    "serialization_test": true,
+    "input": {},
+    "expected_json": "null"
+  },
+
+  {
+    "name": "tool_choice_string_deserialization",
+    "description": "ToolChoice string form ('auto', 'none', 'required') deserializes correctly",
+    "serialization_test": true,
+    "variants": [
+      { "json": "\"auto\"", "expected": { "tool_choice": "auto" } },
+      { "json": "\"none\"", "expected": { "tool_choice": "none" } },
+      { "json": "\"required\"", "expected": { "tool_choice": "required" } }
+    ]
+  },
+
+  {
+    "name": "tool_choice_object_deserialization",
+    "description": "ToolChoice object form deserializes to NamedToolChoice",
+    "serialization_test": true,
+    "json": "{\"type\":\"function\",\"function\":{\"name\":\"my_func\"}}",
+    "expected": {
+      "named_tool_choice": {
+        "type": "function",
+        "function": { "name": "my_func" }
+      }
+    }
+  },
+
+  {
+    "name": "stop_string_deserialization",
+    "description": "Stop parameter handles string vs array deserialization",
+    "serialization_test": true,
+    "variants": [
+      { "json": "\"END\"", "expected": { "single": "END" } },
+      { "json": "[\"END\", \"STOP\"]", "expected": { "multiple": ["END", "STOP"] } }
+    ]
+  },
+
+  {
+    "name": "embedding_input_deserialization",
+    "description": "EmbeddingInput handles string vs array deserialization",
+    "serialization_test": true,
+    "variants": [
+      { "json": "\"hello\"", "expected": { "single": "hello" } },
+      { "json": "[\"hello\", \"world\"]", "expected": { "multiple": ["hello", "world"] } }
+    ]
+  },
+
+  {
+    "name": "anthropic_max_tokens_min_clamp",
+    "description": "Anthropic inbound clamps max_tokens to minimum 1",
+    "inbound_format": "anthropic",
+    "client_request": {
+      "model": "claude-sonnet-4-20250514",
+      "max_tokens": 0,
+      "messages": [{ "role": "user", "content": "Hi" }]
+    },
+    "expected_internal_request": {
+      "max_tokens": 1
+    }
+  },
+
+  {
+    "name": "empty_assistant_with_tool_calls_only",
+    "description": "Assistant message with no text content but tool_calls is handled correctly",
+    "inbound_format": "anthropic",
+    "outbound_format": "openai_chat",
+    "client_request": {
+      "model": "claude-sonnet-4-20250514",
+      "max_tokens": 1024,
+      "messages": [
+        { "role": "user", "content": "Do it" },
+        {
+          "role": "assistant",
+          "content": [
+            { "type": "tool_use", "id": "t1", "name": "action", "input": {} }
+          ]
+        }
+      ]
+    },
+    "expected_internal_request": {
+      "messages": [
+        { "role": "user" },
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [{ "id": "t1", "function": { "name": "action" } }]
+        }
+      ]
+    }
+  },
+
+  {
+    "name": "gemini_schema_cleanup_removes_unsupported",
+    "description": "Gemini schema cleaning removes title, $schema, additionalProperties, etc.",
+    "inbound_format": "openai_chat",
+    "outbound_format": "gemini",
+    "client_request": {
+      "model": "gemini-2.0-flash",
+      "messages": [{ "role": "user", "content": "Go" }],
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "test",
+            "parameters": {
+              "title": "TestSchema",
+              "$schema": "http://json-schema.org/draft-07/schema#",
+              "type": "object",
+              "properties": {
+                "name": { "type": "string", "default": "unnamed" }
+              },
+              "additionalProperties": false,
+              "strict": true
+            }
+          }
+        }
+      ]
+    },
+    "expected_provider_request": {
+      "tools": [
+        {
+          "functionDeclarations": [
+            {
+              "name": "test",
+              "parameters": {
+                "type": "OBJECT",
+                "properties": {
+                  "name": { "type": "STRING" }
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "notes": "title, $schema, additionalProperties, strict, default should be removed"
+  },
+
+  {
+    "name": "gemini_schema_type_mapping",
+    "description": "Gemini schema cleaning uppercases standard JSON Schema types",
+    "outbound_format": "gemini",
+    "type_mappings": [
+      { "input": "string",  "expected": "STRING" },
+      { "input": "number",  "expected": "NUMBER" },
+      { "input": "integer", "expected": "INTEGER" },
+      { "input": "boolean", "expected": "BOOLEAN" },
+      { "input": "array",   "expected": "ARRAY" },
+      { "input": "object",  "expected": "OBJECT" }
+    ]
+  },
+
+  {
+    "name": "gemini_schema_nullable_type_array",
+    "description": "Gemini schema handles nullable types expressed as type array ['string', 'null']",
+    "outbound_format": "gemini",
+    "input_schema": {
+      "type": ["string", "null"]
+    },
+    "expected_schema": {
+      "type": "STRING"
+    },
+    "notes": "Picks non-null type from array"
+  },
+
+  {
+    "name": "gemini_schema_anyof_const_to_enum",
+    "description": "Gemini schema converts anyOf with const values to enum",
+    "outbound_format": "gemini",
+    "input_schema": {
+      "anyOf": [
+        { "const": "red" },
+        { "const": "green" },
+        { "const": "blue" }
+      ]
+    },
+    "expected_schema": {
+      "type": "STRING",
+      "enum": ["red", "green", "blue"]
+    }
+  },
+
+  {
+    "name": "gemini_schema_allof_merge",
+    "description": "Gemini schema merges allOf into single object with combined properties and required",
+    "outbound_format": "gemini",
+    "input_schema": {
+      "allOf": [
+        { "type": "object", "properties": { "name": { "type": "string" } }, "required": ["name"] },
+        { "properties": { "age": { "type": "integer" } }, "required": ["age"] }
+      ]
+    },
+    "expected_schema": {
+      "type": "OBJECT",
+      "properties": {
+        "name": { "type": "STRING" },
+        "age": { "type": "INTEGER" }
+      },
+      "required": ["name", "age"]
+    }
+  },
+
+  {
+    "name": "gemini_schema_ref_resolution",
+    "description": "Gemini schema resolves local $ref and inlines the referenced definition",
+    "outbound_format": "gemini",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "address": { "$ref": "#/$defs/Address" }
+      },
+      "$defs": {
+        "Address": {
+          "type": "object",
+          "properties": {
+            "street": { "type": "string" },
+            "city": { "type": "string" }
+          }
+        }
+      }
+    },
+    "expected_schema": {
+      "type": "OBJECT",
+      "properties": {
+        "address": {
+          "type": "OBJECT",
+          "properties": {
+            "street": { "type": "STRING" },
+            "city": { "type": "STRING" }
+          }
+        }
+      }
+    },
+    "notes": "$ref resolved and $defs removed"
+  },
+
+  {
+    "name": "gemini_finish_reason_mapping",
+    "description": "All Gemini finish reasons map correctly to internal format",
+    "outbound_format": "gemini",
+    "finish_reason_mappings": [
+      { "gemini": "STOP",       "internal": "stop" },
+      { "gemini": "MAX_TOKENS", "internal": "length" },
+      { "gemini": "SAFETY",     "internal": "content_filter" },
+      { "gemini": "RECITATION", "internal": "content_filter" }
+    ]
+  },
+
+  {
+    "name": "gemini_model_path_prefix",
+    "description": "Model name without slash gets 'models/' prefix in Gemini URL",
+    "outbound_format": "gemini",
+    "variants": [
+      { "model": "gemini-2.0-flash", "expected_path_contains": "models/gemini-2.0-flash" },
+      { "model": "models/gemini-2.0-flash", "expected_path_contains": "models/gemini-2.0-flash" }
+    ]
+  },
+
+  {
+    "name": "reasoning_field_aliases",
+    "description": "Both reasoning_content and reasoning fields are accessible via GetReasoningContent()",
+    "serialization_test": true,
+    "variants": [
+      {
+        "label": "reasoning_content_field",
+        "message": { "reasoning_content": "thinking via reasoning_content" },
+        "expected_get_reasoning": "thinking via reasoning_content"
+      },
+      {
+        "label": "reasoning_field",
+        "message": { "reasoning": "thinking via reasoning" },
+        "expected_get_reasoning": "thinking via reasoning"
+      },
+      {
+        "label": "reasoning_content_takes_precedence",
+        "message": { "reasoning_content": "primary", "reasoning": "secondary" },
+        "expected_get_reasoning": "primary"
+      }
+    ]
+  },
+
+  {
+    "name": "get_internal_response_nil_when_empty",
+    "description": "GetInternalResponse returns nil when no stored response and no stream chunks",
+    "inbound_format": "openai_chat",
+    "expected_get_internal_response": null
+  },
+
+  {
+    "name": "anthropic_tool_result_multiblock_content",
+    "description": "Anthropic tool_result with multiple content blocks converts to MultipleContent in internal",
+    "inbound_format": "anthropic",
+    "client_request": {
+      "model": "claude-sonnet-4-20250514",
+      "max_tokens": 1024,
+      "messages": [
+        { "role": "user", "content": "Run" },
+        { "role": "assistant", "content": [{ "type": "tool_use", "id": "t1", "name": "query", "input": {} }] },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "t1",
+              "content": [
+                { "type": "text", "text": "Row 1: value1" },
+                { "type": "text", "text": "Row 2: value2" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "expected_internal_request": {
+      "messages": [
+        { "role": "user" },
+        { "role": "assistant", "tool_calls_count": 1 },
+        {
+          "role": "tool",
+          "tool_call_id": "t1",
+          "content_type": "multiple",
+          "content_parts_count": 2
+        }
+      ]
+    }
+  },
+
+  {
+    "name": "gemini_tool_result_json_parse",
+    "description": "Tool result content that is valid JSON is sent as parsed object in Gemini functionResponse",
+    "inbound_format": "openai_chat",
+    "outbound_format": "gemini",
+    "client_request": {
+      "model": "gemini-2.0-flash",
+      "messages": [
+        { "role": "user", "content": "Go" },
+        { "role": "assistant", "tool_calls": [{ "id": "call_1", "type": "function", "function": { "name": "test", "arguments": "{}" } }] },
+        { "role": "tool", "tool_call_id": "call_1", "content": "{\"status\": \"ok\", \"count\": 42}" }
+      ]
+    },
+    "expected_provider_request_contains": {
+      "functionResponse": {
+        "response": { "status": "ok", "count": 42 }
+      }
+    },
+    "notes": "Valid JSON string content parsed into map; invalid falls back to {result: content}"
+  },
+
+  {
+    "name": "gemini_tool_result_plain_text_fallback",
+    "description": "Tool result content that is NOT valid JSON wraps as {result: content} for Gemini",
+    "inbound_format": "openai_chat",
+    "outbound_format": "gemini",
+    "client_request": {
+      "model": "gemini-2.0-flash",
+      "messages": [
+        { "role": "user", "content": "Go" },
+        { "role": "assistant", "tool_calls": [{ "id": "call_1", "type": "function", "function": { "name": "test", "arguments": "{}" } }] },
+        { "role": "tool", "tool_call_id": "call_1", "content": "plain text result" }
+      ]
+    },
+    "expected_provider_request_contains": {
+      "functionResponse": {
+        "response": { "result": "plain text result" }
+      }
+    }
+  },
+
+  {
+    "name": "query_params_passthrough_anthropic",
+    "description": "Original query parameters from inbound request are passed through to Anthropic outbound URL",
+    "inbound_format": "openai_chat",
+    "outbound_format": "anthropic",
+    "internal_request_query": { "custom_param": ["value1"] },
+    "expected_url_contains": ["custom_param=value1"]
+  }
+]

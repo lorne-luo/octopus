@@ -50,7 +50,8 @@
         "key": "金鑰",
         "model": "價格",
         "log": "日誌",
-        "setting": "設定"
+        "setting": "設定",
+        "testmodel": "測試模型"
     },
     "toolbar": {
         "popover": {
@@ -117,6 +118,7 @@
         "chart": {
             "title": "趨勢",
             "totalRequests": "請求次數",
+            "totalToken": "消耗 Token",
             "totalCost": "消費金額",
             "totalTokens": "Tokens 消耗",
             "timePeriod": "時間週期",
@@ -363,7 +365,9 @@
                 "save": "儲存",
                 "copyName": "複製名稱",
                 "delete": "刪除",
-                "confirmDelete": "確認刪除"
+                "confirmDelete": "確認刪除",
+        "speedTest": "測速",
+        "speedTestRunning": "測速中..."
             }
         },
         "form": {
@@ -386,7 +390,8 @@
             "roundRobin": "輪詢",
             "random": "隨機",
             "failover": "故障轉移",
-            "weighted": "加權分配"
+            "weighted": "加權分配",
+            "successBoost": "成功提升"
         },
         "empty": "暫無分組，點擊左上角按鈕建立"
     },
@@ -417,6 +422,8 @@
             "cancel": "取消",
             "deleting": "刪除中...",
             "confirmDelete": "確認刪除",
+        "speedTest": "測速",
+        "speedTestRunning": "測速中...",
             "input": "輸入",
             "output": "輸出",
             "cacheRead": "快取讀取",
@@ -432,9 +439,10 @@
             "error": "錯誤",
             "errorInfo": "錯誤訊息",
             "firstToken": "首字",
-            "totalTime": "總耗時",
+            "totalTime": "耗時",
             "input": "輸入",
             "output": "輸出",
+            "speed": "速度",
             "cost": "費用",
             "requestContent": "請求內容",
             "responseContent": "響應內容",
@@ -451,6 +459,7 @@
     "channel": {
         "card": {
             "requestCount": "請求次數",
+            "totalToken": "總Tokens",
             "totalCost": "總成本",
             "toast": {
                 "enabled": "供應源已啟用",
@@ -473,7 +482,7 @@
             "noKeys": "暫無金鑰",
             "metrics": {
                 "totalRequests": "總請求",
-                "totalToken": "總 Token",
+                "totalToken": "總Tokens",
                 "totalCost": "總成本",
                 "successRequests": "成功請求",
                 "failedRequests": "失敗請求",
@@ -481,7 +490,7 @@
                 "outputToken": "輸出 Token",
                 "inputCost": "輸入成本",
                 "outputCost": "輸出成本",
-                "avgWaitTime": "等待時間"
+                "avgWaitTime": "耗時"
             },
             "actions": {
                 "edit": "編輯",
@@ -490,6 +499,8 @@
                 "saving": "儲存中...",
                 "delete": "刪除",
                 "confirmDelete": "確認刪除",
+        "speedTest": "測速",
+        "speedTestRunning": "測速中...",
                 "deleting": "刪除中..."
             }
         },
@@ -543,5 +554,58 @@
             "matchRegexPlaceholder": "可選：用於匹配請求模型名稱的正規表示式",
             "remark": "備註"
         }
+    },
+    "testmodel": {
+        "configPanel": {
+            "selectChannel": "選擇供應源",
+            "orManual": "或手動填寫",
+            "baseUrl": "Base URL",
+            "apiKey": "API Key",
+            "model": "模型",
+            "testType": "測試類型",
+            "textChat": "文本對話",
+            "visionChat": "視覺理解",
+            "toolChat": "工具呼叫",
+            "send": "發送",
+            "sending": "發送中...",
+            "clear": "清除",
+            "autoFill": "已從供應源自動填充"
+        },
+        "result": {
+            "title": "結果",
+            "empty": "點擊發送開始測試",
+            "error": "錯誤",
+            "requestInfo": "請求資訊",
+            "responseInfo": "響應內容",
+            "elapsed": "耗時",
+            "streaming": "串流輸出中..."
+        }
+    },
+    "oauthProvider": {
+        "title": "OAuth 提供者",
+        "create": "建立",
+        "name": "名稱",
+        "namePlaceholder": "請輸入提供者名稱",
+        "type": "類型",
+        "lastRefresh": "上次重新整理",
+        "createdAt": "建立時間",
+        "enabled": "啟用",
+        "actions": "操作",
+        "confirmDelete": "確定要刪除此提供者嗎？",
+        "refresh": "重新整理",
+        "edit": "編輯",
+        "delete": "刪除",
+        "noData": "暫無提供者",
+        "editTitle": "編輯 OAuth 提供者",
+        "createTitle": "建立 OAuth 提供者",
+        "authJson": "認證 JSON",
+        "authJsonPlaceholder": "請輸入認證 JSON",
+        "cancel": "取消",
+        "saving": "儲存中...",
+        "update": "更新",
+        "modelRefreshNoProvider": "請先儲存提供者",
+        "modelRefreshSuccess": "模型列表獲取成功",
+        "modelRefreshEmpty": "未獲取到模型列表",
+        "modelRefreshFailed": "模型列表獲取失敗"
     }
 }

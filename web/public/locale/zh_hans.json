@@ -50,7 +50,8 @@
         "key": "密钥",
         "model": "价格",
         "log": "日志",
-        "setting": "设置"
+        "setting": "设置",
+        "testmodel": "测试模型"
     },
     "toolbar": {
         "popover": {
@@ -117,6 +118,7 @@
         "chart": {
             "title": "趋势",
             "totalRequests": "请求次数",
+            "totalToken": "消耗 Token",
             "totalCost": "消费金额",
             "totalTokens": "Tokens 消耗",
             "timePeriod": "时间周期",
@@ -363,7 +365,9 @@
                 "save": "保存",
                 "copyName": "复制名称",
                 "delete": "删除",
-                "confirmDelete": "确认删除"
+                "confirmDelete": "确认删除",
+        "speedTest": "测速",
+        "speedTestRunning": "测速中..."
             }
         },
         "form": {
@@ -386,7 +390,8 @@
             "roundRobin": "轮询",
             "random": "随机",
             "failover": "故障转移",
-            "weighted": "加权分配"
+            "weighted": "加权分配",
+            "successBoost": "成功提升"
         },
         "empty": "暂无分组，点击左上角按钮创建"
     },
@@ -417,6 +422,8 @@
             "cancel": "取消",
             "deleting": "删除中...",
             "confirmDelete": "确认删除",
+        "speedTest": "测速",
+        "speedTestRunning": "测速中...",
             "input": "输入",
             "output": "输出",
             "cacheRead": "缓存读取",
@@ -432,9 +439,10 @@
             "error": "错误",
             "errorInfo": "错误信息",
             "firstToken": "首字",
-            "totalTime": "总耗时",
+            "totalTime": "耗时",
             "input": "输入",
             "output": "输出",
+            "speed": "速度",
             "cost": "费用",
             "requestContent": "请求内容",
             "responseContent": "响应内容",
@@ -451,6 +459,7 @@
     "channel": {
         "card": {
             "requestCount": "请求次数",
+            "totalToken": "总Tokens",
             "totalCost": "总成本",
             "toast": {
                 "enabled": "渠道已启用",
@@ -473,7 +482,7 @@
             "noKeys": "暂无密钥",
             "metrics": {
                 "totalRequests": "总请求",
-                "totalToken": "总 Token",
+                "totalToken": "总Tokens",
                 "totalCost": "总成本",
                 "successRequests": "成功请求",
                 "failedRequests": "失败请求",
@@ -481,7 +490,7 @@
                 "outputToken": "输出 Token",
                 "inputCost": "输入成本",
                 "outputCost": "输出成本",
-                "avgWaitTime": "等待时间"
+                "avgWaitTime": "耗时"
             },
             "actions": {
                 "edit": "编辑",
@@ -490,6 +499,8 @@
                 "saving": "保存中...",
                 "delete": "删除",
                 "confirmDelete": "确认删除",
+        "speedTest": "测速",
+        "speedTestRunning": "测速中...",
                 "deleting": "删除中..."
             }
         },
@@ -543,5 +554,58 @@
             "matchRegexPlaceholder": "可选：用于匹配请求模型名称的正则表达式",
             "remark": "备注"
         }
+    },
+    "testmodel": {
+        "configPanel": {
+            "selectChannel": "选择渠道",
+            "orManual": "或手动填写",
+            "baseUrl": "Base URL",
+            "apiKey": "API Key",
+            "model": "模型",
+            "testType": "测试类型",
+            "textChat": "文本对话",
+            "visionChat": "视觉理解",
+            "toolChat": "工具调用",
+            "send": "发送",
+            "sending": "发送中...",
+            "clear": "清除",
+            "autoFill": "已从渠道自动填充"
+        },
+        "result": {
+            "title": "结果",
+            "empty": "点击发送开始测试",
+            "error": "错误",
+            "requestInfo": "请求信息",
+            "responseInfo": "响应内容",
+            "elapsed": "耗时",
+            "streaming": "流式输出中..."
+        }
+    },
+    "oauthProvider": {
+        "title": "OAuth 提供者",
+        "create": "创建",
+        "name": "名称",
+        "namePlaceholder": "请输入提供者名称",
+        "type": "类型",
+        "lastRefresh": "上次刷新",
+        "createdAt": "创建时间",
+        "enabled": "启用",
+        "actions": "操作",
+        "confirmDelete": "确定要删除此提供者吗？",
+        "refresh": "刷新",
+        "edit": "编辑",
+        "delete": "删除",
+        "noData": "暂无提供者",
+        "editTitle": "编辑 OAuth 提供者",
+        "createTitle": "创建 OAuth 提供者",
+        "authJson": "认证 JSON",
+        "authJsonPlaceholder": "请输入认证 JSON",
+        "cancel": "取消",
+        "saving": "保存中...",
+        "update": "更新",
+        "modelRefreshNoProvider": "请先保存提供者",
+        "modelRefreshSuccess": "模型列表获取成功",
+        "modelRefreshEmpty": "未获取到模型列表",
+        "modelRefreshFailed": "模型列表获取失败"
     }
 }

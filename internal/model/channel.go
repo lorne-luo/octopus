@@ -3,7 +3,7 @@ package model
 import (
 	"time"
 
-	"github.com/bestruirui/octopus/internal/transformer/outbound"
+	"github.com/bestruirui/octopus/internal/transformer2/adapter"
 )
 
 type AutoGroupType int
@@ -16,22 +16,25 @@ const (
 )
 
 type Channel struct {
-	ID            int                   `json:"id" gorm:"primaryKey"`
-	Name          string                `json:"name" gorm:"unique;not null"`
-	Type          outbound.OutboundType `json:"type"`
-	Enabled       bool                  `json:"enabled" gorm:"default:true"`
-	BaseUrls      []BaseUrl             `json:"base_urls" gorm:"serializer:json"`
-	Keys          []ChannelKey          `json:"keys" gorm:"foreignKey:ChannelID"`
-	Model         string                `json:"model"`
-	CustomModel   string                `json:"custom_model"`
-	Proxy         bool                  `json:"proxy" gorm:"default:false"`
-	AutoSync      bool                  `json:"auto_sync" gorm:"default:false"`
-	AutoGroup     AutoGroupType         `json:"auto_group" gorm:"default:0"`
-	CustomHeader  []CustomHeader        `json:"custom_header" gorm:"serializer:json"`
-	ParamOverride *string               `json:"param_override"`
-	ChannelProxy  *string               `json:"channel_proxy"`
-	Stats         *StatsChannel         `json:"stats,omitempty" gorm:"foreignKey:ChannelID"`
-	MatchRegex    *string               `json:"match_regex"`
+	ID              int                  `json:"id" gorm:"primaryKey"`
+	Name            string               `json:"name" gorm:"unique;not null"`
+	Type            adapter.ProviderType `json:"type"`
+	Enabled         bool                 `json:"enabled" gorm:"default:true"`
+	BaseUrls        []BaseUrl            `json:"base_urls" gorm:"serializer:json"`
+	Keys            []ChannelKey         `json:"keys" gorm:"foreignKey:ChannelID"`
+	Model           string               `json:"model"`
+	CustomModel     string               `json:"custom_model"`
+	Proxy           bool                 `json:"proxy" gorm:"default:false"`
+	AutoSync        bool                 `json:"auto_sync" gorm:"default:false"`
+	AutoGroup       AutoGroupType        `json:"auto_group" gorm:"default:0"`
+	CustomHeader    []CustomHeader       `json:"custom_header" gorm:"serializer:json"`
+	ParamOverride   *string              `json:"param_override"`
+	ChannelProxy    *string              `json:"channel_proxy"`
+	Stats           *StatsChannel        `json:"stats,omitempty" gorm:"foreignKey:ChannelID"`
+	MatchRegex      *string              `json:"match_regex"`
+	UseOAuth        bool                 `json:"use_oauth" gorm:"default:false"`
+	OAuthProviderID int                  `json:"oauth_provider_id" gorm:"default:0"`
+	OAuthProvider   *OAuthProvider       `json:"oauth_provider,omitempty" gorm:"foreignKey:OAuthProviderID"`
 }
 
 type BaseUrl struct {
@@ -52,29 +55,32 @@ type ChannelKey struct {
 	StatusCode       int     `json:"status_code"`
 	LastUseTimeStamp int64   `json:"last_use_time_stamp"`
 	TotalCost        float64 `json:"total_cost"`
+	TotalToken       int64   `json:"total_token"`
 	Remark           string  `json:"remark"`
 }
 
 // ChannelUpdateRequest 渠道更新请求 - 仅包含变更的数据
 type ChannelUpdateRequest struct {
-	ID            int                    `json:"id" binding:"required"`
-	Name          *string                `json:"name,omitempty"`
-	Type          *outbound.OutboundType `json:"type,omitempty"`
-	Enabled       *bool                  `json:"enabled,omitempty"`
-	BaseUrls      *[]BaseUrl             `json:"base_urls,omitempty"`
-	Model         *string                `json:"model,omitempty"`
-	CustomModel   *string                `json:"custom_model,omitempty"`
-	Proxy         *bool                  `json:"proxy,omitempty"`
-	AutoSync      *bool                  `json:"auto_sync,omitempty"`
-	AutoGroup     *AutoGroupType         `json:"auto_group,omitempty"`
-	CustomHeader  *[]CustomHeader        `json:"custom_header,omitempty"`
-	ChannelProxy  *string                `json:"channel_proxy,omitempty"`
-	ParamOverride *string                `json:"param_override,omitempty"`
-	MatchRegex    *string                `json:"match_regex,omitempty"`
+	ID            int                   `json:"id" binding:"required"`
+	Name          *string               `json:"name,omitempty"`
+	Type          *adapter.ProviderType `json:"type,omitempty"`
+	Enabled       *bool                 `json:"enabled,omitempty"`
+	BaseUrls      *[]BaseUrl            `json:"base_urls,omitempty"`
+	Model         *string               `json:"model,omitempty"`
+	CustomModel   *string               `json:"custom_model,omitempty"`
+	Proxy         *bool                 `json:"proxy,omitempty"`
+	AutoSync      *bool                 `json:"auto_sync,omitempty"`
+	AutoGroup     *AutoGroupType        `json:"auto_group,omitempty"`
+	CustomHeader  *[]CustomHeader       `json:"custom_header,omitempty"`
+	ChannelProxy  *string               `json:"channel_proxy,omitempty"`
+	ParamOverride *string               `json:"param_override,omitempty"`
+	MatchRegex    *string               `json:"match_regex,omitempty"`
 
-	KeysToAdd    []ChannelKeyAddRequest    `json:"keys_to_add,omitempty"`
-	KeysToUpdate []ChannelKeyUpdateRequest `json:"keys_to_update,omitempty"`
-	KeysToDelete []int                     `json:"keys_to_delete,omitempty"`
+	KeysToAdd       []ChannelKeyAddRequest    `json:"keys_to_add,omitempty"`
+	KeysToUpdate    []ChannelKeyUpdateRequest `json:"keys_to_update,omitempty"`
+	KeysToDelete    []int                     `json:"keys_to_delete,omitempty"`
+	UseOAuth        *bool                     `json:"use_oauth,omitempty"`
+	OAuthProviderID *int                      `json:"oauth_provider_id,omitempty"`
 }
 
 type ChannelKeyAddRequest struct {
@@ -92,10 +98,10 @@ type ChannelKeyUpdateRequest struct {
 
 // ChannelFetchModelRequest is used by /channel/fetch-model (not persisted).
 type ChannelFetchModelRequest struct {
-	Type    outbound.OutboundType `json:"type" binding:"required"`
-	BaseURL string                `json:"base_url" binding:"required"`
-	Key     string                `json:"key" binding:"required"`
-	Proxy   bool                  `json:"proxy"`
+	Type    adapter.ProviderType `json:"type" binding:"required"`
+	BaseURL string               `json:"base_url" binding:"required"`
+	Key     string               `json:"key" binding:"required"`
+	Proxy   bool                 `json:"proxy"`
 }
 
 func (c *Channel) GetBaseUrl() string {
@@ -122,15 +128,29 @@ func (c *Channel) GetBaseUrl() string {
 }
 
 func (c *Channel) GetChannelKey() ChannelKey {
-	if c == nil || len(c.Keys) == 0 {
+	if c == nil {
+		return ChannelKey{}
+	}
+
+	// For OAuth channels, return the API key from the linked OAuth provider
+	if c.UseOAuth && c.OAuthProvider != nil && c.OAuthProvider.APIKey != "" {
+		return ChannelKey{
+			Enabled:    true,
+			ChannelKey: c.OAuthProvider.APIKey,
+		}
+	}
+
+	if len(c.Keys) == 0 {
 		return ChannelKey{}
 	}
 
 	nowSec := time.Now().Unix()
 
 	best := ChannelKey{}
-	bestCost := 0.0
+	bestToken := int64(0)
 	bestSet := false
+
+	var candidates []ChannelKey
 
 	for _, k := range c.Keys {
 		if !k.Enabled || k.ChannelKey == "" {
@@ -141,14 +161,16 @@ func (c *Channel) GetChannelKey() ChannelKey {
 				continue
 			}
 		}
-		if !bestSet || k.TotalCost < bestCost {
+		candidates = append(candidates, k)
+		if !bestSet || k.TotalToken < bestToken {
 			best = k
-			bestCost = k.TotalCost
+			bestToken = k.TotalToken
 			bestSet = true
 		}
 	}
 
 	if !bestSet {
+		// If no enabled key was found, return empty
 		return ChannelKey{}
 	}
 	return best

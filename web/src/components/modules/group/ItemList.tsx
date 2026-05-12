@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useId, useRef, useState } from 'react';
-import { Layers, GripVertical, X, Trash2 } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Layers, GripVertical, X, Trash2, AlertCircle } from 'lucide-react';
 import {
     DragDropContext,
     Draggable,
@@ -13,6 +14,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
 import { getModelIcon } from '@/lib/model-icons';
 import type { LLMChannel } from '@/api/endpoints/model';
+import type { GroupItemSpeed } from '@/api/endpoints/group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/animate-ui/components/animate/tooltip';
 import { useTranslations } from 'next-intl';
 
@@ -20,6 +22,7 @@ export interface SelectedMember extends LLMChannel {
     id: string;
     item_id?: number;
     weight?: number;
+  speed?: GroupItemSpeed;
 }
 
 function reorderList<T>(list: T[], startIndex: number, endIndex: number): T[] {
@@ -27,6 +30,13 @@ function reorderList<T>(list: T[], startIndex: number, endIndex: number): T[] {
     const [removed] = result.splice(startIndex, 1);
     result.splice(endIndex, 0, removed);
     return result;
+}
+
+function formatSpeedDuration(responseTimeMs: number): string {
+    if (responseTimeMs >= 1000) {
+        return `${(responseTimeMs / 1000).toFixed(2).replace(/\.0+$/, '').replace(/(\.\d*[1-9])0+$/, '$1')}s`;
+    }
+    return `${responseTimeMs}ms`;
 }
 
 type MemberItemDnd = {
@@ -61,7 +71,7 @@ function MemberItem({
     const [confirmDelete, setConfirmDelete] = useState(false);
     const isDisabled = member.enabled === false;
 
-    return (
+    const content = (
         <div
             // DnD libraries provide imperative refs/props; the hook lint rule (`react-hooks/refs`)
             // flags this pattern, but it's safe and required for correct drag behavior.
@@ -75,7 +85,7 @@ function MemberItem({
                 /* eslint-disable-next-line react-hooks/refs */
                 ...(dnd.draggableProps?.style ?? {}),
                 /* eslint-disable-next-line react-hooks/refs */
-                ...(dnd.isDragging ? { zIndex: 50, boxShadow: '0 8px 32px rgba(0,0,0,0.15)' } : null),
+                ...(dnd.isDragging ? { zIndex: 9999, boxShadow: '0 8px 32px rgba(0,0,0,0.15)' } : null),
             }}
         >
             <div className={cn(
@@ -119,6 +129,37 @@ function MemberItem({
                     </Tooltip>
                     <span className="text-[10px] text-muted-foreground truncate leading-tight">{member.channel_name}</span>
                 </div>
+
+        {/* Speed badge */}
+        {member.speed && (
+          <Tooltip side="top" sideOffset={10} align="center">
+            <TooltipTrigger>
+              <span
+                className={cn(
+                  "text-[10px] px-1.5 py-0.5 rounded font-medium shrink-0",
+                  member.speed.status === "success"
+                    ? member.speed.response_time_ms < 1000
+                      ? "bg-green-500/20 text-green-600 dark:text-green-400"
+                      : member.speed.response_time_ms < 3000
+                        ? "bg-yellow-500/20 text-yellow-600 dark:text-yellow-400"
+                        : "bg-orange-500/20 text-orange-600 dark:text-orange-400"
+                    : "bg-red-500/20 text-red-600 dark:text-red-400"
+                )}
+              >
+                {member.speed.status === "success"
+                  ? formatSpeedDuration(member.speed.response_time_ms)
+                  : <AlertCircle className="size-3 inline" />
+                }
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              {member.speed.status === "success"
+                ? `${formatSpeedDuration(member.speed.response_time_ms)} response time`
+                : member.speed.last_error || "Speed test failed"
+              }
+            </TooltipContent>
+          </Tooltip>
+        )}
 
                 {showWeight && (
                     <input
@@ -175,6 +216,14 @@ function MemberItem({
             </div>
         </div>
     );
+
+    /* eslint-disable react-hooks/refs */
+    if (dnd.isDragging && typeof document !== 'undefined') {
+        return createPortal(content, document.body);
+    }
+    /* eslint-enable react-hooks/refs */
+
+    return content;
 }
 
 export interface MemberListProps {

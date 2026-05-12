@@ -12,8 +12,10 @@ import (
 type Iterator struct {
 	candidates []model.GroupItem
 	index      int
-	stickyIdx  int    // 粘性通道在 candidates 中的位置，-1 表示无
-	modelName  string // 请求模型名（用于熔断检查）
+	stickyIdx  int             // 粘性通道在 candidates 中的位置，-1 表示无
+	modelName  string          // 请求模型名（用于熔断检查）
+	GroupID    int             // 分组 ID
+	Mode       model.GroupMode // 分组模式
 
 	// 内嵌追踪
 	attempts []model.ChannelAttempt
@@ -50,6 +52,8 @@ func NewIterator(group model.Group, apiKeyID int, requestModel string) *Iterator
 		index:      -1,
 		stickyIdx:  stickyIdx,
 		modelName:  requestModel,
+		GroupID:    group.ID,
+		Mode:       group.Mode,
 	}
 }
 
@@ -80,12 +84,14 @@ func (it *Iterator) Index() int {
 }
 
 // Skip 记录当前通道被跳过（通道禁用、无Key、类型不兼容等）
-func (it *Iterator) Skip(channelID, channelKeyID int, channelName, msg string) {
+func (it *Iterator) Skip(channelID, channelKeyID int, channelName string, channelType int, apiKeySuffix string, msg string) {
 	it.count++
 	it.attempts = append(it.attempts, model.ChannelAttempt{
 		ChannelID:    channelID,
 		ChannelKeyID: channelKeyID,
 		ChannelName:  channelName,
+		ChannelType:  channelType,
+		ApiKeySuffix: apiKeySuffix,
 		ModelName:    it.candidates[it.index].ModelName,
 		AttemptNum:   it.count,
 		Status:       model.AttemptSkipped,
@@ -95,7 +101,7 @@ func (it *Iterator) Skip(channelID, channelKeyID int, channelName, msg string) {
 }
 
 // SkipCircuitBreak 检查熔断状态，若已熔断自动记录（含剩余冷却时间）并返回 true
-func (it *Iterator) SkipCircuitBreak(channelID, channelKeyID int, channelName string) bool {
+func (it *Iterator) SkipCircuitBreak(channelID, channelKeyID int, channelName string, channelType int, apiKeySuffix string) bool {
 	modelName := it.candidates[it.index].ModelName
 	tripped, remaining := IsTripped(channelID, channelKeyID, modelName)
 	if !tripped {
@@ -110,6 +116,8 @@ func (it *Iterator) SkipCircuitBreak(channelID, channelKeyID int, channelName st
 		ChannelID:    channelID,
 		ChannelKeyID: channelKeyID,
 		ChannelName:  channelName,
+		ChannelType:  channelType,
+		ApiKeySuffix: apiKeySuffix,
 		ModelName:    modelName,
 		AttemptNum:   it.count,
 		Status:       model.AttemptCircuitBreak,
@@ -120,13 +128,15 @@ func (it *Iterator) SkipCircuitBreak(channelID, channelKeyID int, channelName st
 }
 
 // StartAttempt 开始一次真实转发尝试，返回 Span 用于记录结果
-func (it *Iterator) StartAttempt(channelID, channelKeyID int, channelName string) *AttemptSpan {
+func (it *Iterator) StartAttempt(channelID, channelKeyID int, channelName string, channelType int, apiKeySuffix string) *AttemptSpan {
 	it.count++
 	return &AttemptSpan{
 		attempt: model.ChannelAttempt{
 			ChannelID:    channelID,
 			ChannelKeyID: channelKeyID,
 			ChannelName:  channelName,
+			ChannelType:  channelType,
+			ApiKeySuffix: apiKeySuffix,
 			ModelName:    it.candidates[it.index].ModelName,
 			AttemptNum:   it.count,
 			Sticky:       it.IsSticky(),

@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
-import { Clock, Cpu, Zap, AlertCircle, ArrowDownToLine, ArrowUpFromLine, DollarSign, ArrowRight, ArrowDown, Send, MessageSquare, Loader2, RotateCw, ChevronDown, ChevronUp, Pin, KeyRound } from 'lucide-react';
+import { Clock, Cpu, Zap, AlertCircle, ArrowDownToLine, ArrowUpFromLine, DollarSign, ArrowRight, ArrowDown, Send, MessageSquare, Loader2, RotateCw, ChevronDown, ChevronUp, Pin, KeyRound, Gauge } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { motion, AnimatePresence } from 'motion/react';
 import JsonView from '@uiw/react-json-view';
@@ -9,10 +9,12 @@ import { githubDarkTheme } from '@uiw/react-json-view/githubDark';
 import { githubLightTheme } from '@uiw/react-json-view/githubLight';
 import { useTheme } from 'next-themes';
 import { type RelayLog, type ChannelAttempt } from '@/api/endpoints/log';
+import { ChannelType } from '@/api/endpoints/channel';
 import { getModelIcon } from '@/lib/model-icons';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { CopyIconButton } from '@/components/common/CopyButton';
+import { useChannelName } from '@/hooks/use-channel-name';
 import {
     MorphingDialog,
     MorphingDialogTrigger,
@@ -24,6 +26,25 @@ import {
     useMorphingDialog,
 } from '@/components/ui/morphing-dialog';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/animate-ui/components/animate/tooltip';
+
+function ChannelTypeBadge({ type }: { type: number }) {
+    const t = useTranslations('channel.form');
+    const channelTypeMap: Record<number, string> = {
+        [ChannelType.OpenAIChat]: 'typeOpenAIChat',
+        [ChannelType.OpenAIResponse]: 'typeOpenAIResponse',
+        [ChannelType.Anthropic]: 'typeAnthropic',
+        [ChannelType.Gemini]: 'typeGemini',
+        [ChannelType.Volcengine]: 'typeVolcengine',
+        [ChannelType.OpenAIEmbedding]: 'typeOpenAIEmbedding',
+    };
+
+    const key = channelTypeMap[type];
+    return (
+        <Badge variant="outline" className="text-[10px] px-1 py-0 border-muted-foreground/20 text-muted-foreground font-normal shrink-0">
+            {key ? t(key) : 'Unknown'}
+        </Badge>
+    );
+}
 
 function formatTime(timestamp: number): string {
     const date = new Date(timestamp * 1000);
@@ -39,6 +60,11 @@ function formatTime(timestamp: number): string {
 function formatDuration(ms: number): string {
     if (ms < 1000) return `${ms}ms`;
     return `${(ms / 1000).toFixed(2)}s`;
+}
+
+function formatSpeed(tokens: number, ms: number): string {
+    if (ms <= 0) return '0.00';
+    return (tokens / (ms / 1000)).toFixed(2);
 }
 
 interface RetryBadgeWithTooltipProps {
@@ -77,11 +103,15 @@ function RetryBadgeWithTooltip({ channelName, brandColor, attempts }: RetryBadge
                                 {attempt.status === 'success' ? t('success') : t('failed')}
                             </Badge>
                             <div className="flex min-w-0 flex-col flex-1">
-                                <span className="truncate text-xs font-semibold text-foreground">
-                                    {attempt.channel_name}
-                                </span>
+                                <div className="flex items-center gap-2">
+                                    <span className="truncate text-xs font-semibold text-foreground">
+                                        {attempt.channel_name}
+                                    </span>
+                                    <ChannelTypeBadge type={attempt.channel_type} />
+                                </div>
                                 <span className="text-[10px] text-muted-foreground">
                                     {attempt.model_name} • {formatDuration(attempt.duration)}
+                                    {attempt.api_key_suffix && ` • sk-...${attempt.api_key_suffix}`}
                                 </span>
                             </div>
                         </div>
@@ -186,6 +216,7 @@ function DeferredJsonContent({ content, fallbackText }: { content: string | unde
 
 export function LogCard({ log }: { log: RelayLog }) {
     const t = useTranslations('log.card');
+    const { getChannelNameByType } = useChannelName();
     const { Avatar: ModelAvatar, color: brandColor } = useMemo(
         () => getModelIcon(log.actual_model_name),
         [log.actual_model_name]
@@ -195,6 +226,22 @@ export function LogCard({ log }: { log: RelayLog }) {
     const hasError = !!log.error;
     const hasMultipleAttempts = log.attempts && log.attempts.length > 1;
     const [isDiagnosticExpanded, setIsDiagnosticExpanded] = useState(false);
+
+    const effectiveChannelName = useMemo(() =>
+        getChannelNameByType(log.channel_name, log.channel_type),
+        [log.channel_name, log.channel_type, getChannelNameByType]
+    );
+
+    // 提取 API Key 后缀：优先使用成功尝试的，否则用最后一次尝试的
+    const apiKeySuffix = useMemo(() => {
+        if (!log.attempts || log.attempts.length === 0) return null;
+        const successAttempt = log.attempts.find(a => a.status === 'success');
+        if (successAttempt?.api_key_suffix) {
+            return successAttempt.api_key_suffix;
+        }
+        const lastAttempt = log.attempts[log.attempts.length - 1];
+        return lastAttempt?.api_key_suffix || null;
+    }, [log.attempts]);
 
     return (
         <TooltipProvider>
@@ -215,7 +262,7 @@ export function LogCard({ log }: { log: RelayLog }) {
                                 <ArrowRight className="size-3.5 shrink-0 text-muted-foreground/50" />
                                 {hasMultipleAttempts ? (
                                     <RetryBadgeWithTooltip
-                                        channelName={log.channel_name}
+                                        channelName={effectiveChannelName}
                                         brandColor={brandColor}
                                         attempts={log.attempts!}
                                     />
@@ -225,12 +272,29 @@ export function LogCard({ log }: { log: RelayLog }) {
                                         className="shrink-0 text-xs px-1.5 py-0"
                                         style={{ backgroundColor: `${brandColor}15`, color: brandColor }}
                                     >
-                                        {log.channel_name}
+                                        {effectiveChannelName}
                                     </Badge>
                                 )}
                                 <span className="text-muted-foreground truncate" title={log.actual_model_name}>
                                     {log.actual_model_name}
                                 </span>
+                                <ChannelTypeBadge type={log.channel_type} />
+                                {apiKeySuffix && (
+                                    <Badge
+                                        variant="outline"
+                                        className="shrink-0 text-xs px-1.5 py-0 font-mono"
+                                    >
+                                        •••{apiKeySuffix}
+                                    </Badge>
+                                )}
+                                {log.attempts && log.attempts.length > 1 && (
+                                    <Badge
+                                        variant="outline"
+                                        className="shrink-0 text-xs px-1.5 py-0"
+                                    >
+                                        {log.attempts.length} 次
+                                    </Badge>
+                                )}
                                 {log.attempts?.some(a => a.sticky) && (
                                     <Pin className="size-3.5 shrink-0 text-amber-500" />
                                 )}
@@ -257,18 +321,16 @@ export function LogCard({ log }: { log: RelayLog }) {
                                     <span>{t('totalTime')} {formatDuration(log.use_time)}</span>
                                 </div>
                                 <div className="flex items-center gap-1.5">
+                                    <Gauge className="size-3.5 shrink-0 text-indigo-500" />
+                                    <span>{formatSpeed(log.input_tokens + log.output_tokens, log.use_time)} tks/s</span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
                                     <ArrowDownToLine className="size-3.5 shrink-0 text-green-500" />
                                     <span>{t('input')} {log.input_tokens.toLocaleString()}</span>
                                 </div>
                                 <div className="flex items-center gap-1.5">
                                     <ArrowUpFromLine className="size-3.5 shrink-0 text-purple-500" />
                                     <span>{t('output')} {log.output_tokens.toLocaleString()}</span>
-                                </div>
-                                <div className="flex items-center gap-1.5">
-                                    <DollarSign className="size-3.5 shrink-0 text-emerald-500" />
-                                    <span className="font-medium text-emerald-600 dark:text-emerald-400">
-                                        {t('cost')} {Number(log.cost).toFixed(6)}
-                                    </span>
                                 </div>
                             </div>
                             {hasError && (
@@ -289,7 +351,7 @@ export function LogCard({ log }: { log: RelayLog }) {
                             <ArrowRight className="size-3.5 text-muted-foreground/50" />
                             {hasMultipleAttempts ? (
                                 <RetryBadgeWithTooltip
-                                    channelName={log.channel_name}
+                                    channelName={effectiveChannelName}
                                     brandColor={brandColor}
                                     attempts={log.attempts!}
                                 />
@@ -299,9 +361,10 @@ export function LogCard({ log }: { log: RelayLog }) {
                                     className="text-xs px-1.5 py-0"
                                     style={{ backgroundColor: `${brandColor}15`, color: brandColor }}
                                 >
-                                    {log.channel_name}
+                                    {effectiveChannelName}
                                 </Badge>
                             )}
+                            <ChannelTypeBadge type={log.channel_type} />
                             <span className="text-muted-foreground">{log.actual_model_name}</span>
                             {log.attempts?.some(a => a.sticky) && (
                                 <Pin className="size-3.5 shrink-0 text-amber-500" />
@@ -397,10 +460,12 @@ export function LogCard({ log }: { log: RelayLog }) {
                                                                     >
                                                                         <div className="flex items-center gap-2">
                                                                             <span className="font-semibold text-foreground">
-                                                                                {attempt.channel_name}
+                                                                                {getChannelNameByType(attempt.channel_name, attempt.channel_type)}
                                                                             </span>
+                                                                            <ChannelTypeBadge type={attempt.channel_type} />
                                                                             <span className="text-muted-foreground">
                                                                                 ({attempt.model_name})
+                                                                                {attempt.api_key_suffix && ` • sk-...${attempt.api_key_suffix}`}
                                                                             </span>
                                                                             <span className="ml-auto text-muted-foreground tabular-nums font-mono">
                                                                                 {formatDuration(attempt.duration)}
@@ -474,10 +539,8 @@ export function LogCard({ log }: { log: RelayLog }) {
                                 <span>{t('totalTime')}: {formatDuration(log.use_time)}</span>
                             </div>
                             <div className="flex items-center gap-1.5">
-                                <DollarSign className="size-3.5 text-emerald-500" />
-                                <span className="font-medium text-emerald-600 dark:text-emerald-400">
-                                    {t('cost')}: {Number(log.cost).toFixed(6)}
-                                </span>
+                                <Gauge className="size-3.5 text-indigo-500" />
+                                <span>{t('speed')}: {formatSpeed(log.input_tokens + log.output_tokens, log.use_time)} tks/s</span>
                             </div>
                         </div>
                     </MorphingDialogContent>

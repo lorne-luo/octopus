@@ -1,0 +1,373 @@
+[
+  {
+    "name": "openai_to_anthropic_simple",
+    "description": "OpenAI chat request routed to Anthropic backend preserves content and maps params",
+    "inbound_format": "openai_chat",
+    "outbound_format": "anthropic",
+    "client_request": {
+      "model": "claude-sonnet-4-20250514",
+      "messages": [
+        { "role": "system", "content": "You are helpful." },
+        { "role": "user", "content": "Hello" }
+      ],
+      "temperature": 0.7,
+      "max_tokens": 1024
+    },
+    "expected_provider_request": {
+      "model": "claude-sonnet-4-20250514",
+      "system": "You are helpful.",
+      "messages": [
+        { "role": "user", "content": "Hello" }
+      ],
+      "temperature": 0.7,
+      "max_tokens": 1024
+    },
+    "notes": "system message extracted to top-level system field; messages exclude system; string format used for simple system prompt"
+  },
+
+  {
+    "name": "openai_to_gemini_simple",
+    "description": "OpenAI chat request routed to Gemini backend maps roles and structure",
+    "inbound_format": "openai_chat",
+    "outbound_format": "gemini",
+    "client_request": {
+      "model": "gemini-2.0-flash",
+      "messages": [
+        { "role": "system", "content": "You are a translator." },
+        { "role": "user", "content": "Translate: hello" },
+        { "role": "assistant", "content": "hola" },
+        { "role": "user", "content": "Now: goodbye" }
+      ],
+      "temperature": 0.5,
+      "max_tokens": 200
+    },
+    "expected_provider_request": {
+      "systemInstruction": {
+        "parts": [{ "text": "You are a translator." }]
+      },
+      "contents": [
+        { "role": "user", "parts": [{ "text": "Translate: hello" }] },
+        { "role": "model", "parts": [{ "text": "hola" }] },
+        { "role": "user", "parts": [{ "text": "Now: goodbye" }] }
+      ],
+      "generationConfig": {
+        "maxOutputTokens": 200,
+        "temperature": 0.5
+      }
+    },
+    "notes": "system → systemInstruction, assistant → model, generationConfig wraps params"
+  },
+
+  {
+    "name": "anthropic_to_openai_simple",
+    "description": "Anthropic request routed to OpenAI backend preserves messages and maps to internal then out",
+    "inbound_format": "anthropic",
+    "outbound_format": "openai_chat",
+    "client_request": {
+      "model": "gpt-4o",
+      "max_tokens": 2048,
+      "system": "Be concise.",
+      "messages": [
+        { "role": "user", "content": "Summarize this." }
+      ]
+    },
+    "expected_internal_request": {
+      "model": "gpt-4o",
+      "max_tokens": 2048,
+      "messages": [
+        { "role": "system", "content": "Be concise." },
+        { "role": "user", "content": "Summarize this." }
+      ]
+    },
+    "provider_response": {
+      "id": "resp-1",
+      "object": "chat.completion",
+      "model": "gpt-4o",
+      "choices": [
+        { "index": 0, "message": { "role": "assistant", "content": "Done." }, "finish_reason": "stop" }
+      ],
+      "usage": { "prompt_tokens": 10, "completion_tokens": 2, "total_tokens": 12 }
+    },
+    "expected_client_response": {
+      "id": "resp-1",
+      "type": "message",
+      "role": "assistant",
+      "content": [{ "type": "text", "text": "Done." }],
+      "stop_reason": "end_turn",
+      "usage": { "input_tokens": 10, "output_tokens": 2 }
+    }
+  },
+
+  {
+    "name": "anthropic_to_gemini_with_tools",
+    "description": "Anthropic request with tools routed to Gemini converts tool format and response",
+    "inbound_format": "anthropic",
+    "outbound_format": "gemini",
+    "client_request": {
+      "model": "gemini-2.0-flash",
+      "max_tokens": 1024,
+      "messages": [{ "role": "user", "content": "Search for cats" }],
+      "tools": [
+        {
+          "name": "web_search",
+          "description": "Search the web",
+          "input_schema": {
+            "type": "object",
+            "properties": { "query": { "type": "string" } },
+            "required": ["query"]
+          }
+        }
+      ]
+    },
+    "expected_provider_request": {
+      "tools": [
+        {
+          "functionDeclarations": [
+            {
+              "name": "web_search",
+              "description": "Search the web",
+              "parameters": {
+                "type": "OBJECT",
+                "properties": { "query": { "type": "STRING" } },
+                "required": ["query"]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "provider_response_gemini": {
+      "candidates": [
+        {
+          "content": {
+            "parts": [{ "functionCall": { "name": "web_search", "args": { "query": "cats" } } }],
+            "role": "model"
+          },
+          "finishReason": "STOP"
+        }
+      ]
+    },
+    "expected_client_response": {
+      "type": "message",
+      "content": [
+        { "type": "tool_use", "name": "web_search", "input": { "query": "cats" } }
+      ],
+      "stop_reason": "tool_use"
+    }
+  },
+
+  {
+    "name": "openai_to_anthropic_with_multimodal",
+    "description": "OpenAI multimodal request (image_url data URI) converts to Anthropic base64 source",
+    "inbound_format": "openai_chat",
+    "outbound_format": "anthropic",
+    "client_request": {
+      "model": "claude-sonnet-4-20250514",
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            { "type": "text", "text": "What is this?" },
+            { "type": "image_url", "image_url": { "url": "data:image/jpeg;base64,/9j/4AAQ==" } }
+          ]
+        }
+      ],
+      "max_tokens": 1024
+    },
+    "expected_provider_request": {
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            { "type": "text", "text": "What is this?" },
+            { "type": "image", "source": { "type": "base64", "media_type": "image/jpeg", "data": "/9j/4AAQ==" } }
+          ]
+        }
+      ]
+    }
+  },
+
+  {
+    "name": "openai_to_anthropic_with_image_url_external",
+    "description": "OpenAI external image URL converts to Anthropic URL source",
+    "inbound_format": "openai_chat",
+    "outbound_format": "anthropic",
+    "client_request": {
+      "model": "claude-sonnet-4-20250514",
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            { "type": "text", "text": "Describe." },
+            { "type": "image_url", "image_url": { "url": "https://example.com/img.png" } }
+          ]
+        }
+      ],
+      "max_tokens": 1024
+    },
+    "expected_provider_request": {
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            { "type": "text", "text": "Describe." },
+            { "type": "image", "source": { "type": "url", "url": "https://example.com/img.png" } }
+          ]
+        }
+      ]
+    }
+  },
+
+  {
+    "name": "openai_to_anthropic_stop_sequences",
+    "description": "OpenAI stop parameter converts to Anthropic stop_sequences",
+    "inbound_format": "openai_chat",
+    "outbound_format": "anthropic",
+    "client_request": {
+      "model": "claude-sonnet-4-20250514",
+      "messages": [{ "role": "user", "content": "Go" }],
+      "stop": ["END", "STOP"],
+      "max_tokens": 100
+    },
+    "expected_provider_request": {
+      "stop_sequences": ["END", "STOP"]
+    }
+  },
+
+  {
+    "name": "openai_to_gemini_response_format",
+    "description": "OpenAI response_format converts to Gemini responseMimeType",
+    "inbound_format": "openai_chat",
+    "outbound_format": "gemini",
+    "client_request": {
+      "model": "gemini-2.0-flash",
+      "messages": [{ "role": "user", "content": "List items" }],
+      "response_format": { "type": "json_object" }
+    },
+    "expected_provider_request": {
+      "generationConfig": {
+        "responseMimeType": "application/json"
+      }
+    }
+  },
+
+  {
+    "name": "openai_to_gemini_modalities",
+    "description": "OpenAI modalities convert to Gemini responseModalities with capitalization",
+    "inbound_format": "openai_chat",
+    "outbound_format": "gemini",
+    "client_request": {
+      "model": "gemini-2.0-flash",
+      "messages": [{ "role": "user", "content": "Draw" }],
+      "modalities": ["text", "image"]
+    },
+    "expected_provider_request": {
+      "generationConfig": {
+        "responseModalities": ["Text", "Image"]
+      }
+    }
+  },
+
+  {
+    "name": "gemini_url_construction",
+    "description": "Gemini outbound constructs correct URL with model path and API key",
+    "inbound_format": "openai_chat",
+    "outbound_format": "gemini",
+    "client_request": {
+      "model": "gemini-2.0-flash",
+      "messages": [{ "role": "user", "content": "Hi" }],
+      "stream": false
+    },
+    "base_url": "https://generativelanguage.googleapis.com/v1beta",
+    "api_key": "test-key",
+    "expected_url_pattern": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=test-key",
+    "notes": "Streaming would use streamGenerateContent and add alt=sse"
+  },
+
+  {
+    "name": "gemini_url_streaming",
+    "description": "Gemini streaming URL uses streamGenerateContent and alt=sse",
+    "inbound_format": "openai_chat",
+    "outbound_format": "gemini",
+    "client_request": {
+      "model": "gemini-2.0-flash",
+      "messages": [{ "role": "user", "content": "Hi" }],
+      "stream": true
+    },
+    "base_url": "https://generativelanguage.googleapis.com/v1beta",
+    "api_key": "test-key",
+    "expected_url_contains": ["streamGenerateContent", "alt=sse", "key=test-key"]
+  },
+
+  {
+    "name": "anthropic_url_construction",
+    "description": "Anthropic outbound constructs correct URL and headers",
+    "inbound_format": "openai_chat",
+    "outbound_format": "anthropic",
+    "client_request": {
+      "model": "claude-sonnet-4-20250514",
+      "messages": [{ "role": "user", "content": "Hi" }],
+      "max_tokens": 100
+    },
+    "base_url": "https://api.anthropic.com/v1",
+    "api_key": "sk-ant-test",
+    "expected_url": "https://api.anthropic.com/v1/messages",
+    "expected_headers": {
+      "Content-Type": "application/json",
+      "Anthropic-Version": "2023-06-01",
+      "X-API-Key": "sk-ant-test"
+    }
+  },
+
+  {
+    "name": "anthropic_max_tokens_resolution",
+    "description": "Anthropic outbound resolves max_tokens from various internal fields",
+    "inbound_format": "openai_chat",
+    "outbound_format": "anthropic",
+    "client_request": {
+      "model": "claude-sonnet-4-20250514",
+      "messages": [{ "role": "user", "content": "Hi" }],
+      "max_tokens": 500
+    },
+    "expected_provider_request": {
+      "model": "claude-sonnet-4-20250514",
+      "max_tokens": 500,
+      "messages": [{ "role": "user", "content": "Hi" }]
+    },
+    "notes": "max_tokens is passed through from client request"
+  },
+
+  {
+    "name": "anthropic_usage_with_cache_tokens",
+    "description": "Anthropic response usage with cache_read_input_tokens maps to prompt_tokens_details",
+    "inbound_format": "openai_chat",
+    "outbound_format": "anthropic",
+    "client_request": {
+      "model": "claude-sonnet-4-20250514",
+      "messages": [{ "role": "user", "content": "Hi" }],
+      "max_tokens": 100
+    },
+    "provider_response": {
+      "id": "msg_cache",
+      "type": "message",
+      "role": "assistant",
+      "content": [{ "type": "text", "text": "Cached response." }],
+      "stop_reason": "end_turn",
+      "usage": {
+        "input_tokens": 50,
+        "output_tokens": 10,
+        "cache_read_input_tokens": 40,
+        "cache_creation_input_tokens": 5
+      }
+    },
+    "expected_internal_response": {
+      "usage": {
+        "prompt_tokens": 50,
+        "completion_tokens": 10,
+        "total_tokens": 105,
+        "prompt_tokens_details": { "cached_tokens": 40 },
+        "cache_creation_input_tokens": 5
+      }
+    }
+  }
+]

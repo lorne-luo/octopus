@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/bestruirui/octopus/internal/db"
 	"github.com/bestruirui/octopus/internal/model"
 	"github.com/bestruirui/octopus/internal/op"
 	"github.com/bestruirui/octopus/internal/price"
@@ -11,12 +12,13 @@ import (
 )
 
 const (
-	TaskPriceUpdate  = "price_update"
-	TaskStatsSave    = "stats_save"
-	TaskRelayLogSave = "relay_log_save"
-	TaskSyncLLM      = "sync_llm"
-	TaskCleanLLM     = "clean_llm"
-	TaskBaseUrlDelay = "base_url_delay"
+	TaskPriceUpdate     = "price_update"
+	TaskStatsSave       = "stats_save"
+	TaskRelayLogSave    = "relay_log_save"
+	TaskSyncLLM         = "sync_llm"
+	TaskCleanLLM        = "clean_llm"
+	TaskBaseUrlDelay    = "base_url_delay"
+	TaskGroupSpeedTest  = "group_speed_test"
 )
 
 func Init() {
@@ -35,6 +37,9 @@ func Init() {
 
 	// 注册基础URL延迟任务
 	Register(TaskBaseUrlDelay, 1*time.Hour, true, ChannelBaseUrlDelayTask)
+
+	// 注册分组速度测试任务 (每2小时)
+	Register(TaskGroupSpeedTest, 2*time.Hour, false, GroupSpeedTestTask)
 
 	// 注册LLM同步任务
 	syncLLMIntervalHours, err := op.SettingGetInt(model.SettingKeySyncLLMInterval)
@@ -57,6 +62,13 @@ func Init() {
 	Register(TaskRelayLogSave, 10*time.Minute, false, func() {
 		if err := op.RelayLogSaveDBTask(context.Background()); err != nil {
 			log.Warnf("relay log save db task failed: %v", err)
+		}
+	})
+
+	// 注册SQLite Vacuum任务
+	Register("sqlite_vacuum", 20*time.Hour, true, func() {
+		if err := db.Vacuum(); err != nil {
+			log.Warnf("failed to vacuum sqlite database: %v", err)
 		}
 	})
 }

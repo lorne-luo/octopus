@@ -12,6 +12,7 @@ import { useTranslations } from 'next-intl';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/animate-ui/components/animate/tooltip';
 import { Switch } from '@/components/ui/switch';
 import { toast } from '@/components/common/Toast';
+import { useChannelName } from '@/hooks/use-channel-name';
 
 export function Card({ channel, stats, layout = 'grid' }: { channel: Channel; stats: StatsMetricsFormatted; layout?: 'grid' | 'list' }) {
     const t = useTranslations('channel.card');
@@ -32,6 +33,9 @@ export function Card({ channel, stats, layout = 'grid' }: { channel: Channel; st
         ...splitModels(channel.custom_model),
     ]).size;
     const enabledKeyCount = channel.keys.filter((item) => item.enabled).length;
+
+    const { getChannelName } = useChannelName();
+    const channelName = getChannelName(channel);
 
     const handleEnableChange = (checked: boolean) => {
         enableChannel.mutate(
@@ -54,9 +58,9 @@ export function Card({ channel, stats, layout = 'grid' }: { channel: Channel; st
                     <header className="relative flex items-center justify-between gap-2">
                         <Tooltip side="top" sideOffset={10} align="center">
                             <TooltipTrigger asChild>
-                                <h3 className="text-lg font-bold truncate min-w-0">{channel.name}</h3>
+                                <h3 className="text-lg font-bold truncate min-w-0">{channelName}</h3>
                             </TooltipTrigger>
-                            <TooltipContent key={channel.name}>{channel.name}</TooltipContent>
+                            <TooltipContent key={channelName}>{channelName}</TooltipContent>
                         </Tooltip>
                         <Switch
                             checked={channel.enabled}

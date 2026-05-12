@@ -1,0 +1,1464 @@
+package anthropic
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"strings"
+	"testing"
+
+	"github.com/bestruirui/octopus/internal/transformer2/canonical"
+)
+
+func TestAnthropicSimpleText(t *testing.T) {
+	adapter := NewClientAdapter()
+	ctx := context.Background()
+
+	// Test simple text request
+	reqBody := []byte(`{
+		"model": "claude-sonnet-4-20250514",
+		"max_tokens": 1024,
+		"messages": [
+			{"role": "user", "content": "Hello Claude"}
+		]
+	}`)
+
+	req, err := adapter.ParseRequest(ctx, reqBody, http.Header{})
+	if err != nil {
+		t.Fatalf("ParseRequest failed: %v", err)
+	}
+
+	// Verify basic fields
+	if req.Model != "claude-sonnet-4-20250514" {
+		t.Errorf("Expected model 'claude-sonnet-4-20250514', got '%s'", req.Model)
+	}
+	if req.Kind != canonical.KindChat {
+		t.Errorf("Expected KindChat, got %d", req.Kind)
+	}
+	if req.SourceFormat != canonical.FormatAnthropic {
+		t.Errorf("Expected FormatAnthropic, got '%s'", req.SourceFormat)
+	}
+	if req.MaxTokens == nil || *req.MaxTokens != 1024 {
+		t.Errorf("Expected max_tokens 1024, got %v", req.MaxTokens)
+	}
+
+	// Verify messages
+	if len(req.Messages) != 1 {
+		t.Fatalf("Expected 1 message, got %d", len(req.Messages))
+	}
+	if req.Messages[0].Role != canonical.RoleUser {
+		t.Errorf("Expected role 'user', got '%s'", req.Messages[0].Role)
+	}
+	if len(req.Messages[0].Content) != 1 {
+		t.Fatalf("Expected 1 content block, got %d", len(req.Messages[0].Content))
+	}
+	if req.Messages[0].Content[0].Text != "Hello Claude" {
+		t.Errorf("Expected content 'Hello Claude', got '%s'", req.Messages[0].Content[0].Text)
+	}
+}
+
+func TestAnthropicSystemPrompt(t *testing.T) {
+	adapter := NewClientAdapter()
+	ctx := context.Background()
+
+	t.Run("string_form", func(t *testing.T) {
+		reqBody := []byte(`{
+			"model": "claude-sonnet-4-20250514",
+			"max_tokens": 1024,
+			"system": "You are a pirate.",
+			"messages": [
+				{"role": "user", "content": "Ahoy!"}
+			]
+		}`)
+
+		req, err := adapter.ParseRequest(ctx, reqBody, http.Header{})
+		if err != nil {
+			t.Fatalf("ParseRequest failed: %v", err)
+		}
+
+		// Should have 2 messages: system + user
+		if len(req.Messages) != 2 {
+			t.Fatalf("Expected 2 messages, got %d", len(req.Messages))
+		}
+
+		// First message should be system
+		if req.Messages[0].Role != canonical.RoleSystem {
+			t.Errorf("Expected first message role 'system', got '%s'", req.Messages[0].Role)
+		}
+		if len(req.Messages[0].Content) != 1 || req.Messages[0].Content[0].Text != "You are a pirate." {
+			t.Errorf("Expected system content 'You are a pirate.', got %v", req.Messages[0].Content)
+		}
+
+		// Second message should be user
+		if req.Messages[1].Role != canonical.RoleUser {
+			t.Errorf("Expected second message role 'user', got '%s'", req.Messages[1].Role)
+		}
+	})
+
+	t.Run("array_form", func(t *testing.T) {
+		reqBody := []byte(`{
+			"model": "claude-sonnet-4-20250514",
+			"max_tokens": 1024,
+			"system": [
+				{"type": "text", "text": "You are a helpful assistant.", "cache_control": {"type": "ephemeral"}},
+				{"type": "text", "text": "Always respond in JSON."}
+			],
+			"messages": [
+				{"role": "user", "content": "Hello"}
+			]
+		}`)
+
+		req, err := adapter.ParseRequest(ctx, reqBody, http.Header{})
+		if err != nil {
+			t.Fatalf("ParseRequest failed: %v", err)
+		}
+
+		// Should have 2 messages: system + user
+		if len(req.Messages) != 2 {
+			t.Fatalf("Expected 2 messages, got %d", len(req.Messages))
+		}
+
+		// First message should be system with array content
+		if req.Messages[0].Role != canonical.RoleSystem {
+			t.Errorf("Expected first message role 'system', got '%s'", req.Messages[0].Role)
+		}
+		if len(req.Messages[0].Content) != 2 {
+			t.Errorf("Expected 2 system blocks, got %d", len(req.Messages[0].Content))
+		}
+
+		// Verify array format hint
+		if !req.Hints.AnthropicSystemArrayFormat {
+			t.Error("Expected AnthropicSystemArrayFormat hint to be true")
+		}
+	})
+}
+
+func TestAnthrophicToolCalling(t *testing.T) {
+	adapter := NewClientAdapter()
+	ctx := context.Background()
+
+	t.Run("tool_definition", func(t *testing.T) {
+		reqBody := []byte(`{
+			"model": "claude-sonnet-4-20250514",
+			"max_tokens": 1024,
+			"tools": [
+				{
+					"name": "get_weather",
+					"description": "Get weather for a location",
+					"input_schema": {"type": "object", "properties": {"location": {"type": "string"}}}
+				}
+			],
+			"tool_choice": {"type": "auto"},
+			"messages": [
+				{"role": "user", "content": "What's the weather in Tokyo?"}
+			]
+		}`)
+
+		req, err := adapter.ParseRequest(ctx, reqBody, http.Header{})
+		if err != nil {
+			t.Fatalf("ParseRequest failed: %v", err)
+		}
+
+		// Verify tools
+		if len(req.Tools) != 1 {
+			t.Fatalf("Expected 1 tool, got %d", len(req.Tools))
+		}
+
+		tool := req.Tools[0]
+		if tool.Name != "get_weather" {
+			t.Errorf("Expected tool name 'get_weather', got '%s'", tool.Name)
+		}
+		if tool.Description != "Get weather for a location" {
+			t.Errorf("Expected tool description, got '%s'", tool.Description)
+		}
+		if tool.Type != "function" {
+			t.Errorf("Expected tool type 'function', got '%s'", tool.Type)
+		}
+
+		// Verify tool_choice
+		if req.ToolChoice == nil {
+			t.Fatal("Expected tool_choice, got nil")
+		}
+		if req.ToolChoice.Mode != "auto" {
+			t.Errorf("Expected tool_choice mode 'auto', got '%s'", req.ToolChoice.Mode)
+		}
+	})
+
+	t.Run("tool_result_round_trip", func(t *testing.T) {
+		reqBody := []byte(`{
+			"model": "claude-sonnet-4-20250514",
+			"max_tokens": 1024,
+			"messages": [
+				{"role": "user", "content": "What's the weather?"},
+				{"role": "assistant", "content": [{"type": "tool_use", "id": "toolu_123", "name": "get_weather", "input": {"location": "Tokyo"}}]},
+				{"role": "user", "content": [{"type": "tool_result", "tool_use_id": "toolu_123", "content": "Sunny, 25C"}]}
+			]
+		}`)
+
+		req, err := adapter.ParseRequest(ctx, reqBody, http.Header{})
+		if err != nil {
+			t.Fatalf("ParseRequest failed: %v", err)
+		}
+
+		// Verify 3 messages
+		if len(req.Messages) != 3 {
+			t.Fatalf("Expected 3 messages, got %d", len(req.Messages))
+		}
+
+		// First message: user
+		if req.Messages[0].Role != canonical.RoleUser {
+			t.Errorf("Expected first message role 'user', got '%s'", req.Messages[0].Role)
+		}
+
+		// Second message: assistant with tool_calls
+		if req.Messages[1].Role != canonical.RoleAssistant {
+			t.Errorf("Expected second message role 'assistant', got '%s'", req.Messages[1].Role)
+		}
+		if len(req.Messages[1].ToolCalls) != 1 {
+			t.Errorf("Expected 1 tool_call, got %d", len(req.Messages[1].ToolCalls))
+		}
+		if req.Messages[1].ToolCalls[0].ID != "toolu_123" {
+			t.Errorf("Expected tool_call id 'toolu_123', got '%s'", req.Messages[1].ToolCalls[0].ID)
+		}
+		if req.Messages[1].ToolCalls[0].Name != "get_weather" {
+			t.Errorf("Expected tool_call name 'get_weather', got '%s'", req.Messages[1].ToolCalls[0].Name)
+		}
+
+		// Third message: tool result
+		if req.Messages[2].Role != canonical.RoleTool {
+			t.Errorf("Expected third message role 'tool', got '%s'", req.Messages[2].Role)
+		}
+		if req.Messages[2].ToolCallID == nil || *req.Messages[2].ToolCallID != "toolu_123" {
+			t.Errorf("Expected tool_call_id 'toolu_123', got %v", req.Messages[2].ToolCallID)
+		}
+	})
+}
+
+func TestAnthropicThinkingConfig(t *testing.T) {
+	adapter := NewClientAdapter()
+	ctx := context.Background()
+
+	t.Run("adaptive_mode", func(t *testing.T) {
+		reqBody := []byte(`{
+			"model": "claude-sonnet-4-20250514",
+			"max_tokens": 1024,
+			"thinking": {"type": "adaptive"},
+			"messages": [
+				{"role": "user", "content": "Hello"}
+			]
+		}`)
+
+		req, err := adapter.ParseRequest(ctx, reqBody, http.Header{})
+		if err != nil {
+			t.Fatalf("ParseRequest failed: %v", err)
+		}
+
+		if req.Reasoning == nil {
+			t.Fatal("Expected Reasoning config, got nil")
+		}
+		// Adaptive mode: Enabled = nil (not set)
+		if req.Reasoning.Enabled != nil {
+			t.Errorf("Expected Enabled=nil for adaptive, got %v", req.Reasoning.Enabled)
+		}
+	})
+
+	t.Run("adaptive_mode_with_effort", func(t *testing.T) {
+		reqBody := []byte(`{
+			"model": "claude-sonnet-4-20250514",
+			"max_tokens": 1024,
+			"thinking": {"type": "adaptive"},
+			"output_config": {"effort": "high"},
+			"messages": [
+				{"role": "user", "content": "Hello"}
+			]
+		}`)
+
+		req, err := adapter.ParseRequest(ctx, reqBody, http.Header{})
+		if err != nil {
+			t.Fatalf("ParseRequest failed: %v", err)
+		}
+
+		if req.Reasoning == nil {
+			t.Fatal("Expected Reasoning config, got nil")
+		}
+		// Adaptive mode: Enabled = nil (not set)
+		if req.Reasoning.Enabled != nil {
+			t.Errorf("Expected Enabled=nil for adaptive, got %v", req.Reasoning.Enabled)
+		}
+		// Should have effort from output_config
+		if req.Reasoning.Effort == nil || *req.Reasoning.Effort != "high" {
+			t.Errorf("Expected Effort='high' from output_config, got %v", req.Reasoning.Effort)
+		}
+	})
+
+	t.Run("enabled_mode_without_budget_tokens", func(t *testing.T) {
+		// Test that enabled mode without budget_tokens doesn't crash
+		reqBody := []byte(`{
+			"model": "claude-sonnet-4-20250514",
+			"max_tokens": 1024,
+			"thinking": {"type": "enabled"},
+			"messages": [
+				{"role": "user", "content": "Hello"}
+			]
+		}`)
+
+		req, err := adapter.ParseRequest(ctx, reqBody, http.Header{})
+		if err != nil {
+			t.Fatalf("ParseRequest failed: %v", err)
+		}
+
+		if req.Reasoning == nil {
+			t.Fatal("Expected Reasoning config, got nil")
+		}
+		if req.Reasoning.Enabled == nil || !*req.Reasoning.Enabled {
+			t.Errorf("Expected Enabled=true, got %v", req.Reasoning.Enabled)
+		}
+		// BudgetTokens should be nil (not provided)
+		if req.Reasoning.BudgetTokens != nil {
+			t.Errorf("Expected BudgetTokens=nil (not provided), got %v", req.Reasoning.BudgetTokens)
+		}
+	})
+
+	t.Run("enabled_mode", func(t *testing.T) {
+		reqBody := []byte(`{
+			"model": "claude-sonnet-4-20250514",
+			"max_tokens": 1024,
+			"thinking": {"type": "enabled", "budget_tokens": 10000},
+			"messages": [
+				{"role": "user", "content": "Hello"}
+			]
+		}`)
+
+		req, err := adapter.ParseRequest(ctx, reqBody, http.Header{})
+		if err != nil {
+			t.Fatalf("ParseRequest failed: %v", err)
+		}
+
+		if req.Reasoning == nil {
+			t.Fatal("Expected Reasoning config, got nil")
+		}
+		if req.Reasoning.Enabled == nil || !*req.Reasoning.Enabled {
+			t.Errorf("Expected Enabled=true, got %v", req.Reasoning.Enabled)
+		}
+		if req.Reasoning.BudgetTokens == nil || *req.Reasoning.BudgetTokens != 10000 {
+			t.Errorf("Expected BudgetTokens=10000, got %v", req.Reasoning.BudgetTokens)
+		}
+	})
+
+	t.Run("disabled_mode", func(t *testing.T) {
+		reqBody := []byte(`{
+			"model": "claude-sonnet-4-20250514",
+			"max_tokens": 1024,
+			"thinking": {"type": "disabled"},
+			"messages": [
+				{"role": "user", "content": "Hello"}
+			]
+		}`)
+
+		req, err := adapter.ParseRequest(ctx, reqBody, http.Header{})
+		if err != nil {
+			t.Fatalf("ParseRequest failed: %v", err)
+		}
+
+		if req.Reasoning == nil {
+			t.Fatal("Expected Reasoning config, got nil")
+		}
+		if req.Reasoning.Enabled == nil || *req.Reasoning.Enabled {
+			t.Errorf("Expected Enabled=false, got %v", req.Reasoning.Enabled)
+		}
+	})
+}
+
+func TestAnthropicFinishReasonMapping(t *testing.T) {
+	// Test Anthropic -> Canonical mappings
+	anthropicToCanonical := []struct {
+		anthropic string
+		canonical string
+	}{
+		{"end_turn", "stop"},
+		{"max_tokens", "length"},
+		{"tool_use", "tool_calls"},
+		{"stop_sequence", "stop"},
+		{"pause_turn", "stop"},
+		{"refusal", "content_filter"},
+	}
+
+	for _, tt := range anthropicToCanonical {
+		t.Run(tt.anthropic+"_to_canonical", func(t *testing.T) {
+			result := mapAnthropicStopReasonToCanonical(tt.anthropic)
+			if result == nil {
+				t.Fatalf("Expected non-nil result for '%s'", tt.anthropic)
+			}
+			if *result != tt.canonical {
+				t.Errorf("Expected '%s' -> '%s', got '%s'", tt.anthropic, tt.canonical, *result)
+			}
+		})
+	}
+
+	// Test Canonical -> Anthropic mappings (note: these are the inverse mappings)
+	canonicalToAnthropic := []struct {
+		canonical string
+		anthropic string
+	}{
+		{"stop", "end_turn"},
+		{"length", "max_tokens"},
+		{"tool_calls", "tool_use"},
+		{"content_filter", "refusal"},
+	}
+
+	for _, tt := range canonicalToAnthropic {
+		t.Run(tt.canonical+"_to_anthropic", func(t *testing.T) {
+			result := mapCanonicalFinishReasonToAnthropic(tt.canonical)
+			if result != tt.anthropic {
+				t.Errorf("Expected '%s' -> '%s', got '%s'", tt.canonical, tt.anthropic, result)
+			}
+		})
+	}
+}
+
+func TestAnthropicStreamAggregation(t *testing.T) {
+	adapter := NewClientAdapter()
+	ctx := context.Background()
+
+	// Create chunks simulating Anthropic streaming
+	chunks := []*canonical.Chunk{
+		// message_start - contains input_tokens
+		{
+			ID:    "msg_123",
+			Model: "claude-sonnet-4-20250514",
+			Usage: &canonical.Usage{PromptTokens: 100},
+		},
+		// content_block_start (text)
+		{
+			ID: "msg_123",
+		},
+		// content_block_delta (text)
+		{
+			ID: "msg_123",
+			Deltas: []canonical.ChoiceDelta{
+				{
+					Index: 0,
+					Delta: canonical.Message{
+						Content: []canonical.ContentBlock{{Type: canonical.ContentText, Text: "Hello"}},
+					},
+				},
+			},
+		},
+		// content_block_delta (more text)
+		{
+			ID: "msg_123",
+			Deltas: []canonical.ChoiceDelta{
+				{
+					Index: 0,
+					Delta: canonical.Message{
+						Content: []canonical.ContentBlock{{Type: canonical.ContentText, Text: " there!"}},
+					},
+				},
+			},
+		},
+		// message_delta - contains output_tokens and stop_reason
+		{
+			ID: "msg_123",
+			Deltas: []canonical.ChoiceDelta{
+				{
+					Index:        0,
+					FinishReason: strPtr("stop"),
+				},
+			},
+			Usage: &canonical.Usage{CompletionTokens: 10},
+		},
+	}
+
+	for _, chunk := range chunks {
+		adapter.aggregator.addChunk(chunk)
+	}
+
+	// Aggregate
+	resp, err := adapter.AggregateStream(ctx)
+	if err != nil {
+		t.Fatalf("AggregateStream failed: %v", err)
+	}
+
+	// Verify aggregated response
+	if resp.ID != "msg_123" {
+		t.Errorf("Expected ID 'msg_123', got '%s'", resp.ID)
+	}
+	if resp.Model != "claude-sonnet-4-20250514" {
+		t.Errorf("Expected model 'claude-sonnet-4-20250514', got '%s'", resp.Model)
+	}
+
+	// Verify content aggregation
+	if len(resp.Choices) != 1 {
+		t.Fatalf("Expected 1 choice, got %d", len(resp.Choices))
+	}
+	if len(resp.Choices[0].Message.Content) != 1 {
+		t.Fatalf("Expected 1 content block, got %d", len(resp.Choices[0].Message.Content))
+	}
+	aggregatedText := resp.Choices[0].Message.Content[0].Text
+	if aggregatedText != "Hello there!" {
+		t.Errorf("Expected content 'Hello there!', got '%s'", aggregatedText)
+	}
+
+	// Verify finish reason
+	if resp.Choices[0].FinishReason == nil || *resp.Choices[0].FinishReason != "stop" {
+		t.Errorf("Expected finish_reason 'stop', got %v", resp.Choices[0].FinishReason)
+	}
+
+	// Verify usage aggregation
+	if resp.Usage == nil {
+		t.Fatal("Expected usage, got nil")
+	}
+	// Input tokens from message_start
+	if resp.Usage.PromptTokens != 100 {
+		t.Errorf("Expected prompt_tokens 100, got %d", resp.Usage.PromptTokens)
+	}
+	// Output tokens from message_delta
+	if resp.Usage.CompletionTokens != 10 {
+		t.Errorf("Expected completion_tokens 10, got %d", resp.Usage.CompletionTokens)
+	}
+}
+
+func TestFormatResponse(t *testing.T) {
+	adapter := NewClientAdapter()
+	ctx := context.Background()
+
+	t.Run("simple_text_response", func(t *testing.T) {
+		finishReason := "stop"
+		resp := &canonical.Response{
+			ID:     "msg_123",
+			Model:  "claude-sonnet-4-20250514",
+			Object: "chat.completion",
+			Choices: []canonical.Choice{
+				{
+					Index: 0,
+					Message: canonical.Message{
+						Role: canonical.RoleAssistant,
+						Content: []canonical.ContentBlock{
+							{Type: canonical.ContentText, Text: "Hello! How can I help?"},
+						},
+					},
+					FinishReason: &finishReason,
+				},
+			},
+			Usage: &canonical.Usage{
+				PromptTokens:     10,
+				CompletionTokens: 8,
+				TotalTokens:      18,
+			},
+		}
+
+		output, err := adapter.FormatResponse(ctx, resp)
+		if err != nil {
+			t.Fatalf("FormatResponse failed: %v", err)
+		}
+
+		var aresp MessageResponse
+		if err := json.Unmarshal(output, &aresp); err != nil {
+			t.Fatalf("Failed to unmarshal response: %v", err)
+		}
+
+		// Verify response structure
+		if aresp.ID != "msg_123" {
+			t.Errorf("Expected ID 'msg_123', got '%s'", aresp.ID)
+		}
+		if aresp.Type != "message" {
+			t.Errorf("Expected type 'message', got '%s'", aresp.Type)
+		}
+		if aresp.Role != "assistant" {
+			t.Errorf("Expected role 'assistant', got '%s'", aresp.Role)
+		}
+		if aresp.StopReason != "end_turn" {
+			t.Errorf("Expected stop_reason 'end_turn', got '%s'", aresp.StopReason)
+		}
+		if len(aresp.Content) != 1 {
+			t.Errorf("Expected 1 content block, got %d", len(aresp.Content))
+		}
+		if aresp.Content[0].Type != ContentTypeText {
+			t.Errorf("Expected content type 'text', got '%s'", aresp.Content[0].Type)
+		}
+		if derefStr(aresp.Content[0].Text) != "Hello! How can I help?" {
+			t.Errorf("Expected content text 'Hello! How can I help?', got '%s'", derefStr(aresp.Content[0].Text))
+		}
+		if aresp.Usage.InputTokens != 10 {
+			t.Errorf("Expected input_tokens 10, got %d", aresp.Usage.InputTokens)
+		}
+		if aresp.Usage.OutputTokens != 8 {
+			t.Errorf("Expected output_tokens 8, got %d", aresp.Usage.OutputTokens)
+		}
+	})
+
+	t.Run("tool_calls_response", func(t *testing.T) {
+		finishReason := "tool_calls"
+		resp := &canonical.Response{
+			ID:     "msg_tool",
+			Model:  "claude-sonnet-4-20250514",
+			Object: "chat.completion",
+			Choices: []canonical.Choice{
+				{
+					Index: 0,
+					Message: canonical.Message{
+						Role: canonical.RoleAssistant,
+						ToolCalls: []canonical.ToolCall{
+							{
+								ID:        "toolu_123",
+								Type:      "function",
+								Name:      "get_weather",
+								Arguments: `{"location": "Tokyo"}`,
+							},
+						},
+					},
+					FinishReason: &finishReason,
+				},
+			},
+		}
+
+		output, err := adapter.FormatResponse(ctx, resp)
+		if err != nil {
+			t.Fatalf("FormatResponse failed: %v", err)
+		}
+
+		var aresp MessageResponse
+		if err := json.Unmarshal(output, &aresp); err != nil {
+			t.Fatalf("Failed to unmarshal response: %v", err)
+		}
+
+		// Verify tool_use content block
+		if len(aresp.Content) != 1 {
+			t.Fatalf("Expected 1 content block, got %d", len(aresp.Content))
+		}
+		if aresp.Content[0].Type != ContentTypeToolUse {
+			t.Errorf("Expected content type 'tool_use', got '%s'", aresp.Content[0].Type)
+		}
+		if aresp.Content[0].ID != "toolu_123" {
+			t.Errorf("Expected tool id 'toolu_123', got '%s'", aresp.Content[0].ID)
+		}
+		if aresp.Content[0].Name != "get_weather" {
+			t.Errorf("Expected tool name 'get_weather', got '%s'", aresp.Content[0].Name)
+		}
+		if aresp.StopReason != "tool_use" {
+			t.Errorf("Expected stop_reason 'tool_use', got '%s'", aresp.StopReason)
+		}
+	})
+}
+
+func TestFormatError(t *testing.T) {
+	adapter := NewClientAdapter()
+	ctx := context.Background()
+
+	canonErr := &canonical.Error{
+		Code:       "invalid_api_key",
+		Message:    "Invalid API key provided",
+		Type:       "authentication_error",
+		StatusCode: 401,
+	}
+
+	output, err := adapter.FormatError(ctx, canonErr)
+	if err != nil {
+		t.Fatalf("FormatError failed: %v", err)
+	}
+
+	var aerr ErrorResponse
+	if json.Unmarshal(output, &aerr) != nil {
+		t.Fatalf("Failed to unmarshal error: %v", err)
+	}
+
+	if aerr.Type != "error" {
+		t.Errorf("Expected type 'error', got '%s'", aerr.Type)
+	}
+	if aerr.Error.Type != "authentication_error" {
+		t.Errorf("Expected error type 'authentication_error', got '%s'", aerr.Error.Type)
+	}
+	if aerr.Error.Message != "Invalid API key provided" {
+		t.Errorf("Expected error message 'Invalid API key provided', got '%s'", aerr.Error.Message)
+	}
+}
+
+func TestParseRequestWithHeaders(t *testing.T) {
+	adapter := NewClientAdapter()
+	ctx := context.Background()
+
+	reqBody := []byte(`{
+		"model": "claude-sonnet-4-20250514",
+		"max_tokens": 1024,
+		"messages": [{"role": "user", "content": "Hello"}]
+	}`)
+
+	header := http.Header{}
+	header.Set("anthropic-beta", "prompt-caching-2024-07-31")
+	header.Set("anthropic-version", "2023-06-01")
+
+	req, err := adapter.ParseRequest(ctx, reqBody, header)
+	if err != nil {
+		t.Fatalf("ParseRequest failed: %v", err)
+	}
+
+	// Verify headers were extracted
+	if req.Headers == nil {
+		t.Fatal("Expected Headers to be set")
+	}
+	if req.Headers.Get("Anthropic-Beta") != "prompt-caching-2024-07-31" {
+		t.Errorf("Expected Anthropic-Beta header, got '%s'", req.Headers.Get("Anthropic-Beta"))
+	}
+	if req.Headers.Get("Anthropic-Version") != "2023-06-01" {
+		t.Errorf("Expected Anthropic-Version header, got '%s'", req.Headers.Get("Anthropic-Version"))
+	}
+}
+
+// Helper function
+// strPtr is now defined in types.go
+
+func TestStreamEventMarshalJSON(t *testing.T) {
+	tests := []struct {
+		name     string
+		event    StreamEvent
+		expected map[string]any
+	}{
+		{
+			name: "content_block_delta with index 0",
+			event: StreamEvent{
+				Type:  EventTypeContentBlockDelta,
+				Index: 0,
+				Delta: &ContentDelta{
+					Type: "text_delta",
+					Text: "Hello",
+				},
+			},
+			expected: map[string]any{
+				"type":  "content_block_delta",
+				"index": float64(0),
+				"delta": map[string]any{
+					"type": "text_delta",
+					"text": "Hello",
+				},
+			},
+		},
+		{
+			name: "content_block_delta with index 1",
+			event: StreamEvent{
+				Type:  EventTypeContentBlockDelta,
+				Index: 1,
+				Delta: &ContentDelta{
+					Type:        "input_json_delta",
+					PartialJSON: `{"foo":`,
+				},
+			},
+			expected: map[string]any{
+				"type":  "content_block_delta",
+				"index": float64(1),
+				"delta": map[string]any{
+					"type":         "input_json_delta",
+					"partial_json": `{"foo":`,
+				},
+			},
+		},
+		{
+			name: "message_delta",
+			event: StreamEvent{
+				Type: EventTypeMessageDelta,
+				DeltaMessage: &MessageDeltaRaw{
+					StopReason: "end_turn",
+				},
+			},
+			expected: map[string]any{
+				"type": "message_delta",
+				"delta": map[string]any{
+					"stop_reason": "end_turn",
+				},
+			},
+		},
+		{
+			name: "thinking_delta",
+			event: StreamEvent{
+				Type:  EventTypeContentBlockDelta,
+				Index: 0,
+				Delta: &ContentDelta{
+					Type:     "thinking_delta",
+					Thinking: "Let me think...",
+				},
+			},
+			expected: map[string]any{
+				"type":  "content_block_delta",
+				"index": float64(0),
+				"delta": map[string]any{
+					"type":     "thinking_delta",
+					"thinking": "Let me think...",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := json.Marshal(tt.event)
+			if err != nil {
+				t.Fatalf("Failed to marshal: %v", err)
+			}
+
+			var result map[string]any
+			if err := json.Unmarshal(data, &result); err != nil {
+				t.Fatalf("Failed to unmarshal result: %v", err)
+			}
+
+			// Check that index is present for content_block_delta events
+			if tt.event.Type == EventTypeContentBlockDelta {
+				if _, ok := result["index"]; !ok {
+					t.Errorf("Missing 'index' field in output: %s", string(data))
+				}
+				if _, ok := result["delta"]; !ok {
+					t.Errorf("Missing 'delta' field in output: %s", string(data))
+				}
+			}
+
+			// Verify the output matches expected
+			for key, expectedVal := range tt.expected {
+				actualVal, ok := result[key]
+				if !ok {
+					t.Errorf("Missing key '%s' in output: %s", key, string(data))
+					continue
+				}
+				if key == "delta" {
+					// Compare delta structures
+					expectedDelta := expectedVal.(map[string]any)
+					actualDelta, ok := actualVal.(map[string]any)
+					if !ok {
+						t.Errorf("Delta is not an object: %v", actualVal)
+						continue
+					}
+					for dk, dv := range expectedDelta {
+						if actualDelta[dk] != dv {
+							t.Errorf("Delta[%s]: expected %v, got %v", dk, dv, actualDelta[dk])
+						}
+					}
+				} else if actualVal != expectedVal {
+					t.Errorf("Key '%s': expected %v, got %v", key, expectedVal, actualVal)
+				}
+			}
+		})
+	}
+}
+
+func TestAnthropicCachingUsageSemantics(t *testing.T) {
+	adapter := NewClientAdapter()
+	ctx := context.Background()
+
+	// Test that cache tokens are correctly calculated
+	// When caching is enabled, input_tokens only represents tokens AFTER the last cache breakpoint
+	// Correct formula: PromptTokens = cache_read_input_tokens + cache_creation_input_tokens + input_tokens
+	resp := &canonical.Response{
+		ID:     "msg_cached",
+		Model:  "claude-sonnet-4-20250514",
+		Object: "chat.completion",
+		Choices: []canonical.Choice{
+			{
+				Index: 0,
+				Message: canonical.Message{
+					Role: canonical.RoleAssistant,
+					Content: []canonical.ContentBlock{
+						{Type: canonical.ContentText, Text: "Response"},
+					},
+				},
+				FinishReason: strPtr("stop"),
+			},
+		},
+		Usage: &canonical.Usage{
+			PromptTokens:               500, // This should be the sum
+			CompletionTokens:           50,
+			CacheCreationInputTokens:   200,
+			CacheReadInputTokens:       100,
+			InputTokensAfterBreakpoint: 200, // Original input_tokens from API
+		},
+	}
+
+	output, err := adapter.FormatResponse(ctx, resp)
+	if err != nil {
+		t.Fatalf("FormatResponse failed: %v", err)
+	}
+
+	var aresp MessageResponse
+	if err := json.Unmarshal(output, &aresp); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	// Verify usage
+	if aresp.Usage.InputTokens != 500 {
+		t.Errorf("Expected input_tokens 500 (total), got %d", aresp.Usage.InputTokens)
+	}
+	if aresp.Usage.CacheCreationInputTokens != 200 {
+		t.Errorf("Expected cache_creation_input_tokens 200, got %d", aresp.Usage.CacheCreationInputTokens)
+	}
+	if aresp.Usage.CacheReadInputTokens != 100 {
+		t.Errorf("Expected cache_read_input_tokens 100, got %d", aresp.Usage.CacheReadInputTokens)
+	}
+}
+
+func TestFormatResponse_OmitsReasoningWithoutSignature(t *testing.T) {
+	adapter := NewClientAdapter()
+	ctx := context.Background()
+
+	reasoning := "Step 1: Analyze the problem...\nStep 2: Compute the answer."
+	finishReason := "stop"
+	resp := &canonical.Response{
+		ID:     "msg_reasoning",
+		Model:  "claude-sonnet-4-20250514",
+		Object: "chat.completion",
+		Choices: []canonical.Choice{
+			{
+				Index: 0,
+				Message: canonical.Message{
+					Role:      canonical.RoleAssistant,
+					Reasoning: &reasoning,
+					Content: []canonical.ContentBlock{
+						{Type: canonical.ContentText, Text: "The answer is 42."},
+					},
+				},
+				FinishReason: &finishReason,
+			},
+		},
+		Usage: &canonical.Usage{
+			PromptTokens:     20,
+			CompletionTokens: 50,
+		},
+	}
+
+	output, err := adapter.FormatResponse(ctx, resp)
+	if err != nil {
+		t.Fatalf("FormatResponse failed: %v", err)
+	}
+
+	var aresp MessageResponse
+	if err := json.Unmarshal(output, &aresp); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if len(aresp.Content) != 1 {
+		t.Fatalf("Expected only text content when reasoning has no signature, got %d blocks", len(aresp.Content))
+	}
+	if aresp.Content[0].Type != ContentTypeText {
+		t.Fatalf("Expected text block, got '%s'", aresp.Content[0].Type)
+	}
+	if derefStr(aresp.Content[0].Text) != "The answer is 42." {
+		t.Errorf("Expected text 'The answer is 42.', got '%s'", derefStr(aresp.Content[0].Text))
+	}
+}
+
+func TestFormatResponse_PreservesSignedReasoningWithUnsignedContentThinking(t *testing.T) {
+	adapter := NewClientAdapter()
+	ctx := context.Background()
+
+	reasoning := "genuine signed reasoning"
+	signature := "sig_top_level"
+	finishReason := "stop"
+	resp := &canonical.Response{
+		ID:     "msg_signed_reasoning",
+		Model:  "claude-sonnet-4-20250514",
+		Object: "chat.completion",
+		Choices: []canonical.Choice{
+			{
+				Index: 0,
+				Message: canonical.Message{
+					Role:               canonical.RoleAssistant,
+					Reasoning:          &reasoning,
+					ReasoningSignature: &signature,
+					Content: []canonical.ContentBlock{
+						{Type: canonical.ContentThinking, Thinking: "unsigned synthetic thinking"},
+						{Type: canonical.ContentText, Text: "The answer is 42."},
+					},
+				},
+				FinishReason: &finishReason,
+			},
+		},
+	}
+
+	output, err := adapter.FormatResponse(ctx, resp)
+	if err != nil {
+		t.Fatalf("FormatResponse failed: %v", err)
+	}
+
+	var aresp MessageResponse
+	if err := json.Unmarshal(output, &aresp); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	if len(aresp.Content) != 2 {
+		t.Fatalf("Expected signed thinking plus text, got %d blocks", len(aresp.Content))
+	}
+	if aresp.Content[0].Type != ContentTypeThinking {
+		t.Fatalf("Expected first block type 'thinking', got '%s'", aresp.Content[0].Type)
+	}
+	if derefStr(aresp.Content[0].Thinking) != reasoning {
+		t.Errorf("Expected signed reasoning '%s', got '%s'", reasoning, derefStr(aresp.Content[0].Thinking))
+	}
+	if derefStr(aresp.Content[0].Signature) != signature {
+		t.Errorf("Expected signature '%s', got '%s'", signature, derefStr(aresp.Content[0].Signature))
+	}
+}
+
+func TestFormatResponse_ReasoningAlreadyInContent(t *testing.T) {
+	adapter := NewClientAdapter()
+	ctx := context.Background()
+
+	// Test that if ContentThinking is already in Content, we don't duplicate
+	reasoning := "This reasoning is already in content."
+	finishReason := "stop"
+	resp := &canonical.Response{
+		ID:     "msg_reasoning_dup",
+		Model:  "claude-sonnet-4-20250514",
+		Object: "chat.completion",
+		Choices: []canonical.Choice{
+			{
+				Index: 0,
+				Message: canonical.Message{
+					Role:      canonical.RoleAssistant,
+					Reasoning: &reasoning,
+					Content: []canonical.ContentBlock{
+						{Type: canonical.ContentThinking, Thinking: reasoning, Signature: "sig123"},
+						{Type: canonical.ContentText, Text: "The answer is 42."},
+					},
+				},
+				FinishReason: &finishReason,
+			},
+		},
+	}
+
+	output, err := adapter.FormatResponse(ctx, resp)
+	if err != nil {
+		t.Fatalf("FormatResponse failed: %v", err)
+	}
+
+	var aresp MessageResponse
+	if err := json.Unmarshal(output, &aresp); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	// Should have 2 content blocks: thinking (from Content) + text
+	// NOT 3 (no duplicate from Reasoning field)
+	if len(aresp.Content) != 2 {
+		t.Fatalf("Expected 2 content blocks (no duplicate), got %d", len(aresp.Content))
+	}
+
+	// First block should be thinking with signature preserved
+	if aresp.Content[0].Type != ContentTypeThinking {
+		t.Errorf("Expected first block type 'thinking', got '%s'", aresp.Content[0].Type)
+	}
+	if derefStr(aresp.Content[0].Signature) != "sig123" {
+		t.Errorf("Expected signature 'sig123', got '%s'", derefStr(aresp.Content[0].Signature))
+	}
+}
+
+func TestAnthropicImageContent(t *testing.T) {
+	adapter := NewClientAdapter()
+	ctx := context.Background()
+
+	t.Run("image_url", func(t *testing.T) {
+		reqBody := []byte(`{
+			"model": "claude-sonnet-4-20250514",
+			"max_tokens": 1024,
+			"messages": [
+				{
+					"role": "user",
+					"content": [
+						{"type": "image", "source": {"type": "url", "url": "https://example.com/image.png"}}
+					]
+				}
+			]
+		}`)
+
+		req, err := adapter.ParseRequest(ctx, reqBody, http.Header{})
+		if err != nil {
+			t.Fatalf("ParseRequest failed: %v", err)
+		}
+
+		if len(req.Messages) != 1 {
+			t.Fatalf("Expected 1 message, got %d", len(req.Messages))
+		}
+		if len(req.Messages[0].Content) != 1 {
+			t.Fatalf("Expected 1 content block, got %d", len(req.Messages[0].Content))
+		}
+		if req.Messages[0].Content[0].Type != canonical.ContentImage {
+			t.Errorf("Expected content type 'image', got '%s'", req.Messages[0].Content[0].Type)
+		}
+		if req.Messages[0].Content[0].Media == nil {
+			t.Fatal("Expected media content, got nil")
+		}
+		if req.Messages[0].Content[0].Media.URL != "https://example.com/image.png" {
+			t.Errorf("Expected URL 'https://example.com/image.png', got '%s'", req.Messages[0].Content[0].Media.URL)
+		}
+	})
+
+	t.Run("image_base64", func(t *testing.T) {
+		reqBody := []byte(`{
+			"model": "claude-sonnet-4-20250514",
+			"max_tokens": 1024,
+			"messages": [
+				{
+					"role": "user",
+					"content": [
+						{"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": "iVBORw0KGgo="}}
+					]
+				}
+			]
+		}`)
+
+		req, err := adapter.ParseRequest(ctx, reqBody, http.Header{})
+		if err != nil {
+			t.Fatalf("ParseRequest failed: %v", err)
+		}
+
+		if len(req.Messages) != 1 {
+			t.Fatalf("Expected 1 message, got %d", len(req.Messages))
+		}
+		if req.Messages[0].Content[0].Type != canonical.ContentImage {
+			t.Errorf("Expected content type 'image', got '%s'", req.Messages[0].Content[0].Type)
+		}
+		if req.Messages[0].Content[0].Media == nil {
+			t.Fatal("Expected media content, got nil")
+		}
+		if req.Messages[0].Content[0].Media.MimeType != "image/png" {
+			t.Errorf("Expected MIME type 'image/png', got '%s'", req.Messages[0].Content[0].Media.MimeType)
+		}
+		if req.Messages[0].Content[0].Media.Base64 != "iVBORw0KGgo=" {
+			t.Errorf("Expected base64 data, got '%s'", req.Messages[0].Content[0].Media.Base64)
+		}
+	})
+}
+
+func TestFormatStreamChunk_FullLifecycle(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("omits_unsigned_thinking_stream", func(t *testing.T) {
+		adapter := NewClientAdapter()
+		reasoning := "thinking without signature"
+		finishReason := "stop"
+		chunk1 := &canonical.Chunk{
+			ID:    "msg_thinking",
+			Model: "claude-sonnet-4-20250514",
+			Deltas: []canonical.ChoiceDelta{
+				{
+					Index: 0,
+					Delta: canonical.Message{
+						Reasoning: &reasoning,
+					},
+				},
+			},
+		}
+		chunk2 := &canonical.Chunk{
+			ID: "msg_thinking",
+			Deltas: []canonical.ChoiceDelta{
+				{
+					Index:        0,
+					FinishReason: &finishReason,
+				},
+			},
+		}
+
+		out1, err := adapter.FormatStreamChunk(ctx, chunk1)
+		if err != nil {
+			t.Fatalf("FormatStreamChunk chunk1 failed: %v", err)
+		}
+		out2, err := adapter.FormatStreamChunk(ctx, chunk2)
+		if err != nil {
+			t.Fatalf("FormatStreamChunk chunk2 failed: %v", err)
+		}
+		output := string(out1) + string(out2)
+
+		if strings.Contains(output, "\"type\":\"thinking\"") {
+			t.Fatal("Unsigned reasoning stream must not emit an Anthropic thinking block")
+		}
+		if strings.Contains(output, "thinking_delta") {
+			t.Fatal("Unsigned reasoning stream must not emit thinking deltas")
+		}
+		if strings.Contains(output, "event: content_block_stop") {
+			t.Fatal("Unsigned reasoning stream must not emit content_block_stop without a content_block_start")
+		}
+	})
+
+	t.Run("emits_signed_thinking_stream_after_signature", func(t *testing.T) {
+		adapter := NewClientAdapter()
+		reasoning := "signed thinking"
+		signature := "sig_stream"
+		chunk1 := &canonical.Chunk{
+			ID:    "msg_signed_stream",
+			Model: "claude-sonnet-4-20250514",
+			Deltas: []canonical.ChoiceDelta{
+				{
+					Index: 0,
+					Delta: canonical.Message{
+						Reasoning: &reasoning,
+					},
+				},
+			},
+		}
+		chunk2 := &canonical.Chunk{
+			ID: "msg_signed_stream",
+			Deltas: []canonical.ChoiceDelta{
+				{
+					Index: 0,
+					Delta: canonical.Message{
+						ReasoningSignature: &signature,
+					},
+				},
+			},
+		}
+
+		out1, err := adapter.FormatStreamChunk(ctx, chunk1)
+		if err != nil {
+			t.Fatalf("FormatStreamChunk chunk1 failed: %v", err)
+		}
+		out2, err := adapter.FormatStreamChunk(ctx, chunk2)
+		if err != nil {
+			t.Fatalf("FormatStreamChunk chunk2 failed: %v", err)
+		}
+		output := string(out1) + string(out2)
+
+		if !strings.Contains(output, "\"type\":\"thinking\"") {
+			t.Fatal("Signed reasoning stream should emit a thinking block")
+		}
+		if !strings.Contains(output, "thinking_delta") {
+			t.Fatal("Signed reasoning stream should emit thinking delta")
+		}
+		if !strings.Contains(output, "signature_delta") {
+			t.Fatal("Signed reasoning stream should emit signature delta")
+		}
+		if !strings.Contains(output, signature) {
+			t.Fatalf("Expected signature %q in output", signature)
+		}
+	})
+
+	t.Run("basic_text_stream", func(t *testing.T) {
+		adapter := NewClientAdapter()
+
+		// Chunk 1: first text delta (should trigger message_start + content_block_start + content_block_delta)
+		chunk1 := &canonical.Chunk{
+			ID:    "msg_123",
+			Model: "claude-sonnet-4-20250514",
+			Deltas: []canonical.ChoiceDelta{
+				{
+					Index: 0,
+					Delta: canonical.Message{
+						Content: []canonical.ContentBlock{{Type: canonical.ContentText, Text: "Hello"}},
+					},
+				},
+			},
+		}
+
+		out1, err := adapter.FormatStreamChunk(ctx, chunk1)
+		if err != nil {
+			t.Fatalf("FormatStreamChunk chunk1 failed: %v", err)
+		}
+		output := string(out1)
+
+		// Must contain message_start
+		if !strings.Contains(output, "event: message_start") {
+			t.Error("Missing message_start event")
+		}
+		// Must contain content_block_start
+		if !strings.Contains(output, "event: content_block_start") {
+			t.Error("Missing content_block_start event")
+		}
+		// Must contain text_delta
+		if !strings.Contains(output, "\"type\":\"text_delta\"") {
+			t.Error("Missing text_delta in content_block_delta")
+		}
+		// Must contain "Hello" text
+		if !strings.Contains(output, "\"text\":\"Hello\"") {
+			t.Error("Missing text content 'Hello'")
+		}
+
+		// Chunk 2: more text (should just be content_block_delta)
+		chunk2 := &canonical.Chunk{
+			ID: "msg_123",
+			Deltas: []canonical.ChoiceDelta{
+				{
+					Index: 0,
+					Delta: canonical.Message{
+						Content: []canonical.ContentBlock{{Type: canonical.ContentText, Text: " world!"}},
+					},
+				},
+			},
+		}
+
+		out2, err := adapter.FormatStreamChunk(ctx, chunk2)
+		if err != nil {
+			t.Fatalf("FormatStreamChunk chunk2 failed: %v", err)
+		}
+		output2 := string(out2)
+
+		// Should NOT contain another message_start
+		if strings.Contains(output2, "event: message_start") {
+			t.Error("Unexpected duplicate message_start")
+		}
+		// Should NOT contain another content_block_start
+		if strings.Contains(output2, "event: content_block_start") {
+			t.Error("Unexpected duplicate content_block_start")
+		}
+		// Should contain text delta
+		if !strings.Contains(output2, "\" world!\"") {
+			t.Error("Missing text content ' world!'")
+		}
+
+		// Chunk 3: finish_reason (should emit content_block_stop + message_delta + message_stop)
+		finishReason := "stop"
+		chunk3 := &canonical.Chunk{
+			ID: "msg_123",
+			Deltas: []canonical.ChoiceDelta{
+				{
+					Index:        0,
+					FinishReason: &finishReason,
+				},
+			},
+		}
+
+		out3, err := adapter.FormatStreamChunk(ctx, chunk3)
+		if err != nil {
+			t.Fatalf("FormatStreamChunk chunk3 failed: %v", err)
+		}
+		output3 := string(out3)
+
+		// Must contain content_block_stop
+		if !strings.Contains(output3, "event: content_block_stop") {
+			t.Error("Missing content_block_stop event")
+		}
+		// Must contain message_delta with stop_reason (emitted immediately with finish)
+		if !strings.Contains(output3, "event: message_delta") {
+			t.Error("Missing message_delta event")
+		}
+		if !strings.Contains(output3, "\"stop_reason\":\"end_turn\"") {
+			t.Error("Missing stop_reason in message_delta")
+		}
+		// Must contain message_stop
+		if !strings.Contains(output3, "event: message_stop") {
+			t.Error("Missing message_stop event")
+		}
+
+		// Chunk 4: usage after message_stop should return nil (already stopped)
+		chunk4 := &canonical.Chunk{
+			ID: "msg_123",
+			Usage: &canonical.Usage{
+				PromptTokens:     100,
+				CompletionTokens: 10,
+			},
+		}
+
+		out4, err := adapter.FormatStreamChunk(ctx, chunk4)
+		if err != nil {
+			t.Fatalf("FormatStreamChunk chunk4 failed: %v", err)
+		}
+		// Should return nil since message_stop was already sent
+		if out4 != nil {
+			t.Errorf("Expected nil output for usage after message_stop, got: %s", string(out4))
+		}
+	})
+
+	t.Run("finish_and_usage_same_chunk", func(t *testing.T) {
+		adapter := NewClientAdapter()
+
+		// Chunk 1: text delta
+		chunk1 := &canonical.Chunk{
+			ID:    "msg_456",
+			Model: "qwen3-max",
+			Deltas: []canonical.ChoiceDelta{
+				{
+					Index: 0,
+					Delta: canonical.Message{
+						Content: []canonical.ContentBlock{{Type: canonical.ContentText, Text: "Hi"}},
+					},
+				},
+			},
+		}
+		_, err := adapter.FormatStreamChunk(ctx, chunk1)
+		if err != nil {
+			t.Fatalf("chunk1 failed: %v", err)
+		}
+
+		// Chunk 2: finish_reason AND usage in the same chunk
+		finishReason := "stop"
+		chunk2 := &canonical.Chunk{
+			ID: "msg_456",
+			Deltas: []canonical.ChoiceDelta{
+				{
+					Index:        0,
+					FinishReason: &finishReason,
+				},
+			},
+			Usage: &canonical.Usage{
+				PromptTokens:     50,
+				CompletionTokens: 5,
+			},
+		}
+
+		out2, err := adapter.FormatStreamChunk(ctx, chunk2)
+		if err != nil {
+			t.Fatalf("chunk2 failed: %v", err)
+		}
+		output := string(out2)
+
+		// Should contain: content_block_stop + message_delta + message_stop
+		if !strings.Contains(output, "event: content_block_stop") {
+			t.Error("Missing content_block_stop")
+		}
+		if !strings.Contains(output, "event: message_delta") {
+			t.Error("Missing message_delta")
+		}
+		if !strings.Contains(output, "event: message_stop") {
+			t.Error("Missing message_stop")
+		}
+		if !strings.Contains(output, "\"stop_reason\":\"end_turn\"") {
+			t.Error("Missing stop_reason")
+		}
+	})
+
+	t.Run("finish_without_usage", func(t *testing.T) {
+		adapter := NewClientAdapter()
+
+		// Chunk 1: text delta
+		chunk1 := &canonical.Chunk{
+			ID:    "msg_789",
+			Model: "qwen3-max",
+			Deltas: []canonical.ChoiceDelta{
+				{
+					Index: 0,
+					Delta: canonical.Message{
+						Content: []canonical.ContentBlock{{Type: canonical.ContentText, Text: "Hi"}},
+					},
+				},
+			},
+		}
+		_, err := adapter.FormatStreamChunk(ctx, chunk1)
+		if err != nil {
+			t.Fatalf("chunk1 failed: %v", err)
+		}
+
+		// Chunk 2: finish_reason only, NO usage
+		finishReason := "stop"
+		chunk2 := &canonical.Chunk{
+			ID: "msg_789",
+			Deltas: []canonical.ChoiceDelta{
+				{
+					Index:        0,
+					FinishReason: &finishReason,
+				},
+			},
+			// No Usage field!
+		}
+
+		out2, err := adapter.FormatStreamChunk(ctx, chunk2)
+		if err != nil {
+			t.Fatalf("chunk2 failed: %v", err)
+		}
+		output := string(out2)
+
+		// Must still emit content_block_stop + message_delta + message_stop
+		if !strings.Contains(output, "event: content_block_stop") {
+			t.Error("Missing content_block_stop")
+		}
+		if !strings.Contains(output, "event: message_delta") {
+			t.Error("Missing message_delta")
+		}
+		if !strings.Contains(output, "event: message_stop") {
+			t.Error("Missing message_stop")
+		}
+		if !strings.Contains(output, "\"stop_reason\":\"end_turn\"") {
+			t.Error("Missing stop_reason in message_delta")
+		}
+	})
+}
