@@ -35,9 +35,6 @@ type OAuthSession struct {
 	Completed    bool   `json:"completed"`     // Whether callback was received
 	CallbackCode string `json:"callback_code"` // Authorization code from callback
 	CallbackErr  string `json:"callback_err"`  // Error from callback if any
-
-	// Device flow fields
-	DeviceAuthID string `json:"device_auth_id,omitempty"` // Device auth ID for polling
 }
 
 // Manager manages OAuth sessions in memory

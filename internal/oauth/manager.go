@@ -4,23 +4,23 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/bestruirui/octopus/internal/db"
 	"github.com/bestruirui/octopus/internal/model"
+	"github.com/bestruirui/octopus/internal/oauth/callback"
 	"github.com/bestruirui/octopus/internal/oauth/codex"
 	"github.com/bestruirui/octopus/internal/oauth/kiro"
 	"github.com/bestruirui/octopus/internal/oauth/pkce"
 	"github.com/bestruirui/octopus/internal/oauth/session"
-	"github.com/bestruirui/octopus/internal/op"
 	"github.com/bestruirui/octopus/internal/utils/log"
 )
 
 type Manager struct {
-	sessionManager *session.Manager
-	mu             sync.Mutex
+	sessionManager  *session.Manager
+	callbackServers map[int]*callback.Server // Active callback servers by port
+	serversMu       sync.Mutex
 }
 
 var (
@@ -31,7 +31,8 @@ var (
 func GetManager() *Manager {
 	once.Do(func() {
 		sharedManager = &Manager{
-			sessionManager: session.NewManager(),
+			sessionManager:  session.NewManager(),
+			callbackServers: make(map[int]*callback.Server),
 		}
 	})
 	return sharedManager
@@ -45,10 +46,6 @@ type OAuthFlowInfo struct {
 	CallbackPort int    `json:"callback_port,omitempty"`
 	ExpiresIn    int    `json:"expires_in"`
 	Instructions string `json:"instructions"`
-
-	// Device flow fields
-	DeviceCode   string `json:"device_code,omitempty"`
-	VerificationURL string `json:"verification_url,omitempty"`
 }
 
 // RefreshAPIKey refreshes the API key for an OAuth provider
@@ -161,131 +158,119 @@ func (m *Manager) InitiateOAuthFlow(ctx context.Context, providerType model.OAut
 		return nil, fmt.Errorf("generate PKCE codes: %w", err)
 	}
 
+	var port int
+	var callbackURL string
+	var cbServer *callback.Server
+
+	// Determine callback mode
+	if mode == session.CallbackModeAuto {
+		// Find available port
+		port, err = callback.FindAvailablePort(14000, 15000)
+		if err != nil {
+			// Fall back to manual mode
+			mode = session.CallbackModeManual
+			log.Warnf("failed to find available port, falling back to manual mode: %v", err)
+		} else {
+			callbackURL = fmt.Sprintf("http://localhost:%d/callback", port)
+
+			// Create and start callback server
+			cbServer = callback.NewServer(port)
+			_, err = cbServer.Start(ctx)
+			if err != nil {
+				// Fall back to manual mode
+				mode = session.CallbackModeManual
+				log.Warnf("failed to start callback server, falling back to manual mode: %v", err)
+			} else {
+				// Store the server for later cleanup
+				m.serversMu.Lock()
+				m.callbackServers[port] = cbServer
+				m.serversMu.Unlock()
+			}
+		}
+	}
+
 	// Create session
-	sess, err := m.sessionManager.CreateSession(providerType, mode, pkceCodes, 0)
+	sess, err := m.sessionManager.CreateSession(providerType, mode, pkceCodes, port)
 	if err != nil {
+		// Clean up server if session creation fails
+		if cbServer != nil {
+			_ = cbServer.Stop()
+			m.serversMu.Lock()
+			delete(m.callbackServers, port)
+			m.serversMu.Unlock()
+		}
 		return nil, fmt.Errorf("create session: %w", err)
 	}
 
+	// For auto mode, start goroutine to wait for callback
+	if mode == session.CallbackModeAuto && cbServer != nil {
+		go m.waitForAutoCallback(ctx, sess.State, cbServer)
+	}
+
+	// Generate auth URL based on provider type
 	switch providerType {
 	case model.OAuthProviderTypeCodex:
-		return m.initiateCodexDeviceFlow(ctx, sess)
+		codexAuth := codex.NewAuth()
+		if callbackURL == "" {
+			callbackURL = "http://localhost:1455/callback"
+		}
+		authURL := codexAuth.GetAuthURL(sess.State, pkceCodes.CodeChallenge, callbackURL)
+
+		// Build response
+		info := &OAuthFlowInfo{
+			AuthURL:   authURL,
+			State:     sess.State,
+			ExpiresIn: 600, // 10 minutes
+		}
+
+		if mode == session.CallbackModeAuto {
+			info.CallbackMode = "auto"
+			info.CallbackPort = port
+			info.Instructions = "Click the link below to authorize. The page will automatically detect when authorization is complete."
+		} else {
+			info.CallbackMode = "manual"
+			info.Instructions = "Click the link below to authorize. After authorization, copy the URL from your browser's address bar and paste it in the callback URL field."
+		}
+
+		return info, nil
 	default:
+		// Clean up server for unsupported provider
+		if cbServer != nil {
+			_ = cbServer.Stop()
+			m.serversMu.Lock()
+			delete(m.callbackServers, port)
+			m.serversMu.Unlock()
+		}
 		return nil, fmt.Errorf("unsupported OAuth provider type: %s", providerType)
 	}
 }
 
-// initiateCodexDeviceFlow initiates the Codex device flow
-func (m *Manager) initiateCodexDeviceFlow(ctx context.Context, sess *session.OAuthSession) (*OAuthFlowInfo, error) {
-	codexAuth := codex.NewAuth()
+// waitForAutoCallback waits for the callback in auto mode
+func (m *Manager) waitForAutoCallback(ctx context.Context, state string, cbServer *callback.Server) {
+	defer func() {
+		// Stop server when done
+		_ = cbServer.Stop()
+		m.serversMu.Lock()
+		delete(m.callbackServers, cbServer.GetPort())
+		m.serversMu.Unlock()
+	}()
 
-	// Request device code from OpenAI
-	deviceResp, err := codexAuth.RequestDeviceCode(ctx)
+	// Wait for callback with 10 minute timeout (matching session TTL)
+	result, err := cbServer.WaitForCallback(ctx, 10*time.Minute)
 	if err != nil {
-		return nil, fmt.Errorf("request device code: %w", err)
-	}
-
-	deviceCode := strings.TrimSpace(deviceResp.UserCode)
-	if deviceCode == "" {
-		deviceCode = strings.TrimSpace(deviceResp.UserCodeAlt)
-	}
-	deviceAuthID := strings.TrimSpace(deviceResp.DeviceAuthID)
-	if deviceCode == "" || deviceAuthID == "" {
-		return nil, fmt.Errorf("device flow did not return required fields")
-	}
-
-	// Store device auth ID in session
-	sess.DeviceAuthID = deviceAuthID
-
-	pollInterval := codex.ParseDevicePollInterval(deviceResp.Interval)
-
-	// Start background polling
-	go m.pollDeviceAuth(context.Background(), sess.State, deviceAuthID, deviceCode, pollInterval)
-
-	return &OAuthFlowInfo{
-		AuthURL:         codex.DeviceVerificationURL,
-		State:           sess.State,
-		CallbackMode:    "device",
-		ExpiresIn:       900, // 15 minutes
-		Instructions:    "Visit the URL below and enter the device code to authorize.",
-		DeviceCode:      deviceCode,
-		VerificationURL: codex.DeviceVerificationURL,
-	}, nil
-}
-
-// pollDeviceAuth polls OpenAI for device auth completion and exchanges code for tokens
-func (m *Manager) pollDeviceAuth(ctx context.Context, state, deviceAuthID, userCode string, interval time.Duration) {
-	codexAuth := codex.NewAuth()
-
-	tokenResp, err := codexAuth.PollDeviceToken(ctx, deviceAuthID, userCode, interval)
-	if err != nil {
-		log.Warnf("device poll failed for state %s: %v", state, err)
+		log.Warnf("callback wait failed for state %s: %v", state, err)
+		// Mark session with error
 		m.sessionManager.SetCallbackResult(state, "", err.Error())
 		return
 	}
 
-	authCode := strings.TrimSpace(tokenResp.AuthorizationCode)
-	codeVerifier := strings.TrimSpace(tokenResp.CodeVerifier)
-	codeChallenge := strings.TrimSpace(tokenResp.CodeChallenge)
-	if authCode == "" || codeVerifier == "" {
-		m.sessionManager.SetCallbackResult(state, "", "device flow response missing required fields")
+	// Store callback result in session
+	if result.Error != "" {
+		m.sessionManager.SetCallbackResult(state, "", result.Error)
 		return
 	}
 
-	// Store PKCE codes from device flow response
-	sess, err := m.sessionManager.ValidateSession(state)
-	if err != nil {
-		m.sessionManager.SetCallbackResult(state, "", "session expired")
-		return
-	}
-	sess.PKCECodes = &pkce.PKCECodes{
-		CodeVerifier:  codeVerifier,
-		CodeChallenge: codeChallenge,
-	}
-
-	// Exchange code for tokens
-	tokenResult, err := codexAuth.ExchangeCodeWithRedirect(ctx, authCode, codeVerifier, codex.DeviceTokenExchangeRedirectURI)
-	if err != nil {
-		log.Warnf("device code exchange failed for state %s: %v", state, err)
-		m.sessionManager.SetCallbackResult(state, "", fmt.Sprintf("token exchange failed: %v", err))
-		return
-	}
-
-	// Build provider and save
-	email := codex.ExtractEmailFromIDToken(tokenResult.IDToken)
-	tokenData := codexAuth.BuildTokenData(tokenResult, email)
-	tokenJSON, err := tokenData.ToJSON()
-	if err != nil {
-		m.sessionManager.SetCallbackResult(state, "", fmt.Sprintf("serialize token: %v", err))
-		return
-	}
-
-	provider := &model.OAuthProvider{
-		Name:           fmt.Sprintf("Codex-%s", email),
-		ProviderType:   model.OAuthProviderTypeCodex,
-		APIKey:         tokenResult.AccessToken,
-		APIKeyExpireAt: tokenData.ExpiresAt,
-		Status:         1,
-		LastRefreshAt:  time.Now().Unix(),
-	}
-	authJson := &model.AuthJson{
-		Content:         tokenJSON,
-		Enabled:         true,
-		StatusCode:      200,
-		LastUseTimeStamp: time.Now().Unix(),
-	}
-	provider.AuthJsons = []model.AuthJson{*authJson}
-
-	// Save to database
-	createReq := &op.OAuthProviderCreateRequest{Provider: provider}
-	if err := op.OAuthProviderCreate(createReq, ctx); err != nil {
-		log.Warnf("device flow: failed to save provider: %v", err)
-		m.sessionManager.SetCallbackResult(state, "", fmt.Sprintf("save provider: %v", err))
-		return
-	}
-
-	// Store provider ID in session result for frontend to retrieve
-	m.sessionManager.SetCallbackResult(state, fmt.Sprintf("provider:%d", provider.ID), "")
+	m.sessionManager.SetCallbackResult(state, result.Code, "")
 }
 
 // HandleOAuthCallback handles the OAuth callback URL (manual mode)
@@ -382,9 +367,9 @@ func (m *Manager) GetCallbackResult(state string) (bool, string, string) {
 func (m *Manager) exchangeCodexCode(ctx context.Context, sess *session.OAuthSession, code string) (*model.OAuthProvider, error) {
 	codexAuth := codex.NewAuth()
 
-	redirectURI := "http://localhost:1455/auth/callback"
+	redirectURI := "http://localhost:1455/callback"
 	if sess.CallbackMode == session.CallbackModeAuto && sess.CallbackPort > 0 {
-		redirectURI = fmt.Sprintf("http://localhost:%d/auth/callback", sess.CallbackPort)
+		redirectURI = fmt.Sprintf("http://localhost:%d/callback", sess.CallbackPort)
 	}
 
 	tokenResp, err := codexAuth.ExchangeCode(ctx, code, sess.PKCECodes.CodeVerifier, redirectURI)

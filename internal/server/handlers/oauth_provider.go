@@ -3,10 +3,8 @@ package handlers
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/bestruirui/octopus/internal/helper"
 	"github.com/bestruirui/octopus/internal/model"
@@ -440,64 +438,46 @@ func getOAuthCallbackStatus(c *gin.Context) {
 		return
 	}
 
-	// Check if callback result is available (auto mode or device flow)
-	completed, code, callbackErr := manager.GetCallbackResult(state)
-	if completed {
-		if callbackErr != "" {
-			resp.Success(c, gin.H{
-				"status": "error",
-				"error":  callbackErr,
-			})
-			return
-		}
-
-		// Device flow already saved the provider; extract provider ID from result
-		if strings.HasPrefix(code, "provider:") {
-			var providerID int
-			if _, err := fmt.Sscanf(code, "provider:%d", &providerID); err == nil {
-				provider, err := op.OAuthProviderGet(providerID, c.Request.Context())
-				if err != nil {
-					resp.Success(c, gin.H{
-						"status": "error",
-						"error":  "provider not found after auth",
-					})
-					return
-				}
+	// Check if this is auto mode and callback has been received
+	if sess.CallbackMode == session.CallbackModeAuto {
+		completed, code, callbackErr := manager.GetCallbackResult(state)
+		if completed {
+			if callbackErr != "" {
 				resp.Success(c, gin.H{
-					"status":   "completed",
-					"provider": provider,
+					"status": "error",
+					"error":  callbackErr,
 				})
 				return
 			}
-		}
 
-		// Standard auto mode: exchange code for provider
-		provider, err := manager.HandleAutoCallback(c.Request.Context(), state, code)
-		if err != nil {
+			// Exchange code for provider
+			provider, err := manager.HandleAutoCallback(c.Request.Context(), state, code)
+			if err != nil {
+				resp.Success(c, gin.H{
+					"status": "error",
+					"error":  err.Error(),
+				})
+				return
+			}
+
+			// Save the provider to database
+			createReq := &op.OAuthProviderCreateRequest{
+				Provider: provider,
+			}
+			if err := op.OAuthProviderCreate(createReq, c.Request.Context()); err != nil {
+				resp.Success(c, gin.H{
+					"status": "error",
+					"error":  "failed to save provider: " + err.Error(),
+				})
+				return
+			}
+
 			resp.Success(c, gin.H{
-				"status": "error",
-				"error":  err.Error(),
+				"status":   "completed",
+				"provider": provider,
 			})
 			return
 		}
-
-		// Save the provider to database
-		createReq := &op.OAuthProviderCreateRequest{
-			Provider: provider,
-		}
-		if err := op.OAuthProviderCreate(createReq, c.Request.Context()); err != nil {
-			resp.Success(c, gin.H{
-				"status": "error",
-				"error":  "failed to save provider: " + err.Error(),
-			})
-			return
-		}
-
-		resp.Success(c, gin.H{
-			"status":   "completed",
-			"provider": provider,
-		})
-		return
 	}
 
 	// Session is still pending

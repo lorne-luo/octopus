@@ -9,7 +9,7 @@ func TestGetAuthURL(t *testing.T) {
 
 	state := "test-state-123"
 	codeChallenge := "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
-	redirectURI := "http://localhost:1455/auth/callback"
+	redirectURI := "http://localhost:1455/callback"
 
 	authURL := auth.GetAuthURL(state, codeChallenge, redirectURI)
 

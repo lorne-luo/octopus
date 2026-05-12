@@ -8,20 +8,15 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 )
 
 // OAuth endpoints for OpenAI/Codex
 const (
-	AuthURL              = "https://auth.openai.com/oauth/authorize"
-	TokenURL             = "https://auth.openai.com/oauth/token"
-	ClientID             = "app_EMoamEEZ73f0CkXaXp7hrann"
-	DeviceUserCodeURL    = "https://auth.openai.com/api/accounts/deviceauth/usercode"
-	DeviceTokenURL       = "https://auth.openai.com/api/accounts/deviceauth/token"
-	DeviceVerificationURL = "https://auth.openai.com/codex/device"
-	DeviceTokenExchangeRedirectURI = "https://auth.openai.com/deviceauth/callback"
+	AuthURL  = "https://auth.openai.com/oauth/authorize"
+	TokenURL = "https://auth.openai.com/oauth/token"
+	ClientID = "app_EMoamEEZ73f0CkXaXp7hrann"
 )
 
 // Auth handles Codex/OpenAI OAuth authentication
@@ -194,149 +189,4 @@ func ExtractEmailFromIDToken(idToken string) string {
 	}
 
 	return claims.Email
-}
-
-// DeviceFlowUserCodeResponse represents the response from the device code endpoint
-type DeviceFlowUserCodeResponse struct {
-	DeviceAuthID string `json:"device_auth_id"`
-	UserCode     string `json:"user_code"`
-	UserCodeAlt  string `json:"usercode"`
-	Interval     json.RawMessage `json:"interval"`
-}
-
-// DeviceFlowTokenResponse represents the response from the device token polling endpoint
-type DeviceFlowTokenResponse struct {
-	AuthorizationCode string `json:"authorization_code"`
-	CodeVerifier      string `json:"code_verifier"`
-	CodeChallenge     string `json:"code_challenge"`
-}
-
-// RequestDeviceCode requests a device code from OpenAI for the device flow
-func (a *Auth) RequestDeviceCode(ctx context.Context) (*DeviceFlowUserCodeResponse, error) {
-	body, err := json.Marshal(map[string]string{"client_id": ClientID})
-	if err != nil {
-		return nil, fmt.Errorf("marshal device code request: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, DeviceUserCodeURL, strings.NewReader(string(body)))
-	if err != nil {
-		return nil, fmt.Errorf("create device code request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := a.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("device code request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read device code response: %w", err)
-	}
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("device code request failed: status=%d body=%s", resp.StatusCode, string(respBody))
-	}
-
-	var result DeviceFlowUserCodeResponse
-	if err := json.Unmarshal(respBody, &result); err != nil {
-		return nil, fmt.Errorf("parse device code response: %w", err)
-	}
-
-	return &result, nil
-}
-
-// PollDeviceToken polls OpenAI for the device authorization result.
-// Returns the authorization code + PKCE codes once the user completes verification.
-func (a *Auth) PollDeviceToken(ctx context.Context, deviceAuthID, userCode string, interval time.Duration) (*DeviceFlowTokenResponse, error) {
-	deadline := time.Now().Add(15 * time.Minute)
-
-	for {
-		if time.Now().After(deadline) {
-			return nil, fmt.Errorf("device auth timeout after 15 minutes")
-		}
-
-		body, err := json.Marshal(map[string]string{
-			"device_auth_id": deviceAuthID,
-			"user_code":      userCode,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("marshal poll request: %w", err)
-		}
-
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, DeviceTokenURL, strings.NewReader(string(body)))
-		if err != nil {
-			return nil, fmt.Errorf("create poll request: %w", err)
-		}
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Accept", "application/json")
-
-		resp, err := a.httpClient.Do(req)
-		if err != nil {
-			return nil, fmt.Errorf("poll request: %w", err)
-		}
-
-		respBody, readErr := io.ReadAll(resp.Body)
-		_ = resp.Body.Close()
-		if readErr != nil {
-			return nil, fmt.Errorf("read poll response: %w", readErr)
-		}
-
-		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-			var result DeviceFlowTokenResponse
-			if err := json.Unmarshal(respBody, &result); err != nil {
-				return nil, fmt.Errorf("parse poll response: %w", err)
-			}
-			return &result, nil
-		}
-
-		if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusNotFound {
-			// Not yet authorized, keep polling
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case <-time.After(interval):
-				continue
-			}
-		}
-
-		return nil, fmt.Errorf("device poll failed: status=%d body=%s", resp.StatusCode, string(respBody))
-	}
-}
-
-// ExchangeCodeWithRedirect exchanges an authorization code using a specific redirect URI
-func (a *Auth) ExchangeCodeWithRedirect(ctx context.Context, code, codeVerifier, redirectURI string) (*TokenResponse, error) {
-	data := url.Values{
-		"client_id":     {ClientID},
-		"grant_type":    {"authorization_code"},
-		"code":          {code},
-		"redirect_uri":  {redirectURI},
-		"code_verifier": {codeVerifier},
-	}
-
-	return a.doTokenRequest(ctx, data.Encode())
-}
-
-// ParseDevicePollInterval parses the interval from the device code response
-func ParseDevicePollInterval(raw json.RawMessage) time.Duration {
-	defaultInterval := 5 * time.Second
-	if len(raw) == 0 {
-		return defaultInterval
-	}
-
-	var asString string
-	if err := json.Unmarshal(raw, &asString); err == nil {
-		if seconds, convErr := strconv.Atoi(strings.TrimSpace(asString)); convErr == nil && seconds > 0 {
-			return time.Duration(seconds) * time.Second
-		}
-	}
-
-	var asInt int
-	if err := json.Unmarshal(raw, &asInt); err == nil && asInt > 0 {
-		return time.Duration(asInt) * time.Second
-	}
-
-	return defaultInterval
 }
