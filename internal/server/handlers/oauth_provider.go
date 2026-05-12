@@ -9,7 +9,6 @@ import (
 	"github.com/bestruirui/octopus/internal/helper"
 	"github.com/bestruirui/octopus/internal/model"
 	"github.com/bestruirui/octopus/internal/oauth"
-	"github.com/bestruirui/octopus/internal/oauth/iflow"
 	"github.com/bestruirui/octopus/internal/oauth/session"
 	"github.com/bestruirui/octopus/internal/op"
 	"github.com/bestruirui/octopus/internal/server/middleware"
@@ -71,28 +70,6 @@ func validateAndNormalizeAuthJsonContent(content string, providerType model.OAut
 	}
 
 	// Provider-specific validation and normalization
-	if providerType == model.OAuthProviderTypeIFlow {
-		var data map[string]interface{}
-		if err := json.Unmarshal([]byte(content), &data); err != nil {
-			return "", "failed to parse auth_json content: " + err.Error()
-		}
-		bxAuthRaw, ok := data["BXAuth"]
-		if !ok {
-			return "", "auth_json must contain BXAuth field for iFlow provider"
-		}
-		bxAuth, ok := bxAuthRaw.(string)
-		if !ok {
-			return "", "BXAuth must be a string"
-		}
-		normalizedBXAuth, err := iflow.NormalizeCookie(bxAuth)
-		if err != nil {
-			return "", err.Error()
-		}
-		// Rebuild auth_json with normalized value
-		normalizedContent, _ := json.Marshal(map[string]string{"BXAuth": normalizedBXAuth})
-		return string(normalizedContent), ""
-	}
-
 	if providerType == model.OAuthProviderTypeKiro {
 		var data map[string]interface{}
 		if err := json.Unmarshal([]byte(content), &data); err != nil {

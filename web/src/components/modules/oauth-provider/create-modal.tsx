@@ -45,7 +45,6 @@ interface FormData {
 
 // Auth JSON placeholders for different provider types
 const authJsonPlaceholders: Record<string, string> = {
-    iflow: '{"BXAuth": "your_bxauth_cookie_value"}',
     kiro: '{"refreshToken": "your_refresh_token", "region": "us-east-1"}',
 }
 
@@ -97,7 +96,7 @@ export function CreateEditOAuthProviderModal({
     const { register, handleSubmit, reset, setValue, watch } = useForm<FormData>({
         defaultValues: {
             name: "",
-            provider_type: "iflow",
+            provider_type: "kiro",
             status: "1",
             model: "",
             custom_model: "",
@@ -113,7 +112,7 @@ export function CreateEditOAuthProviderModal({
         ? watch("custom_model").split(',').map((m) => m.trim()).filter(Boolean)
         : [];
     const matchRegex = watch("match_regex") || "";
-    const providerType = watch("provider_type") || "iflow";
+    const providerType = watch("provider_type") || "kiro";
     const authJsons = watch("auth_jsons") || [];
     const [inputValue, setInputValue] = useState('')
     const inputRef = useRef<HTMLInputElement>(null)
@@ -267,7 +266,7 @@ export function CreateEditOAuthProviderModal({
             } else {
                 reset({
                     name: "",
-                    provider_type: "iflow",
+                    provider_type: "kiro",
                     status: "1",
                     model: "",
                     custom_model: "",
@@ -380,7 +379,7 @@ export function CreateEditOAuthProviderModal({
                     <div className="space-y-2">
                         <Label>{t("type")}</Label>
                         <div className="flex gap-1">
-                            {(["iflow", "kiro", "codex"] as const).map((type) => (
+                            {(["kiro", "codex"] as const).map((type) => (
                                 <button
                                     key={type}
                                     type="button"
@@ -397,7 +396,7 @@ export function CreateEditOAuthProviderModal({
                                             : "bg-muted hover:bg-muted/80"
                                     )}
                                 >
-                                    {type === "iflow" ? "iFlow" : type === "kiro" ? "Kiro" : "Codex"}
+                                    {type === "kiro" ? "Kiro" : "Codex"}
                                 </button>
                             ))}
                         </div>
@@ -491,7 +490,7 @@ export function CreateEditOAuthProviderModal({
                             )}
                         </div>
                     ) : (
-                        // AuthJson for iFlow/Kiro
+                        // AuthJson for Kiro
                         <div className="space-y-2">
                             <div className="flex items-center justify-between">
                                 <Label>{t("authJson")} {authJsons.length > 0 ? `(${authJsons.length})` : ''}</Label>

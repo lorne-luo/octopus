@@ -11,16 +11,13 @@ import (
 type OAuthProviderType int
 
 const (
-	OAuthProviderTypeIFlow OAuthProviderType = iota + 1
-	OAuthProviderTypeKiro
+	OAuthProviderTypeKiro OAuthProviderType = iota + 1
 	OAuthProviderTypeCodex
 )
 
 // String returns the string representation of the provider type
 func (t OAuthProviderType) String() string {
 	switch t {
-	case OAuthProviderTypeIFlow:
-		return "iflow"
 	case OAuthProviderTypeKiro:
 		return "kiro"
 	case OAuthProviderTypeCodex:
@@ -33,8 +30,6 @@ func (t OAuthProviderType) String() string {
 // ParseOAuthProviderType parses a string to OAuthProviderType
 func ParseOAuthProviderType(s string) (OAuthProviderType, error) {
 	switch s {
-	case "iflow":
-		return OAuthProviderTypeIFlow, nil
 	case "kiro":
 		return OAuthProviderTypeKiro, nil
 	case "codex":
@@ -83,20 +78,6 @@ type AuthJson struct {
 // TableName specifies the table name for AuthJson
 func (AuthJson) TableName() string {
 	return "auth_jsons"
-}
-
-// GetBXAuth extracts BXAuth from Content for iFlow provider
-func (aj *AuthJson) GetBXAuth() string {
-	if aj.Content == "" {
-		return ""
-	}
-	var data struct {
-		BXAuth string `json:"BXAuth"`
-	}
-	if err := json.Unmarshal([]byte(aj.Content), &data); err != nil {
-		return ""
-	}
-	return data.BXAuth
 }
 
 // GetRefreshToken extracts RefreshToken from Content for Kiro provider
@@ -178,7 +159,6 @@ type OAuthProvider struct {
 	Name             string                 `gorm:"size:255;not null" json:"name"`
 	ProviderType     OAuthProviderType      `gorm:"not null" json:"provider_type"`
 	AuthJsons        []AuthJson             `gorm:"foreignKey:OAuthProviderID" json:"auth_jsons,omitempty"`
-	KeyName          string                 `gorm:"size:255" json:"-"`                          // iFlow key name for refresh
 	APIKey           string                 `gorm:"size:255" json:"api_key"`
 	APIKeyExpireAt   int64                  `json:"api_key_expire_at"`
 	Status           int                    `gorm:"default:1" json:"status"` // 1: Active, 2: Expired, 0: Disabled
@@ -288,8 +268,6 @@ func (p *OAuthProvider) GetBaseURL() string {
 		return p.BaseURL
 	}
 	switch p.ProviderType {
-	case OAuthProviderTypeIFlow:
-		return "https://apis.iflow.cn/v1"
 	case OAuthProviderTypeKiro:
 		return "https://q.us-east-1.amazonaws.com"
 	case OAuthProviderTypeCodex:
