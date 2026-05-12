@@ -26,7 +26,7 @@ func TestOAuthProviderCreateWithChannel(t *testing.T) {
 	// Create a test OAuth provider
 	provider := &model.OAuthProvider{
 		Name:         "Test Provider",
-		ProviderType: model.OAuthProviderTypeIFlow,
+		ProviderType: model.OAuthProviderTypeKiro,
 		Status:       1,
 	}
 
@@ -82,7 +82,7 @@ func TestOAuthProviderUpdateWithChannel(t *testing.T) {
 	// Create a test OAuth provider
 	provider := &model.OAuthProvider{
 		Name:         "Test Provider",
-		ProviderType: model.OAuthProviderTypeIFlow,
+		ProviderType: model.OAuthProviderTypeKiro,
 		Status:       1,
 	}
 
@@ -153,7 +153,7 @@ func TestOAuthProviderDeleteWithChannel(t *testing.T) {
 	// Create a test OAuth provider
 	provider := &model.OAuthProvider{
 		Name:         "Test Provider",
-		ProviderType: model.OAuthProviderTypeIFlow,
+		ProviderType: model.OAuthProviderTypeKiro,
 		Status:       1,
 	}
 

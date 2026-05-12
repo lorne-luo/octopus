@@ -210,17 +210,17 @@ func TestOAuthProvider_GetBaseURL(t *testing.T) {
 		{
 			name: "custom base url",
 			provider: &OAuthProvider{
-				ProviderType: OAuthProviderTypeIFlow,
+				ProviderType: OAuthProviderTypeKiro,
 				BaseURL:      "https://custom.api.com/v1",
 			},
 			want: "https://custom.api.com/v1",
 		},
 		{
-			name: "iflow default",
+			name: "kiro default",
 			provider: &OAuthProvider{
-				ProviderType: OAuthProviderTypeIFlow,
+				ProviderType: OAuthProviderTypeKiro,
 			},
-			want: "https://apis.iflow.cn/v1",
+			want: "https://q.us-east-1.amazonaws.com",
 		},
 		{
 			name: "unknown provider type",
@@ -240,18 +240,18 @@ func TestOAuthProvider_GetBaseURL(t *testing.T) {
 	}
 }
 
-func TestAuthJson_GetBXAuth(t *testing.T) {
+func TestAuthJson_GetRefreshToken(t *testing.T) {
 	tests := []struct {
 		name     string
 		authJson *AuthJson
 		want     string
 	}{
 		{
-			name: "valid BXAuth",
+			name: "valid RefreshToken",
 			authJson: &AuthJson{
-				Content: `{"BXAuth":"test-cookie-value"}`,
+				Content: `{"RefreshToken":"test-refresh-value"}`,
 			},
-			want: "test-cookie-value",
+			want: "test-refresh-value",
 		},
 		{
 			name: "empty content",
@@ -268,7 +268,7 @@ func TestAuthJson_GetBXAuth(t *testing.T) {
 			want: "",
 		},
 		{
-			name: "missing BXAuth field",
+			name: "missing RefreshToken field",
 			authJson: &AuthJson{
 				Content: `{"otherField":"value"}`,
 			},
@@ -278,8 +278,8 @@ func TestAuthJson_GetBXAuth(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.authJson.GetBXAuth(); got != tt.want {
-				t.Errorf("GetBXAuth() = %q, want %q", got, tt.want)
+			if got := tt.authJson.GetRefreshToken(); got != tt.want {
+				t.Errorf("GetRefreshToken() = %q, want %q", got, tt.want)
 			}
 		})
 	}
@@ -294,7 +294,7 @@ func TestChannel_UseOAuth(t *testing.T) {
 		OAuthProvider: &OAuthProvider{
 			ID:           1,
 			Name:         "test-provider",
-			ProviderType: OAuthProviderTypeIFlow,
+			ProviderType: OAuthProviderTypeKiro,
 			APIKey:       "test-api-key",
 			Status:       1,
 		},

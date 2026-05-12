@@ -139,29 +139,33 @@ func ImagesHandler(endpoint string, c *gin.Context) {
 		channel, err := op.ChannelGet(item.ChannelID, ctx)
 		if err != nil {
 			log.Warnf("failed to get channel %d: %v", item.ChannelID, err)
-			iter.Skip(item.ChannelID, 0, fmt.Sprintf("channel_%d", item.ChannelID), fmt.Sprintf("channel not found: %v", err))
+			iter.Skip(item.ChannelID, 0, fmt.Sprintf("channel_%d", item.ChannelID), 0, "", fmt.Sprintf("channel not found: %v", err))
 			lastErr = err
 			continue
 		}
 		if !channel.Enabled {
-			iter.Skip(channel.ID, 0, channel.Name, "channel disabled")
+			iter.Skip(channel.ID, 0, channel.Name, int(channel.Type), "", "channel disabled")
 			continue
 		}
 
 		// channel.Type 限制：仅 OpenAI Chat/Responses
-		if channel.Type != outbound.OutboundTypeOpenAIChat && channel.Type != outbound.OutboundTypeOpenAIResponse {
-			iter.Skip(channel.ID, 0, channel.Name, fmt.Sprintf("unsupported channel type: %d", channel.Type))
+		if int(channel.Type) != int(outbound.OutboundTypeOpenAIChat) && int(channel.Type) != int(outbound.OutboundTypeOpenAIResponse) {
+			iter.Skip(channel.ID, 0, channel.Name, int(channel.Type), "", fmt.Sprintf("unsupported channel type: %d", channel.Type))
 			continue
 		}
 
 		usedKey := channel.GetChannelKey()
+		apiKeySuffix := ""
+		if usedKey.ChannelKey != "" {
+			apiKeySuffix = usedKey.ChannelKey[len(usedKey.ChannelKey)-4:]
+		}
 		if usedKey.ChannelKey == "" {
-			iter.Skip(channel.ID, 0, channel.Name, "no available key")
+			iter.Skip(channel.ID, 0, channel.Name, int(channel.Type), apiKeySuffix, "no available key")
 			continue
 		}
 
 		// 熔断检查（熔断 key 使用 actualModel=item.ModelName）
-		if iter.SkipCircuitBreak(channel.ID, usedKey.ID, channel.Name) {
+		if iter.SkipCircuitBreak(channel.ID, usedKey.ID, channel.Name, int(channel.Type), apiKeySuffix) {
 			continue
 		}
 
@@ -169,7 +173,7 @@ func ImagesHandler(endpoint string, c *gin.Context) {
 			requestModel, group.Mode, channel.Name, item.ModelName,
 			iter.Index()+1, iter.Len(), iter.IsSticky(), stream)
 
-		span := iter.StartAttempt(channel.ID, usedKey.ID, channel.Name)
+		span := iter.StartAttempt(channel.ID, usedKey.ID, channel.Name, int(channel.Type), apiKeySuffix)
 
 		// 尝试一次转发
 		statusCode, written, usage, upstreamCT, fwdErr := imagesAttempt(ctx, endpoint, c, bc, isMultipart, boundary, jsonPayload, stream, channel, usedKey.ChannelKey, group.FirstTokenTimeOut, metrics, item.ModelName)
@@ -295,7 +299,7 @@ func (m *imagesRelayMetrics) Save(ctx context.Context, success bool, err error, 
 		globalStats.RequestFailed = 1
 	}
 
-	channelID, channelName := finalChannel(attempts)
+	channelID, channelName, _ := finalChannel(attempts)
 	op.StatsTotalUpdate(globalStats)
 	op.StatsHourlyUpdate(globalStats)
 	op.StatsDailyUpdate(context.Background(), globalStats)
