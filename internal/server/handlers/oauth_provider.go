@@ -322,6 +322,12 @@ func fetchOAuthProviderModels(c *gin.Context) {
 			resp.Error(c, http.StatusBadRequest, "failed to refresh api key: "+err.Error())
 			return
 		}
+		// Reload provider to get updated API key
+		provider, err = op.OAuthProviderGet(req.ID, c.Request.Context())
+		if err != nil {
+			resp.Error(c, http.StatusInternalServerError, "failed to reload provider")
+			return
+		}
 	}
 
 	// Build Channel-like request for FetchModels
