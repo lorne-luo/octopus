@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 
@@ -76,14 +75,15 @@ func getGroupList(c *gin.Context) {
 		return
 	}
 
-	// Load all speed data
-	speedMap, err := op.GetGroupChannelModelSpeedMapAll(c.Request.Context())
+	groupIDs := make([]int, 0, len(groups))
+	for _, group := range groups {
+		groupIDs = append(groupIDs, group.ID)
+	}
+	speedMap, err := op.GetGroupChannelModelSpeedMapByGroups(c.Request.Context(), groupIDs)
 	if err != nil {
-		// Log but don't fail - speed data is optional
-		speedMap = make(map[string]*model.GroupChannelModelSpeed)
+		speedMap = make(map[op.GroupChannelModelSpeedKey]*model.GroupChannelModelSpeed)
 	}
 
-	// Build response with speed data
 	result := make([]GroupWithSpeed, 0, len(groups))
 	for _, group := range groups {
 		gws := GroupWithSpeed{
@@ -101,8 +101,11 @@ func getGroupList(c *gin.Context) {
 				GroupItem: item,
 			}
 
-			// Look up speed data for this item
-			key := fmt.Sprintf("%d:%d:%s", group.ID, item.ChannelID, item.ModelName)
+			key := op.GroupChannelModelSpeedKey{
+				GroupID:   group.ID,
+				ChannelID: item.ChannelID,
+				ModelName: item.ModelName,
+			}
 			if speed, ok := speedMap[key]; ok {
 				itemWithSpeed.Speed = &GroupListItemSpeed{
 					ResponseTimeMs: speed.ResponseTimeMs,

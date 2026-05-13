@@ -2,12 +2,13 @@ package op
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/bestruirui/octopus/internal/db"
 	"github.com/bestruirui/octopus/internal/model"
 	"gorm.io/gorm/clause"
 )
+
+const groupSpeedQueryBatchSize = 500
 
 // UpsertGroupChannelModelSpeed inserts or updates the latest speed-test result for a group member.
 // Uses upsert on (group_id, channel_id, model_name) to ensure only the latest result is kept.
@@ -71,6 +72,12 @@ func DeleteGroupChannelModelSpeedsByChannel(ctx context.Context, channelID int) 
 		Delete(&model.GroupChannelModelSpeed{}).Error
 }
 
+type GroupChannelModelSpeedKey struct {
+	GroupID   int
+	ChannelID int
+	ModelName string
+}
+
 // GetGroupChannelModelSpeedMap returns a map keyed by (channel_id, model_name) for quick lookup.
 func GetGroupChannelModelSpeedMap(ctx context.Context, groupID int) (map[string]*model.GroupChannelModelSpeed, error) {
 	speeds, err := GetGroupChannelModelSpeedsByGroup(ctx, groupID)
@@ -85,16 +92,25 @@ func GetGroupChannelModelSpeedMap(ctx context.Context, groupID int) (map[string]
 	return result, nil
 }
 
-// GetGroupChannelModelSpeedMapAll returns a map keyed by "group_id:channel_id:model_name" for all speed records.
-func GetGroupChannelModelSpeedMapAll(ctx context.Context) (map[string]*model.GroupChannelModelSpeed, error) {
-	speeds, err := GetAllGroupChannelModelSpeeds(ctx)
-	if err != nil {
-		return nil, err
-	}
-	result := make(map[string]*model.GroupChannelModelSpeed, len(speeds))
-	for i := range speeds {
-		key := fmt.Sprintf("%d:%d:%s", speeds[i].GroupID, speeds[i].ChannelID, speeds[i].ModelName)
-		result[key] = &speeds[i]
+func GetGroupChannelModelSpeedMapByGroups(ctx context.Context, groupIDs []int) (map[GroupChannelModelSpeedKey]*model.GroupChannelModelSpeed, error) {
+	result := make(map[GroupChannelModelSpeedKey]*model.GroupChannelModelSpeed)
+	for start := 0; start < len(groupIDs); start += groupSpeedQueryBatchSize {
+		end := start + groupSpeedQueryBatchSize
+		if end > len(groupIDs) {
+			end = len(groupIDs)
+		}
+		var speeds []model.GroupChannelModelSpeed
+		if err := db.GetDB().WithContext(ctx).Where("group_id IN ?", groupIDs[start:end]).Find(&speeds).Error; err != nil {
+			return nil, err
+		}
+		for i := range speeds {
+			key := GroupChannelModelSpeedKey{
+				GroupID:   speeds[i].GroupID,
+				ChannelID: speeds[i].ChannelID,
+				ModelName: speeds[i].ModelName,
+			}
+			result[key] = &speeds[i]
+		}
 	}
 	return result, nil
 }

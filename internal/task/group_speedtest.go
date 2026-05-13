@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/bestruirui/octopus/internal/helper"
@@ -9,6 +10,8 @@ import (
 	"github.com/bestruirui/octopus/internal/op"
 	"github.com/bestruirui/octopus/internal/utils/log"
 )
+
+const groupSpeedTestWorkers = 8
 
 // GroupSpeedTestTask runs speed tests for all group members.
 // It measures tool-call response time for each (group, channel, model) combination.
@@ -40,38 +43,61 @@ func GroupSpeedTestTask() {
 
 // processGroupSpeedTest runs speed tests for all items in a group.
 func processGroupSpeedTest(ctx context.Context, group *model.Group) {
+	workerCount := groupSpeedTestWorkers
+	if len(group.Items) < workerCount {
+		workerCount = len(group.Items)
+	}
+	jobs := make(chan model.GroupItem)
+	var wg sync.WaitGroup
+
+	for range workerCount {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for item := range jobs {
+				processGroupSpeedTestItem(ctx, group.ID, item)
+			}
+		}()
+	}
+
 	for _, item := range group.Items {
-		// Get the channel for this item
-		channel, err := op.ChannelGet(item.ChannelID, ctx)
-		if err != nil {
-			log.Warnf("failed to get channel %d for group %d: %v", item.ChannelID, group.ID, err)
-			continue
+		select {
+		case <-ctx.Done():
+			close(jobs)
+			wg.Wait()
+			return
+		case jobs <- item:
 		}
+	}
+	close(jobs)
+	wg.Wait()
+}
 
-		// Skip disabled channels
-		if !channel.Enabled {
-			continue
-		}
+func processGroupSpeedTestItem(ctx context.Context, groupID int, item model.GroupItem) {
+	channel, err := op.ChannelGet(item.ChannelID, ctx)
+	if err != nil {
+		log.Warnf("failed to get channel %d for group %d: %v", item.ChannelID, groupID, err)
+		return
+	}
+	if !channel.Enabled {
+		return
+	}
 
-		// Run speed test with retry
-		result := runSpeedTestWithRetry(ctx, channel, item.ModelName, 3)
-
-		// Persist the result
-		speed := &model.GroupChannelModelSpeed{
-			GroupID:       group.ID,
-			ChannelID:     item.ChannelID,
-			ModelName:     item.ModelName,
-			ResponseTimeMs: result.ResponseTimeMs,
-			Status:        model.SpeedTestStatusSuccess,
-		}
-		if !result.Success {
-			speed.Status = model.SpeedTestStatusFailed
-			speed.LastError = result.Error
-		}
-		if err := op.UpsertGroupChannelModelSpeed(ctx, speed); err != nil {
-			log.Warnf("failed to upsert speed for group=%d channel=%d model=%s: %v",
-				group.ID, item.ChannelID, item.ModelName, err)
-		}
+	result := runSpeedTestWithRetry(ctx, channel, item.ModelName, 3)
+	speed := &model.GroupChannelModelSpeed{
+		GroupID:        groupID,
+		ChannelID:      item.ChannelID,
+		ModelName:      item.ModelName,
+		ResponseTimeMs: result.ResponseTimeMs,
+		Status:         model.SpeedTestStatusSuccess,
+	}
+	if !result.Success {
+		speed.Status = model.SpeedTestStatusFailed
+		speed.LastError = result.Error
+	}
+	if err := op.UpsertGroupChannelModelSpeed(ctx, speed); err != nil {
+		log.Warnf("failed to upsert speed for group=%d channel=%d model=%s: %v",
+			groupID, item.ChannelID, item.ModelName, err)
 	}
 }
 
