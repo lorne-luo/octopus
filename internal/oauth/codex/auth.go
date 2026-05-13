@@ -163,22 +163,9 @@ func ExtractEmailFromIDToken(idToken string) string {
 		return ""
 	}
 
-	payload := parts[1]
-	// Add padding if needed (JWT uses base64url without padding)
-	if l := len(payload) % 4; l > 0 {
-		payload += strings.Repeat("=", 4-l)
-	}
-
-	// Decode using URLEncoding (handles URL-safe base64)
-	decoded, err := base64.URLEncoding.DecodeString(payload)
+	decoded, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
-		// Fallback: try with standard encoding after replacing URL-safe chars
-		payload = strings.ReplaceAll(payload, "-", "+")
-		payload = strings.ReplaceAll(payload, "_", "/")
-		decoded, err = base64.StdEncoding.DecodeString(payload)
-		if err != nil {
-			return ""
-		}
+		return ""
 	}
 
 	var claims struct {

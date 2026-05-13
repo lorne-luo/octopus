@@ -12,6 +12,7 @@ import (
 
 	kiroparser "github.com/bestruirui/octopus/internal/oauth/kiro"
 	"github.com/bestruirui/octopus/internal/transformer2/canonical"
+	"github.com/bestruirui/octopus/internal/transformer2/urlutil"
 	"github.com/bestruirui/octopus/internal/utils/log"
 	"github.com/google/uuid"
 )
@@ -73,7 +74,10 @@ func (p *ProviderAdapter) BuildRequest(ctx context.Context, req *canonical.Reque
 		return nil, fmt.Errorf("kiro: failed to marshal request: %w", err)
 	}
 
-	endpoint := strings.TrimSuffix(baseURL, "/") + "/invoke"
+	endpoint, err := urlutil.BuildURL(baseURL, "/invoke")
+	if err != nil {
+		return nil, fmt.Errorf("kiro: failed to build endpoint: %w", err)
+	}
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("kiro: failed to create HTTP request: %w", err)

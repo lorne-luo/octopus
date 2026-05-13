@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
-	"strings"
 )
 
 // PKCECodes contains the verifier and challenge codes for PKCE flow
@@ -50,5 +49,5 @@ func calculateChallenge(verifier string) string {
 
 // base64URLEncode encodes bytes to base64url without padding
 func base64URLEncode(data []byte) string {
-	return strings.TrimRight(base64.URLEncoding.EncodeToString(data), "=")
+	return base64.RawURLEncoding.EncodeToString(data)
 }
