@@ -15,28 +15,47 @@ func OAuthProviderList(ctx context.Context) ([]model.OAuthProvider, error) {
 	if err := db.GetDB().WithContext(ctx).Preload("AuthJsons").Find(&providers).Error; err != nil {
 		return nil, err
 	}
+	if len(providers) == 0 {
+		return providers, nil
+	}
 
-	// Populate channel data for each provider
+	providerIDs := make([]int, 0, len(providers))
+	for _, provider := range providers {
+		providerIDs = append(providerIDs, provider.ID)
+	}
+
+	var channels []model.Channel
+	if err := db.GetDB().WithContext(ctx).
+		Where("use_o_auth = ? AND o_auth_provider_id IN ?", true, providerIDs).
+		Order("id ASC").
+		Find(&channels).Error; err != nil {
+		return nil, err
+	}
+
+	channelsByProviderID := make(map[int]*model.Channel, len(channels))
+	for i := range channels {
+		if _, ok := channelsByProviderID[channels[i].OAuthProviderID]; !ok {
+			channelsByProviderID[channels[i].OAuthProviderID] = &channels[i]
+		}
+	}
 	for i := range providers {
-		channel, err := ChannelGetByOAuthProviderID(providers[i].ID, ctx)
-		if err != nil {
-			log.Warnf("OAuthProviderList: Channel not found for provider %d: %v", providers[i].ID, err)
-			continue
-		}
-		if channel != nil {
-			providers[i].Channel = &model.OAuthProviderChannel{
-				ID:          channel.ID,
-				Model:       channel.Model,
-				CustomModel: channel.CustomModel,
-				MatchRegex:  channel.MatchRegex,
-				Enabled:     channel.Enabled,
-			}
-			log.Infof("OAuthProviderList: Provider %d has channel %d with Model=%s, CustomModel=%s",
-				providers[i].ID, channel.ID, channel.Model, channel.CustomModel)
-		}
+		providers[i].Channel = toOAuthProviderChannel(channelsByProviderID[providers[i].ID])
 	}
 
 	return providers, nil
+}
+
+func toOAuthProviderChannel(channel *model.Channel) *model.OAuthProviderChannel {
+	if channel == nil {
+		return nil
+	}
+	return &model.OAuthProviderChannel{
+		ID:          channel.ID,
+		Model:       channel.Model,
+		CustomModel: channel.CustomModel,
+		MatchRegex:  channel.MatchRegex,
+		Enabled:     channel.Enabled,
+	}
 }
 
 // OAuthProviderCreateRequest contains all data needed to create an OAuth provider with channel
@@ -49,7 +68,6 @@ type OAuthProviderCreateRequest struct {
 }
 
 func OAuthProviderCreate(req *OAuthProviderCreateRequest, ctx context.Context) error {
-	// Start a transaction to ensure both OAuth Provider and Channel are created together
 	tx := db.GetDB().WithContext(ctx).Begin()
 	if tx.Error != nil {
 		return tx.Error
@@ -60,7 +78,6 @@ func OAuthProviderCreate(req *OAuthProviderCreateRequest, ctx context.Context) e
 		}
 	}()
 
-	// Create the OAuth Provider
 	if err := tx.Create(req.Provider).Error; err != nil {
 		tx.Rollback()
 		return err
@@ -105,7 +122,6 @@ func OAuthProviderCreate(req *OAuthProviderCreateRequest, ctx context.Context) e
 		return err
 	}
 
-	// Commit the transaction
 	if err := tx.Commit().Error; err != nil {
 		return err
 	}
@@ -113,14 +129,7 @@ func OAuthProviderCreate(req *OAuthProviderCreateRequest, ctx context.Context) e
 	// Update cache
 	channelCache.Set(channel.ID, *channel)
 
-	// Populate channel data in provider for response
-	req.Provider.Channel = &model.OAuthProviderChannel{
-		ID:          channel.ID,
-		Model:       channel.Model,
-		CustomModel: channel.CustomModel,
-		MatchRegex:  channel.MatchRegex,
-		Enabled:     channel.Enabled,
-	}
+	req.Provider.Channel = toOAuthProviderChannel(channel)
 
 	// Reload AuthJsons for response
 	db.GetDB().WithContext(ctx).Preload("AuthJsons").First(req.Provider, req.Provider.ID)
@@ -129,7 +138,6 @@ func OAuthProviderCreate(req *OAuthProviderCreateRequest, ctx context.Context) e
 }
 
 func OAuthProviderUpdate(req *model.OAuthProviderUpdateRequest, ctx context.Context) (*model.OAuthProvider, error) {
-	// Start a transaction
 	tx := db.GetDB().WithContext(ctx).Begin()
 	if tx.Error != nil {
 		return nil, tx.Error
@@ -146,7 +154,7 @@ func OAuthProviderUpdate(req *model.OAuthProviderUpdateRequest, ctx context.Cont
 		return nil, err
 	}
 
-	updates := map[string]interface{}{}
+	updates := map[string]any{}
 	if req.Name != nil {
 		updates["name"] = *req.Name
 	}
@@ -182,18 +190,16 @@ func OAuthProviderUpdate(req *model.OAuthProviderUpdateRequest, ctx context.Cont
 
 	// Handle AuthJsons to update
 	for _, updateReq := range req.AuthJsonsToUpdate {
-		authJsonUpdates := map[string]interface{}{}
+		authJsonUpdates := map[string]any{}
 		if updateReq.Enabled != nil {
 			authJsonUpdates["enabled"] = *updateReq.Enabled
 		}
 		if updateReq.Content != nil {
 			authJsonUpdates["content"] = *updateReq.Content
-			log.Infof("OAuthProviderUpdate: Updating auth_json %d content to: %s", updateReq.ID, *updateReq.Content)
 		}
 		if updateReq.Remark != nil {
 			authJsonUpdates["remark"] = *updateReq.Remark
 		}
-		log.Infof("OAuthProviderUpdate: auth_json %d updates: %+v", updateReq.ID, authJsonUpdates)
 		if len(authJsonUpdates) > 0 {
 			if err := tx.Model(&model.AuthJson{}).Where("id = ?", updateReq.ID).Updates(authJsonUpdates).Error; err != nil {
 				log.Warnf("OAuthProviderUpdate: Failed to update auth_json %d: %v", updateReq.ID, err)
@@ -221,7 +227,7 @@ func OAuthProviderUpdate(req *model.OAuthProviderUpdateRequest, ctx context.Cont
 	}
 	if err == nil {
 		// Channel exists, update it
-		channelUpdates := map[string]interface{}{}
+		channelUpdates := map[string]any{}
 		// Prepare log values
 		modelVal := "(nil)"
 		if req.Model != nil {
@@ -262,7 +268,6 @@ func OAuthProviderUpdate(req *model.OAuthProviderUpdateRequest, ctx context.Cont
 		}
 	}
 
-	// Commit the transaction
 	if err := tx.Commit().Error; err != nil {
 		return nil, err
 	}
@@ -277,23 +282,15 @@ func OAuthProviderUpdate(req *model.OAuthProviderUpdateRequest, ctx context.Cont
 	// Reload provider with AuthJsons
 	db.GetDB().WithContext(ctx).Preload("AuthJsons").First(&provider, provider.ID)
 
-	// Populate channel data for response
 	ch, err := ChannelGetByOAuthProviderID(provider.ID, ctx)
-	if err == nil && ch != nil {
-		provider.Channel = &model.OAuthProviderChannel{
-			ID:          ch.ID,
-			Model:       ch.Model,
-			CustomModel: ch.CustomModel,
-			MatchRegex:  ch.MatchRegex,
-			Enabled:     ch.Enabled,
-		}
+	if err == nil {
+		provider.Channel = toOAuthProviderChannel(ch)
 	}
 
 	return &provider, nil
 }
 
 func OAuthProviderDelete(id int, ctx context.Context) error {
-	// Start a transaction
 	tx := db.GetDB().WithContext(ctx).Begin()
 	if tx.Error != nil {
 		return tx.Error
@@ -332,7 +329,6 @@ func OAuthProviderDelete(id int, ctx context.Context) error {
 		return err
 	}
 
-	// Commit the transaction
 	if err := tx.Commit().Error; err != nil {
 		return err
 	}
@@ -347,16 +343,9 @@ func OAuthProviderGet(id int, ctx context.Context) (*model.OAuthProvider, error)
 		return nil, err
 	}
 
-	// Populate channel data
 	channel, err := ChannelGetByOAuthProviderID(provider.ID, ctx)
-	if err == nil && channel != nil {
-		provider.Channel = &model.OAuthProviderChannel{
-			ID:          channel.ID,
-			Model:       channel.Model,
-			CustomModel: channel.CustomModel,
-			MatchRegex:  channel.MatchRegex,
-			Enabled:     channel.Enabled,
-		}
+	if err == nil {
+		provider.Channel = toOAuthProviderChannel(channel)
 	}
 
 	return &provider, nil

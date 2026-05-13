@@ -16,6 +16,8 @@ import (
 	"github.com/bestruirui/octopus/internal/utils/tokenizer"
 )
 
+const maxRawLogBytes = 64 * 1024
+
 // RelayMetrics 负责最终的日志收集与持久化
 type RelayMetrics struct {
 	APIKeyID     int
@@ -62,6 +64,13 @@ func (m *RelayMetrics) SetRawRequest(req string) {
 }
 
 func (m *RelayMetrics) AppendRawResponse(resp string) {
+	if m.RawResponse == nil || m.RawResponse.Len() >= maxRawLogBytes {
+		return
+	}
+	remaining := maxRawLogBytes - m.RawResponse.Len()
+	if len(resp) > remaining {
+		resp = resp[:remaining]
+	}
 	m.RawResponse.WriteString(resp)
 }
 

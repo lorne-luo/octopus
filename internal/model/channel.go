@@ -150,8 +150,6 @@ func (c *Channel) GetChannelKey() ChannelKey {
 	bestToken := int64(0)
 	bestSet := false
 
-	var candidates []ChannelKey
-
 	for _, k := range c.Keys {
 		if !k.Enabled || k.ChannelKey == "" {
 			continue
@@ -161,7 +159,6 @@ func (c *Channel) GetChannelKey() ChannelKey {
 				continue
 			}
 		}
-		candidates = append(candidates, k)
 		if !bestSet || k.TotalToken < bestToken {
 			best = k
 			bestToken = k.TotalToken

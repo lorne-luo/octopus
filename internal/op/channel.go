@@ -439,26 +439,13 @@ func ChannelGetByOAuthProviderID(oauthProviderID int, ctx context.Context) (*mod
 // ChannelGetOAuthByModel finds an OAuth channel that supports the given model name.
 // This is used for backward compatibility when group items have channel_id = 0.
 func ChannelGetOAuthByModel(modelName string, ctx context.Context) (*model.Channel, error) {
-	// Search through cached channels for an OAuth channel that supports this model
 	for _, channel := range channelCache.GetAll() {
 		if !channel.UseOAuth || !channel.Enabled {
 			continue
 		}
-		// Check if the model is supported by this channel
-		if channel.Model != "" {
-			models := strings.Split(channel.Model, ",")
-			for _, m := range models {
-				if strings.TrimSpace(m) == modelName {
-					return &channel, nil
-				}
-			}
-		}
-		if channel.CustomModel != "" {
-			models := strings.Split(channel.CustomModel, ",")
-			for _, m := range models {
-				if strings.TrimSpace(m) == modelName {
-					return &channel, nil
-				}
+		for _, m := range xstrings.SplitTrimCompact(",", channel.Model, channel.CustomModel) {
+			if m == modelName {
+				return &channel, nil
 			}
 		}
 	}

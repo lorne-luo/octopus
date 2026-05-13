@@ -15,12 +15,22 @@ import (
 	"github.com/bestruirui/octopus/internal/oauth/pkce"
 	"github.com/bestruirui/octopus/internal/oauth/session"
 	"github.com/bestruirui/octopus/internal/utils/log"
+	"golang.org/x/sync/singleflight"
 )
+
+type refreshResult struct {
+	apiKey           string
+	apiKeyExpireAt   int64
+	status           int
+	lastRefreshAt    int64
+	refreshFailCount int
+}
 
 type Manager struct {
 	sessionManager  *session.Manager
 	callbackServers map[int]*callback.Server // Active callback servers by port
 	serversMu       sync.Mutex
+	refreshGroup    singleflight.Group
 }
 
 var (
@@ -52,6 +62,40 @@ type OAuthFlowInfo struct {
 // For Kiro: it uses refresh token to get a new access token
 // For Codex: it uses refresh token to get a new access token
 func (m *Manager) RefreshAPIKey(ctx context.Context, provider *model.OAuthProvider) error {
+	key := fmt.Sprintf("%d", provider.ID)
+	ch := m.refreshGroup.DoChan(key, func() (any, error) {
+		refreshCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+		if err := m.refreshAPIKey(refreshCtx, provider); err != nil {
+			return nil, err
+		}
+		return refreshResult{
+			apiKey:           provider.APIKey,
+			apiKeyExpireAt:   provider.APIKeyExpireAt,
+			status:           provider.Status,
+			lastRefreshAt:    provider.LastRefreshAt,
+			refreshFailCount: provider.RefreshFailCount,
+		}, nil
+	})
+
+	select {
+	case result := <-ch:
+		if result.Err != nil {
+			return result.Err
+		}
+		refresh := result.Val.(refreshResult)
+		provider.APIKey = refresh.apiKey
+		provider.APIKeyExpireAt = refresh.apiKeyExpireAt
+		provider.Status = refresh.status
+		provider.LastRefreshAt = refresh.lastRefreshAt
+		provider.RefreshFailCount = refresh.refreshFailCount
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (m *Manager) refreshAPIKey(ctx context.Context, provider *model.OAuthProvider) error {
 	switch provider.ProviderType {
 	case model.OAuthProviderTypeKiro:
 		return m.refreshKiroToken(ctx, provider)
@@ -394,9 +438,9 @@ func (m *Manager) exchangeCodexCode(ctx context.Context, sess *session.OAuthSess
 
 	// Create AuthJson
 	authJson := &model.AuthJson{
-		Content:         tokenJSON,
-		Enabled:         true,
-		StatusCode:      200,
+		Content:          tokenJSON,
+		Enabled:          true,
+		StatusCode:       200,
 		LastUseTimeStamp: time.Now().Unix(),
 	}
 

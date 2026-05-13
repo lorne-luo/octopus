@@ -67,9 +67,9 @@ func (OAuthProviderType) GormDataType() string {
 type AuthJson struct {
 	ID               int    `gorm:"primaryKey" json:"id"`
 	OAuthProviderID  int    `gorm:"not null;index" json:"oauth_provider_id"`
-	Content          string `gorm:"type:text;not null" json:"content"`          // JSON auth credentials
+	Content          string `gorm:"type:text;not null" json:"content"` // JSON auth credentials
 	Enabled          bool   `gorm:"default:true" json:"enabled"`
-	StatusCode       int    `gorm:"default:0" json:"status_code"`              // 200=success, 429=rate limited, etc.
+	StatusCode       int    `gorm:"default:0" json:"status_code"` // 200=success, 429=rate limited, etc.
 	LastUseTimeStamp int64  `json:"last_use_time_stamp"`
 	TotalToken       int64  `json:"total_token"`
 	Remark           string `gorm:"size:255" json:"remark"`
@@ -80,94 +80,56 @@ func (AuthJson) TableName() string {
 	return "auth_jsons"
 }
 
-// GetRefreshToken extracts RefreshToken from Content for Kiro provider
+func (aj *AuthJson) getStringField(field string) string {
+	if aj.Content == "" {
+		return ""
+	}
+	var data map[string]any
+	if err := json.Unmarshal([]byte(aj.Content), &data); err != nil {
+		return ""
+	}
+	value, _ := data[field].(string)
+	return value
+}
+
 func (aj *AuthJson) GetRefreshToken() string {
-	if aj.Content == "" {
-		return ""
-	}
-	var data struct {
-		RefreshToken string `json:"RefreshToken"`
-	}
-	if err := json.Unmarshal([]byte(aj.Content), &data); err != nil {
-		return ""
-	}
-	return data.RefreshToken
+	return aj.getStringField("RefreshToken")
 }
 
-// GetRegion extracts Region from Content for Kiro provider
-// Returns "us-east-1" as default if not specified
 func (aj *AuthJson) GetRegion() string {
-	if aj.Content == "" {
+	region := aj.getStringField("Region")
+	if region == "" {
 		return "us-east-1"
 	}
-	var data struct {
-		Region string `json:"Region"`
-	}
-	if err := json.Unmarshal([]byte(aj.Content), &data); err != nil {
-		return "us-east-1"
-	}
-	if data.Region == "" {
-		return "us-east-1"
-	}
-	return data.Region
+	return region
 }
 
-// GetCodexAccessToken extracts AccessToken from Content for Codex provider
 func (aj *AuthJson) GetCodexAccessToken() string {
-	if aj.Content == "" {
-		return ""
-	}
-	var data struct {
-		AccessToken string `json:"AccessToken"`
-	}
-	if err := json.Unmarshal([]byte(aj.Content), &data); err != nil {
-		return ""
-	}
-	return data.AccessToken
+	return aj.getStringField("AccessToken")
 }
 
-// GetCodexRefreshToken extracts RefreshToken from Content for Codex provider
 func (aj *AuthJson) GetCodexRefreshToken() string {
-	if aj.Content == "" {
-		return ""
-	}
-	var data struct {
-		RefreshToken string `json:"RefreshToken"`
-	}
-	if err := json.Unmarshal([]byte(aj.Content), &data); err != nil {
-		return ""
-	}
-	return data.RefreshToken
+	return aj.getStringField("RefreshToken")
 }
 
-// GetCodexEmail extracts Email from Content for Codex provider
 func (aj *AuthJson) GetCodexEmail() string {
-	if aj.Content == "" {
-		return ""
-	}
-	var data struct {
-		Email string `json:"Email"`
-	}
-	if err := json.Unmarshal([]byte(aj.Content), &data); err != nil {
-		return ""
-	}
-	return data.Email
+	return aj.getStringField("Email")
 }
 
 type OAuthProvider struct {
-	ID               int                    `gorm:"primaryKey" json:"id"`
-	Name             string                 `gorm:"size:255;not null" json:"name"`
-	ProviderType     OAuthProviderType      `gorm:"not null" json:"provider_type"`
-	AuthJsons        []AuthJson             `gorm:"foreignKey:OAuthProviderID" json:"auth_jsons,omitempty"`
-	APIKey           string                 `gorm:"size:255" json:"api_key"`
-	APIKeyExpireAt   int64                  `json:"api_key_expire_at"`
-	Status           int                    `gorm:"default:1" json:"status"` // 1: Active, 2: Expired, 0: Disabled
-	LastRefreshAt    int64                  `json:"last_refresh_at"`
-	RefreshFailCount int                    `json:"refresh_fail_count"`
-	CreatedAt        int64                  `json:"created_at"`
-	UpdatedAt        int64                  `json:"updated_at"`
-	BaseURL          string                 `gorm:"size:255" json:"base_url"`
-	Channel          *OAuthProviderChannel  `gorm:"-" json:"channel,omitempty"` // Not a DB field, populated on demand
+	ID               int                   `gorm:"primaryKey" json:"id"`
+	Name             string                `gorm:"size:255;not null" json:"name"`
+	ProviderType     OAuthProviderType     `gorm:"not null" json:"provider_type"`
+	AuthJsons        []AuthJson            `gorm:"foreignKey:OAuthProviderID" json:"auth_jsons,omitempty"`
+	APIKey           string                `gorm:"size:255" json:"api_key"`
+	APIKeyExpireAt   int64                 `json:"api_key_expire_at"`
+	Status           int                   `gorm:"default:1" json:"status"` // 1: Active, 2: Expired, 0: Disabled
+	LastRefreshAt    int64                 `json:"last_refresh_at"`
+	RefreshFailCount int                   `json:"refresh_fail_count"`
+	CreatedAt        int64                 `json:"created_at"`
+	UpdatedAt        int64                 `json:"updated_at"`
+	BaseURL          string                `gorm:"size:255" json:"base_url"`
+	Channel          *OAuthProviderChannel `gorm:"-" json:"channel,omitempty"` // Not a DB field, populated on demand
 }
 
 // TableName specifies the table name for OAuthProvider
@@ -200,14 +162,14 @@ type AuthJsonUpdateRequest struct {
 }
 
 type OAuthProviderUpdateRequest struct {
-	ID              int                     `json:"id" binding:"required"`
-	Name            *string                 `json:"name,omitempty"`
-	ProviderType    *OAuthProviderType      `json:"provider_type,omitempty"`
-	Status          *int                    `json:"status,omitempty"`
-	BaseURL         *string                 `json:"base_url,omitempty"`
-	Model           *string                 `json:"model,omitempty"`
-	CustomModel     *string                 `json:"custom_model,omitempty"`
-	MatchRegex      *string                 `json:"match_regex,omitempty"`
+	ID           int                `json:"id" binding:"required"`
+	Name         *string            `json:"name,omitempty"`
+	ProviderType *OAuthProviderType `json:"provider_type,omitempty"`
+	Status       *int               `json:"status,omitempty"`
+	BaseURL      *string            `json:"base_url,omitempty"`
+	Model        *string            `json:"model,omitempty"`
+	CustomModel  *string            `json:"custom_model,omitempty"`
+	MatchRegex   *string            `json:"match_regex,omitempty"`
 
 	AuthJsonsToAdd    []AuthJsonAddRequest    `json:"auth_jsons_to_add,omitempty"`
 	AuthJsonsToUpdate []AuthJsonUpdateRequest `json:"auth_jsons_to_update,omitempty"`
